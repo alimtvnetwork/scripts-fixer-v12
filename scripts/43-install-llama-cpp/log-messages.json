@@ -35,7 +35,10 @@
     "checksumSkipped": "No SHA256 checksum configured for {fileName}, skipping verification."
     ,
     "progressLine": "Progress {bar} {done}/{total} files ({pct}%) | {gbDone}/{gbTotal} GB | {remaining} remaining | mode={mode}",
-    "progressDone": "Progress {bar} {total}/{total} files (100%) | done"
+    "progressDone": "Progress {bar} {total}/{total} files (100%) | done",
+    "preflightOk": "[PREFLIGHT] aria2c OK -- {reason}",
+    "preflightDisable": "[PREFLIGHT] Parallel mode auto-disabled: {reason}",
+    "preflightFallback": "[PREFLIGHT] Falling back to sequential downloads for this run."
   },
   "help": {
     "commands": {

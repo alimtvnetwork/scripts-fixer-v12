@@ -3,6 +3,85 @@
 #  Displays catalog, lets user pick by number/range, downloads via aria2c.
 # --------------------------------------------------------------------------
 
+function Test-Aria2Preflight {
+    <#
+    .SYNOPSIS
+        Verifies aria2c.exe is present, readable, and executable.
+        Returns a PSCustomObject:
+          IsAvailable    -- aria2c.exe found via Get-Command
+          IsExecutable   -- can read the file and `--version` returned exit 0
+          IsParallelOk   -- safe to use aria2c batch (parallel) mode
+          ExePath        -- resolved path or $null
+          Version        -- detected version string or $null
+          Reason         -- human-readable explanation (always set)
+    #>
+    $result = [pscustomobject]@{
+        IsAvailable  = $false
+        IsExecutable = $false
+        IsParallelOk = $false
+        ExePath      = $null
+        Version      = $null
+        Reason       = ""
+    }
+
+    $cmd = Get-Command aria2c.exe -ErrorAction SilentlyContinue
+    $hasCmd = $null -ne $cmd
+    if (-not $hasCmd) {
+        $result.Reason = "aria2c.exe not found on PATH"
+        Write-FileError -FilePath "aria2c.exe" -Operation "preflight-locate" -Reason "Not found on PATH (Get-Command returned null)" -Module "Test-Aria2Preflight"
+        return $result
+    }
+    $result.IsAvailable = $true
+    $result.ExePath     = $cmd.Source
+
+    # File-readable check (catches blocked-by-zoneid / NTFS ACL denials)
+    $isFilePresent = Test-Path -LiteralPath $cmd.Source
+    if (-not $isFilePresent) {
+        $result.Reason = "aria2c.exe resolved to '$($cmd.Source)' but file does not exist"
+        Write-FileError -FilePath $cmd.Source -Operation "preflight-stat" -Reason "Resolved path missing on disk" -Module "Test-Aria2Preflight"
+        return $result
+    }
+    try {
+        $null = Get-Item -LiteralPath $cmd.Source -ErrorAction Stop
+    } catch {
+        $result.Reason = "aria2c.exe is unreadable: $($_.Exception.Message)"
+        Write-FileError -FilePath $cmd.Source -Operation "preflight-read" -Reason $_.Exception.Message -Module "Test-Aria2Preflight"
+        return $result
+    }
+
+    # Execution probe: --version is fast, no network, no side effects
+    $exitCode = -1
+    $stdout   = $null
+    try {
+        $stdout   = & $cmd.Source --version 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    } catch {
+        $result.Reason = "aria2c.exe failed to execute: $($_.Exception.Message)"
+        Write-FileError -FilePath $cmd.Source -Operation "preflight-exec" -Reason $_.Exception.Message -Module "Test-Aria2Preflight"
+        return $result
+    }
+
+    $isExitOk = $exitCode -eq 0
+    if (-not $isExitOk) {
+        $result.Reason = "aria2c --version returned exit code $exitCode"
+        Write-FileError -FilePath $cmd.Source -Operation "preflight-exec" -Reason "Non-zero exit ($exitCode) on --version probe" -Module "Test-Aria2Preflight"
+        return $result
+    }
+    $result.IsExecutable = $true
+
+    # Parse version line (best-effort)
+    $hasOutput = -not [string]::IsNullOrWhiteSpace($stdout)
+    if ($hasOutput) {
+        $match = [regex]::Match($stdout, "aria2 version\s+([0-9.]+)")
+        if ($match.Success) { $result.Version = $match.Groups[1].Value }
+    }
+
+    $result.IsParallelOk = $true
+    $verLabel = if ($result.Version) { "v$($result.Version)" } else { "version unknown" }
+    $result.Reason = "found at $($cmd.Source) ($verLabel)"
+    return $result
+}
+
 function Show-ModelCatalog {
     <#
     .SYNOPSIS
@@ -511,6 +590,22 @@ function Install-SelectedModels {
         if ($DownloadConfig.splitsPerFile)                  { $batchSplits         = [int]$DownloadConfig.splitsPerFile }
     }
 
+    # -- Preflight: verify aria2c availability + permissions --------------------
+    # Disables parallel mode automatically if aria2c is missing, unreadable,
+    # or fails a quick --version probe.
+    $preflight = Test-Aria2Preflight
+    if (-not $preflight.IsParallelOk) {
+        if ($isParallelEnabled) {
+            Write-Log ("[PREFLIGHT] Parallel mode auto-disabled: " + $preflight.Reason) -Level "warn"
+            Write-Log "[PREFLIGHT] Falling back to sequential downloads for this run." -Level "warn"
+        } else {
+            Write-Log ("[PREFLIGHT] aria2c check: " + $preflight.Reason) -Level "info"
+        }
+        $isParallelEnabled = $false
+    } else {
+        Write-Log ("[PREFLIGHT] aria2c OK -- " + $preflight.Reason) -Level "success"
+    }
+
     $downloadedCount = 0
     $skippedCount    = 0
     $failedCount     = 0
@@ -571,7 +666,9 @@ function Install-SelectedModels {
 
     # -- Pass 2: optional batch (parallel) attempt ------------------------------
     $batchSuccessKeys = New-Object System.Collections.Generic.HashSet[string]
-    $useBatch = $isParallelEnabled -and ($pendingCount -ge 2) -and ($null -ne (Get-Command aria2c.exe -ErrorAction SilentlyContinue))
+    # Preflight already verified aria2c availability + permissions when
+    # $isParallelEnabled is still true here.
+    $useBatch = $isParallelEnabled -and ($pendingCount -ge 2)
 
     if ($useBatch) {
         Write-Log "Parallel batch mode: $pendingCount file(s) via aria2c (concurrency=$batchMaxConcurrent)" -Level "info"
