@@ -1,0 +1,53 @@
+{
+  "scriptName": "Install Jenkins",
+  "description": "Installs Jenkins LTS via Chocolatey, ensures Java prerequisite, and verifies the Jenkins service.",
+  "messages": {
+    "jenkinsAlreadyInstalled": "Jenkins is already installed: {version}",
+    "jenkinsInstallSuccess": "Jenkins installed successfully: {version}",
+    "jenkinsUpgradeSuccess": "Jenkins upgraded successfully: {version}",
+    "jenkinsNotFound": "Jenkins not found, installing via Chocolatey...",
+    "javaChecking": "Checking Java prerequisite (min version {minVersion})...",
+    "javaFound": "Java found: {version}",
+    "javaMissing": "Java not found. Jenkins requires Java {minVersion}+. Run script 40 (install-java) first.",
+    "javaTooOld": "Java version too old: {version}. Jenkins requires Java {minVersion}+.",
+    "serviceChecking": "Checking Jenkins service status...",
+    "serviceRunning": "Jenkins service is running on port {port}.",
+    "serviceStopped": "Jenkins service is installed but not running. Starting...",
+    "serviceStarted": "Jenkins service started successfully.",
+    "serviceStartFailed": "Failed to start Jenkins service. Start manually with: Start-Service Jenkins",
+    "serviceMissing": "Jenkins service not registered. Reinstall may be required.",
+    "initialPasswordPath": "Initial admin password path: {path}",
+    "initialPasswordValue": "Initial admin password: {password}",
+    "initialPasswordMissing": "Initial admin password file not found yet at: {path} (service may need to fully start first)",
+    "openUrl": "Open Jenkins in your browser at: http://localhost:{port}",
+    "addingToPath": "Adding Jenkins to PATH: {path}",
+    "pathAlreadyContains": "PATH already contains: {path}",
+    "scriptDisabled": "Jenkins installation is disabled in config.",
+    "savingResolved": "Saving resolved state...",
+    "notAdmin": "This script requires administrator privileges.",
+    "unknownCommand": "Unknown command: {command}. Use -Help for usage.",
+    "jenkinsSetupComplete": "Jenkins setup complete.",
+    "uninstalling": "Uninstalling Jenkins...",
+    "uninstallSuccess": "Jenkins uninstalled successfully.",
+    "uninstallFailed": "Jenkins uninstall failed -- may need manual removal.",
+    "uninstallComplete": "Uninstall complete. Jenkins removed, tracking purged."
+  },
+  "versionDetect": [
+    { "command": "jenkins", "flag": "--version", "label": "jenkins" }
+  ],
+  "help": {
+    "commands": {
+      "all": "Install Jenkins + verify Java + verify service + PATH setup (default)",
+      "install": "Install/upgrade Jenkins only",
+      "status": "Check Jenkins service status and initial admin password",
+      "uninstall": "Uninstall completely, remove tracking, clean up"
+    },
+    "examples": [
+      ".\\run.ps1",
+      ".\\run.ps1 install",
+      ".\\run.ps1 status",
+      ".\\run.ps1 -Help",
+      ".\\run.ps1 uninstall"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "enabled": true,
+  "chocoPackageName": "jenkins",
+  "alwaysUpgradeToLatest": true,
+  "service": {
+    "ensureRunning": true,
+    "serviceName": "Jenkins",
+    "startMode": "Automatic"
+  },
+  "java": {
+    "ensureInstalled": true,
+    "minVersion": 17,
+    "note": "Jenkins LTS requires Java 17 or 21"
+  },
+  "port": {
+    "default": 8080,
+    "openInBrowserAfterInstall": false
+  },
+  "postInstall": {
+    "verifyService": true,
+    "showInitialAdminPasswordPath": true
+  },
+  "path": {
+    "updateUserPath": true,
+    "ensureJenkinsInPath": true
+  }
+}
