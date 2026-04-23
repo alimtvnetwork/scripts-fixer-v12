@@ -37,6 +37,11 @@
     "refreshFullRestart": "Falling back to full explorer.exe restart (--restart flag set)...",
     "refreshFailed": "Shell refresh step '{step}' failed: {error}",
     "refreshDone": "Shell refresh completed -- right-click menus should now reflect the repair.",
+    "refreshPlan": "Refresh plan -> {plan}",
+    "refreshSendingAssoc": "Sending: SHChangeNotify(SHCNE_ASSOCCHANGED=0x08000000, SHCNF_IDLIST=0x0000, NULL, NULL)",
+    "refreshSendingBroadcast": "Sending: SendMessageTimeout(HWND_BROADCAST=0xFFFF, WM_SETTINGCHANGE=0x001A, lParam='Environment', SMTO_ABORTIFHUNG, 5000ms)",
+    "refreshSkipped": "Skipped (flag off): {step}",
+    "refreshNothingSelected": "Refresh aborted -- all notifications disabled. Enable at least one of --assoc / --broadcast / --restart.",
     "done": "Folder-only context menu repair completed successfully.",
     "completedWithWarnings": "Repair completed with warnings -- check output above.",
     "unknownEdition": "Unknown edition '{name}' in enabledEditions -- skipping",
@@ -63,7 +68,7 @@
       "verify":     "Verify final state without changing anything (dry-run + trace)",
       "restore":    "Re-import newest BEFORE snapshot for the chosen edition",
       "rollback":   "Restore DEFAULT installer entries on all 3 targets (inverse of repair)",
-      "refresh":    "Refresh Explorer/shell using the MINIMUM components (no explorer.exe kill). Add --restart for full restart fallback.",
+        "refresh":    "Refresh shell with minimum components. Flags: --assoc-only | --broadcast-only | --both (default) | --restart. Prints exact API calls sent.",
       "help":       "Show this help"
     },
     "examples": [
@@ -78,6 +83,9 @@
       ".\\run.ps1 restore -Edition insiders -RestoreFromFile 'D:\\snaps\\vscode-menu-insiders-BEFORE-20260422-143012.reg'",
       ".\\run.ps1 rollback                                   # restore default installer entries",
       ".\\run.ps1 refresh                                    # minimum-components shell refresh (no explorer.exe kill)",
+        ".\\run.ps1 refresh --assoc-only                       # only SHChangeNotify(SHCNE_ASSOCCHANGED)",
+        ".\\run.ps1 refresh --broadcast-only                   # only WM_SETTINGCHANGE 'Environment' broadcast",
+        ".\\run.ps1 refresh --both                             # explicit: both notifications (same as default)",
       ".\\run.ps1 refresh --restart                          # minimum refresh PLUS full explorer.exe restart fallback",
       ".\\run.ps1 help"
     ]
