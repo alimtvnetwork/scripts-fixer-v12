@@ -1,8 +1,9 @@
-# Suggestion 03 — Parallel Model Downloads via aria2c Batch Input
+# Suggestion 03 - Parallel Model Downloads via aria2c Batch Input
 
-**Status:** Sequential download already works; parallel mode pending.
-**Target file:** `scripts/43-install-llama-cpp/helpers/model-picker.ps1`
-**Optional new helper:** `scripts/shared/aria2c-batch.ps1`
+**Status:** Implemented in v0.77.0
+**Helper:** `scripts/shared/aria2c-batch.ps1` (`Invoke-Aria2BatchDownload`)
+**Caller:** `scripts/43-install-llama-cpp/helpers/model-picker.ps1` (`Install-SelectedModels`)
+**Config:** `scripts/43-install-llama-cpp/config.json` -> `download` block
 
 ## Goal
 
