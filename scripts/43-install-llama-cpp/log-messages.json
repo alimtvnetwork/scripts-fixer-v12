@@ -33,6 +33,9 @@
     "checksumOk": "Checksum verified: {hash}",
     "checksumMismatch": "SHA256 mismatch for {fileName}. Expected: {expected}, Actual: {actual}",
     "checksumSkipped": "No SHA256 checksum configured for {fileName}, skipping verification."
+    ,
+    "progressLine": "Progress {bar} {done}/{total} files ({pct}%) | {gbDone}/{gbTotal} GB | {remaining} remaining | mode={mode}",
+    "progressDone": "Progress {bar} {total}/{total} files (100%) | done"
   },
   "help": {
     "commands": {

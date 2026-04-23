@@ -515,6 +515,16 @@ function Install-SelectedModels {
     $skippedCount    = 0
     $failedCount     = 0
 
+    # Progress tracking helpers (spec: per-model download progress indicator)
+    function Format-Bar {
+        param([int]$Done, [int]$Total, [int]$Width = 20)
+        if ($Total -le 0) { return ("[" + (" " * $Width) + "]") }
+        $ratio = [math]::Min(1.0, [double]$Done / [double]$Total)
+        $filled = [int][math]::Round($ratio * $Width)
+        $empty  = $Width - $filled
+        return ("[" + ("#" * $filled) + ("-" * $empty) + "]")
+    }
+
     # -- Pass 1: classify each selection (skip / pending) ----------------------
     $pending = @()
     foreach ($model in $selectedModels) {
@@ -552,6 +562,13 @@ function Install-SelectedModels {
         return
     }
 
+    # Pending size totals for the progress indicator
+    $pendingTotalGB = 0.0
+    foreach ($p in $pending) { $pendingTotalGB += [double]$p.Model.fileSizeGB }
+    $processedGB = 0.0
+    Write-Host ""
+    Write-Log ("Pending downloads: $pendingCount file(s), $([math]::Round($pendingTotalGB,1)) GB total") -Level "info"
+
     # -- Pass 2: optional batch (parallel) attempt ------------------------------
     $batchSuccessKeys = New-Object System.Collections.Generic.HashSet[string]
     $useBatch = $isParallelEnabled -and ($pendingCount -ge 2) -and ($null -ne (Get-Command aria2c.exe -ErrorAction SilentlyContinue))
@@ -588,22 +605,30 @@ function Install-SelectedModels {
     }
 
     # -- Pass 3: per-file finalize (verify+track for batch wins, sequential for misses) --
+    $progressIdx = 0
     foreach ($p in $pending) {
+        $progressIdx++
         $model        = $p.Model
         $outputPath   = $p.OutputPath
         $trackingName = $p.TrackingName
 
         $isBatchHit = $batchSuccessKeys.Contains($model.id)
 
+        $remaining = $pendingCount - $progressIdx
+        $modeTag   = if ($isBatchHit) { "[PARALLEL]" } elseif ($useBatch) { "[FALLBACK]" } else { "[SEQUENTIAL]" }
+        $bar       = Format-Bar -Done ($progressIdx - 1) -Total $pendingCount
+        $pctFiles  = [int][math]::Round((($progressIdx - 1) / [double]$pendingCount) * 100)
+        $pctBytes  = if ($pendingTotalGB -gt 0) { [int][math]::Round(($processedGB / $pendingTotalGB) * 100) } else { 0 }
+
         Write-Host ""
+        Write-Log ("  Progress $bar $progressIdx/$pendingCount files ($pctFiles%) | $([math]::Round($processedGB,1))/$([math]::Round($pendingTotalGB,1)) GB ($pctBytes%) | $remaining remaining | mode=$modeTag") -Level "info"
+
         if ($isBatchHit) {
-            Write-Log "  [$($model.index)] [PARALLEL] $($model.displayName) -- verifying" -Level "info"
+            Write-Log "  [$($model.index)] $modeTag $($model.displayName) -- verifying ($($model.fileSizeGB) GB)" -Level "info"
             $isDownloadOk = $true
         } else {
-            if ($useBatch) {
-                Write-Log "  [$($model.index)] [FALLBACK] Sequential retry: $($model.displayName)" -Level "warn"
-            }
-            Write-Log "  [$($model.index)] Downloading: $($model.displayName)" -Level "info"
+            $logLevel = if ($useBatch) { "warn" } else { "info" }
+            Write-Log "  [$($model.index)] $modeTag Downloading: $($model.displayName)" -Level $logLevel
             Write-Log "    $($model.parameters) | $($model.quantization) | $($model.fileSizeGB) GB | RAM: $($model.ramRequiredGB)+ GB" -Level "info"
             Write-Log "    $($model.bestFor)" -Level "info"
 
@@ -615,6 +640,7 @@ function Install-SelectedModels {
             Write-Log "  [$($model.index)] FAILED: $($model.displayName)" -Level "error"
             Write-FileError -FilePath $outputPath -Operation "download" -Reason "Download failed after retries" -Module "Install-SelectedModels"
             $failedCount++
+            $processedGB += [double]$model.fileSizeGB
             continue
         }
 
@@ -649,10 +675,14 @@ function Install-SelectedModels {
             }
             $failedCount++
         }
+
+        $processedGB += [double]$model.fileSizeGB
     }
 
     # Summary
     Write-Host ""
+    $finalBar = Format-Bar -Done $pendingCount -Total $pendingCount
+    Write-Log ("  Progress $finalBar $pendingCount/$pendingCount files (100%) | done") -Level "success"
     Write-Log ("Models summary: $downloadedCount downloaded, $skippedCount skipped, $failedCount failed (of $totalCount selected)") -Level "success"
     Write-Log "Models directory: $ModelsDir" -Level "info"
 }
