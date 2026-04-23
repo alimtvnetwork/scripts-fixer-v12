@@ -477,48 +477,58 @@ Or manually recreate the keys you removed in Step 2 with the same
 > The inverse operation (restore default entries on **all three** targets)
 > ships as [`rollback.ps1`](scripts/52-vscode-folder-repair/rollback.ps1).
 
-#### One-liner — run all six steps from a single script
+#### One-liner — every step is a `run.ps1` subcommand
 
-For convenience, the entire walkthrough above (Steps 0--6, including the
-validated `Code.exe` lookup, the `BEFORE`/`AFTER` `.reg` snapshots, the
-diff summary, and the optional Explorer restart) is bundled into one
-self-contained file: [`manual-repair.ps1`](scripts/52-vscode-folder-repair/manual-repair.ps1).
+All workflows below are exposed as **subcommands of `run.ps1`**. You never
+need to invoke `manual-repair.ps1` or `rollback.ps1` directly with long
+parameter lists — the dispatcher in `run.ps1` forwards to the right helper.
 
-It has **no shared-helper dependencies** -- copy it anywhere and run:
+| Subcommand   | What it does                                                          |
+| ------------ | --------------------------------------------------------------------- |
+| *(default)*  | Folder-only repair + Explorer restart                                 |
+| `dry-run`    | Preview the repair — no registry writes, no snapshots                 |
+| `no-restart` | Repair but skip the `explorer.exe` restart                            |
+| `trace`      | Repair with `-VerboseRegistry` registry trace                         |
+| `verify`     | Dry-run + trace — verify state without writing                        |
+| `restore`    | Re-import the newest `BEFORE` snapshot for the chosen edition         |
+| `rollback`   | Restore the **default installer entries** on all 3 targets            |
+| `help`       | Show help and examples                                                |
+
+Common flags accepted by every subcommand: `-Edition stable|insiders`,
+`-SnapshotDir <path>`, `-RequireSignature`, `-NonInteractive`,
+`-RestoreFromFile <path>` (for `restore`).
 
 ```powershell
-# No -Edition: the script auto-detects what's installed and either
-# silently picks the only one present, or asks you interactively.
-.\scripts\52-vscode-folder-repair\manual-repair.ps1
+# Default: auto-detect edition, repair, restart Explorer
+.\scripts\52-vscode-folder-repair\run.ps1
 
-# Dry-run first (no registry writes, no snapshots): ALWAYS recommended
-.\scripts\52-vscode-folder-repair\manual-repair.ps1 -WhatIf
+# Dry-run first (no writes, no snapshots) — ALWAYS recommended
+.\scripts\52-vscode-folder-repair\run.ps1 dry-run
 
-# Real run, Stable edition, with Authenticode signer check
-.\scripts\52-vscode-folder-repair\manual-repair.ps1 -Edition stable -RequireSignature
+# Real run, Stable, with Authenticode signer check
+.\scripts\52-vscode-folder-repair\run.ps1 repair -Edition stable -RequireSignature
 
-# Suppress the prompt in CI / unattended runs (defaults to 'stable')
-.\scripts\52-vscode-folder-repair\manual-repair.ps1 -NonInteractive
+# CI / unattended (defaults to 'stable', no prompt)
+.\scripts\52-vscode-folder-repair\run.ps1 repair -NonInteractive
 
-# Verbose registry trace -- prints every value name + data being read,
-# compared (BEFORE/AFTER), written, deleted, exported, or imported.
-.\scripts\52-vscode-folder-repair\manual-repair.ps1 -VerboseRegistry -WhatIf
+# Verbose registry trace (read/compare/write/delete/import)
+.\scripts\52-vscode-folder-repair\run.ps1 trace
 
-# Insiders edition, custom snapshot folder, skip Explorer restart
-.\scripts\52-vscode-folder-repair\manual-repair.ps1 `
-    -Edition insiders `
-    -SnapshotDir 'D:\snapshots\vscode-menu' `
-    -NoRestart
+# Verify final state without touching anything
+.\scripts\52-vscode-folder-repair\run.ps1 verify
 
-# RESTORE: undo the repair by re-importing the newest BEFORE snapshot.
-# Auto-picks vscode-menu-stable-BEFORE-*.reg from -SnapshotDir.
-.\scripts\52-vscode-folder-repair\manual-repair.ps1 -RestoreDefaultEntries
+# Insiders, custom snapshot folder, skip Explorer restart
+.\scripts\52-vscode-folder-repair\run.ps1 no-restart -Edition insiders -SnapshotDir 'D:\snapshots\vscode-menu'
 
-# RESTORE from an explicit snapshot file (Insiders edition):
-.\scripts\52-vscode-folder-repair\manual-repair.ps1 `
-    -RestoreDefaultEntries `
-    -Edition insiders `
+# Undo the repair by re-importing the newest BEFORE snapshot
+.\scripts\52-vscode-folder-repair\run.ps1 restore
+
+# Restore from an explicit snapshot file
+.\scripts\52-vscode-folder-repair\run.ps1 restore -Edition insiders `
     -RestoreFromFile 'D:\snapshots\vscode-menu\vscode-menu-insiders-BEFORE-20260422-143012.reg'
+
+# Inverse: restore the default installer entries on all 3 targets
+.\scripts\52-vscode-folder-repair\run.ps1 rollback
 ```
 
 > 🛟 **How `-RestoreDefaultEntries` works.** It picks the newest
