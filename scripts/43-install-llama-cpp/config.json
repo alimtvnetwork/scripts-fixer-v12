@@ -13,6 +13,12 @@
     "chunkSize": "1M",
     "continueDownload": true
   },
+  "download": {
+    "parallelEnabled": true,
+    "maxConcurrent": 3,
+    "connectionsPerServer": 8,
+    "splitsPerFile": 8
+  },
   "executables": [
     {
       "slug": "llama-b7709-cuda",

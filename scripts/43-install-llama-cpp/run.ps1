@@ -36,6 +36,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "disk-space.ps1")
 . (Join-Path $sharedDir "url-freshness.ps1")
 . (Join-Path $sharedDir "aria2c-download.ps1")
+. (Join-Path $sharedDir "aria2c-batch.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\llama-cpp.ps1")
@@ -134,7 +135,8 @@ switch ($Command.ToLower()) {
         # Interactive model installer
         Invoke-ModelInstaller -CatalogPath $catalogPath -DevDir $devDir `
             -DefaultModelsSubfolder $config.modelsConfig.devDirSubfolder `
-            -Aria2Config $config.aria2c -LogMessages $logMessages
+            -Aria2Config $config.aria2c -DownloadConfig $config.download `
+            -LogMessages $logMessages
     }
     "executables" {
         Write-Log $logMessages.messages.urlFreshnessCheck -Level "info"
@@ -149,7 +151,8 @@ switch ($Command.ToLower()) {
     "models" {
         Invoke-ModelInstaller -CatalogPath $catalogPath -DevDir $devDir `
             -DefaultModelsSubfolder $config.modelsConfig.devDirSubfolder `
-            -Aria2Config $config.aria2c -LogMessages $logMessages
+            -Aria2Config $config.aria2c -DownloadConfig $config.download `
+            -LogMessages $logMessages
     }
     "uninstall" {
         Uninstall-LlamaCpp -Config $config -LogMessages $logMessages -BaseDir $baseDir

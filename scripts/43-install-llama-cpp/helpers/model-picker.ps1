@@ -461,6 +461,11 @@ function Install-SelectedModels {
     .SYNOPSIS
         Downloads selected models from the catalog using aria2c with fallback.
         Tracks each download in .installed/ for idempotency.
+
+        When DownloadConfig.parallelEnabled is true and 2+ models are pending,
+        runs aria2c in batch (parallel) mode first, then falls back to the
+        sequential per-file path for any items that did not succeed.
+        Spec: spec/2025-batch/suggestions/03-parallel-downloads.md.
     #>
     param(
         [Parameter(Mandatory)]
@@ -473,6 +478,7 @@ function Install-SelectedModels {
         [string]$ModelsDir,
 
         $Aria2Config,
+        $DownloadConfig,
         $LogMessages
     )
 
@@ -493,15 +499,28 @@ function Install-SelectedModels {
     $chunkSize  = if ($Aria2Config.chunkSize) { $Aria2Config.chunkSize } else { "1M" }
     $isContinue = if ($null -ne $Aria2Config.continueDownload) { $Aria2Config.continueDownload } else { $true }
 
+    # Parallel batch config (spec 03)
+    $isParallelEnabled = $true
+    $batchMaxConcurrent = 3
+    $batchConnsPerServer = 8
+    $batchSplits = 8
+    if ($null -ne $DownloadConfig) {
+        if ($null -ne $DownloadConfig.parallelEnabled)      { $isParallelEnabled   = [bool]$DownloadConfig.parallelEnabled }
+        if ($DownloadConfig.maxConcurrent)                  { $batchMaxConcurrent  = [int]$DownloadConfig.maxConcurrent }
+        if ($DownloadConfig.connectionsPerServer)           { $batchConnsPerServer = [int]$DownloadConfig.connectionsPerServer }
+        if ($DownloadConfig.splitsPerFile)                  { $batchSplits         = [int]$DownloadConfig.splitsPerFile }
+    }
+
     $downloadedCount = 0
     $skippedCount    = 0
     $failedCount     = 0
 
+    # -- Pass 1: classify each selection (skip / pending) ----------------------
+    $pending = @()
     foreach ($model in $selectedModels) {
         $outputPath   = Join-Path $ModelsDir $model.fileName
         $trackingName = "model-$($model.id)"
 
-        # Check .installed/ tracking + file on disk
         $existingRecord = Get-InstalledRecord -Name $trackingName
         $isTracked      = $null -ne $existingRecord
         $isFilePresent  = Test-Path $outputPath
@@ -512,56 +531,122 @@ function Install-SelectedModels {
             continue
         }
 
-        # Stale tracking cleanup
+        # Stale tracking cleanup: tracked but file is missing.
         if ($isTracked -and -not $isFilePresent) {
             Write-Log "  Stale tracking for $($model.displayName), file missing. Re-downloading." -Level "warn"
             Remove-InstalledRecord -Name $trackingName
         }
 
-        # Show model details
+        $pending += [pscustomobject]@{
+            Model        = $model
+            OutputPath   = $outputPath
+            TrackingName = $trackingName
+        }
+    }
+
+    $pendingCount = $pending.Count
+    if ($pendingCount -eq 0) {
         Write-Host ""
-        Write-Log "  [$($model.index)] Downloading: $($model.displayName)" -Level "info"
-        Write-Log "    $($model.parameters) | $($model.quantization) | $($model.fileSizeGB) GB | RAM: $($model.ramRequiredGB)+ GB" -Level "info"
-        Write-Log "    $($model.bestFor)" -Level "info"
+        Write-Log ("Models summary: $downloadedCount downloaded, $skippedCount skipped, $failedCount failed (of $totalCount selected)") -Level "success"
+        Write-Log "Models directory: $ModelsDir" -Level "info"
+        return
+    }
 
-        # Download
-        $isDownloadOk = Invoke-Aria2Download -Uri $model.downloadUrl -OutFile $outputPath -Label $model.displayName `
-            -MaxConnections $maxConn -MaxDownloads $maxDl -ChunkSize $chunkSize -ContinueDownload $isContinue
+    # -- Pass 2: optional batch (parallel) attempt ------------------------------
+    $batchSuccessKeys = New-Object System.Collections.Generic.HashSet[string]
+    $useBatch = $isParallelEnabled -and ($pendingCount -ge 2) -and ($null -ne (Get-Command aria2c.exe -ErrorAction SilentlyContinue))
 
-        if ($isDownloadOk) {
-            # SHA256 integrity verification
-            $isChecksumOk = $true
-            $hasChecksum  = -not [string]::IsNullOrWhiteSpace($model.sha256)
-
-            if ($hasChecksum) {
-                Write-Log "    Verifying SHA256 checksum..." -Level "info"
-                $actualHash = (Get-FileHash -Path $outputPath -Algorithm SHA256).Hash.ToLower()
-                $expectedHash = $model.sha256.Trim().ToLower()
-
-                if ($actualHash -eq $expectedHash) {
-                    Write-Log "    Checksum verified: $($actualHash.Substring(0, 16))..." -Level "success"
-                } else {
-                    Write-Log "    Checksum MISMATCH for $($model.displayName)" -Level "error"
-                    Write-Log "      Expected: $expectedHash" -Level "error"
-                    Write-Log "      Actual:   $actualHash" -Level "error"
-                    Write-FileError -FilePath $outputPath -Operation "checksum" -Reason "SHA256 mismatch (expected $expectedHash, got $actualHash)" -Module "Install-SelectedModels"
-                    $isChecksumOk = $false
-                }
+    if ($useBatch) {
+        Write-Log "Parallel batch mode: $pendingCount file(s) via aria2c (concurrency=$batchMaxConcurrent)" -Level "info"
+        $batchItems = foreach ($p in $pending) {
+            [pscustomobject]@{
+                Key     = $p.Model.id
+                Uri     = $p.Model.downloadUrl
+                OutFile = $p.OutputPath
+                Label   = $p.Model.displayName
             }
+        }
+        $batchResults = Invoke-Aria2BatchDownload -Items $batchItems `
+            -MaxConcurrent $batchMaxConcurrent `
+            -ConnectionsPerServer $batchConnsPerServer `
+            -SplitsPerFile $batchSplits `
+            -ContinueDownload $isContinue
 
-            if ($isChecksumOk) {
-                Write-Log "  [$($model.index)] Downloaded: $($model.displayName)" -Level "success"
-                Save-InstalledRecord -Name $trackingName -Version $model.quantization -Method "aria2c"
-                $downloadedCount++
-            } else {
-                Write-Log "  [$($model.index)] FAILED (checksum): $($model.displayName)" -Level "error"
-                # Remove corrupted file
-                if (Test-Path $outputPath) { Remove-Item $outputPath -Force }
-                $failedCount++
+        if ($null -ne $batchResults) {
+            foreach ($p in $pending) {
+                $key = $p.Model.id
+                $isOk = $batchResults.ContainsKey($key) -and $batchResults[$key]
+                if ($isOk) { [void]$batchSuccessKeys.Add($key) }
             }
         } else {
+            Write-Log "[FALLBACK] Batch unavailable; reverting all $pendingCount file(s) to sequential." -Level "warn"
+        }
+    } elseif ($pendingCount -eq 1) {
+        Write-Log "Single pending download -- skipping batch mode (no parallelism benefit)." -Level "info"
+    } elseif (-not $isParallelEnabled) {
+        Write-Log "Parallel downloads disabled in config -- using sequential mode." -Level "info"
+    }
+
+    # -- Pass 3: per-file finalize (verify+track for batch wins, sequential for misses) --
+    foreach ($p in $pending) {
+        $model        = $p.Model
+        $outputPath   = $p.OutputPath
+        $trackingName = $p.TrackingName
+
+        $isBatchHit = $batchSuccessKeys.Contains($model.id)
+
+        Write-Host ""
+        if ($isBatchHit) {
+            Write-Log "  [$($model.index)] [PARALLEL] $($model.displayName) -- verifying" -Level "info"
+            $isDownloadOk = $true
+        } else {
+            if ($useBatch) {
+                Write-Log "  [$($model.index)] [FALLBACK] Sequential retry: $($model.displayName)" -Level "warn"
+            }
+            Write-Log "  [$($model.index)] Downloading: $($model.displayName)" -Level "info"
+            Write-Log "    $($model.parameters) | $($model.quantization) | $($model.fileSizeGB) GB | RAM: $($model.ramRequiredGB)+ GB" -Level "info"
+            Write-Log "    $($model.bestFor)" -Level "info"
+
+            $isDownloadOk = Invoke-Aria2Download -Uri $model.downloadUrl -OutFile $outputPath -Label $model.displayName `
+                -MaxConnections $maxConn -MaxDownloads $maxDl -ChunkSize $chunkSize -ContinueDownload $isContinue
+        }
+
+        if (-not $isDownloadOk) {
             Write-Log "  [$($model.index)] FAILED: $($model.displayName)" -Level "error"
             Write-FileError -FilePath $outputPath -Operation "download" -Reason "Download failed after retries" -Module "Install-SelectedModels"
+            $failedCount++
+            continue
+        }
+
+        # SHA256 integrity verification (shared between batch + sequential)
+        $isChecksumOk = $true
+        $hasChecksum  = -not [string]::IsNullOrWhiteSpace($model.sha256)
+        if ($hasChecksum) {
+            Write-Log "    [VERIFY] SHA256 for $($model.fileName)" -Level "info"
+            $actualHash   = (Get-FileHash -Path $outputPath -Algorithm SHA256).Hash.ToLower()
+            $expectedHash = $model.sha256.Trim().ToLower()
+
+            if ($actualHash -eq $expectedHash) {
+                Write-Log "    Checksum verified: $($actualHash.Substring(0, 16))..." -Level "success"
+            } else {
+                Write-Log "    Checksum MISMATCH for $($model.displayName)" -Level "error"
+                Write-Log "      Expected: $expectedHash" -Level "error"
+                Write-Log "      Actual:   $actualHash" -Level "error"
+                Write-FileError -FilePath $outputPath -Operation "checksum" -Reason "SHA256 mismatch (expected $expectedHash, got $actualHash)" -Module "Install-SelectedModels"
+                $isChecksumOk = $false
+            }
+        }
+
+        if ($isChecksumOk) {
+            $method = if ($isBatchHit) { "aria2c-batch" } else { "aria2c" }
+            Write-Log "  [$($model.index)] Downloaded: $($model.displayName)" -Level "success"
+            Save-InstalledRecord -Name $trackingName -Version $model.quantization -Method $method
+            $downloadedCount++
+        } else {
+            Write-Log "  [$($model.index)] FAILED (checksum): $($model.displayName)" -Level "error"
+            if (Test-Path $outputPath) {
+                try { Remove-Item $outputPath -Force } catch { }
+            }
             $failedCount++
         }
     }
@@ -588,6 +673,7 @@ function Invoke-ModelInstaller {
         [string]$DefaultModelsSubfolder = "llama-models",
 
         $Aria2Config,
+        $DownloadConfig,
         $LogMessages
     )
 
@@ -714,7 +800,8 @@ function Invoke-ModelInstaller {
 
     # -- Download selected models ----------------------------------------------
     Install-SelectedModels -Models $downloadModels -SelectedIndices $selectedIndices `
-        -ModelsDir $modelsDir -Aria2Config $Aria2Config -LogMessages $LogMessages
+        -ModelsDir $modelsDir -Aria2Config $Aria2Config -DownloadConfig $DownloadConfig `
+        -LogMessages $LogMessages
 
     return $modelsDir
 }

@@ -40,7 +40,7 @@ type: feature
 ### High Priority
 - [x] Model catalog auto-update -- helper shipped at `scripts/43-install-llama-cpp/helpers/catalog-update.ps1` (spec `spec/2025-batch/suggestions/01-catalog-auto-update.md`); invoke via `.\run.ps1 -CheckUpdates [-Family Qwen] [-Apply]` (v0.76.0)
 - [~] SHA256 checksums in catalog -- verification logic shipped; spec for population helper at `spec/2025-batch/suggestions/02-sha256-population.md`; data fill pending
-- [~] Parallel model downloads (aria2c batch) -- spec written (`spec/2025-batch/suggestions/03-parallel-downloads.md`); implementation pending
+- [x] Parallel model downloads (aria2c batch) -- shipped at `scripts/shared/aria2c-batch.ps1`; wired into `Install-SelectedModels` with per-file fallback to sequential on failure. Tunables in `config.json -> download`. Spec `spec/2025-batch/suggestions/03-parallel-downloads.md` (v0.77.0)
 
 ### Medium Priority
 - [ ] GUI/TUI interface for model picker (curses or Windows Forms)
