@@ -178,152 +178,40 @@ yourself once it lands, copy-paste **any one** of these:
 
 ### 🔬 How to verify each phase
 
-Run these checks **after** each script finishes. All paths are copy-paste
-ready for PowerShell. ✅ = expected pass output, ❌ = something to escalate.
-
-#### Phase 1 — Script 47 (Ubuntu Font)
-```powershell
-# Font files landed in the Windows fonts dir
-Get-ChildItem "$env:WINDIR\Fonts\Ubuntu*.ttf" | Select-Object Name, Length
-# Registry entry exists (one per face)
-Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" |
-  Get-Member -MemberType NoteProperty | Where-Object Name -like "Ubuntu*"
-```
-✅ At least 4 `Ubuntu-*.ttf` files + matching registry values. Open Notepad → Font dialog → "Ubuntu" should appear.
-
-#### Phase 2 — Script 48 (ConEmu + settings)
-```powershell
-# Binary is on PATH (choco shim) or in Program Files
-Get-Command ConEmu64.exe -ErrorAction SilentlyContinue
-Test-Path "${env:ProgramFiles}\ConEmu\ConEmu64.exe"
-
-# Settings synced from repo → %APPDATA%
-Test-Path "$env:APPDATA\ConEmu\ConEmu.xml"
-(Get-Item "$env:APPDATA\ConEmu\ConEmu.xml").LastWriteTime   # should be ~now
-Get-ChildItem "$env:APPDATA\ConEmu\ConEmu.xml.bak.*"        # timestamped backup of prior config
-```
-✅ `ConEmu.xml` exists with a fresh `LastWriteTime`, and at least one `.bak.yyyyMMdd-HHmmss` sibling. Launch ConEmu → your repo's tabs/colors/font should be live.
-
-#### Phase 3 — Script 49 (WhatsApp Desktop)
-```powershell
-choco list --local-only whatsapp
-Test-Path "$env:LOCALAPPDATA\WhatsApp\WhatsApp.exe"
-Get-Command whatsapp -ErrorAction SilentlyContinue
-```
-✅ `choco list` shows `whatsapp <version>`, the `.exe` exists, and Start Menu has a "WhatsApp" shortcut. Launching it should open the desktop client (not redirect to Microsoft Store).
-
-#### Phase 4 — Script 50 (OneNote + OneDrive autostart off)
-```powershell
-# OneNote installed
-Test-Path "${env:ProgramFiles}\Microsoft Office\root\Office16\ONENOTE.EXE"
-Test-Path "${env:ProgramFiles(x86)}\Microsoft OneNote\Office16\ONENOTE.EXE"
-
-# OneDrive autostart disabled
-Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name OneDrive -ErrorAction SilentlyContinue
-# ✅ should return nothing (property removed)
-```
-✅ ONENOTE.EXE present in one of the Office paths AND the `OneDrive` Run-key value is **gone**. After sign-out/sign-in, OneDrive should not appear in the tray.
-
-#### Phase 5 — Script 51 (Lightshot + registry tweaks)
-```powershell
-choco list --local-only lightshot
-Test-Path "${env:ProgramFiles(x86)}\Skillbrains\Lightshot\Lightshot.exe"
-
-# Registry tweaks applied (HKCU — no admin needed to read)
-Get-ItemProperty "HKCU:\Software\Skillbrains\Lightshot" |
-  Select-Object ImageFormat, ImageQuality, CopyToClipboard, ShowNotifications, ShowUploadPrompt
-```
-✅ `ImageFormat = JPG`, `ImageQuality = 100`, `CopyToClipboard = 1`, `ShowNotifications = 0`, `ShowUploadPrompt = 0`. Press `PrtSc` → selection should land directly on the clipboard with no upload toast.
-
-#### Phase 6 — `os flp` (long-path support)
-```powershell
-# Registry flag flipped
-Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name LongPathsEnabled
-# ✅ LongPathsEnabled : 1
-
-# Smoke test (AFTER reboot): create a >260-char path and write a file
-$deep = "C:\_lp\" + ("x" * 280)
-New-Item -ItemType Directory -Path $deep -Force | Out-Null
-"hello" | Set-Content "$deep\test.txt"
-Test-Path "$deep\test.txt"
-```
-✅ Registry value = `1` AND the deep `Set-Content` succeeds **after reboot**. Without reboot, many apps (Explorer, MSI installers) still cap at 260 chars.
-
-#### Phase 7 — `os` group remainder (clean / add-user / hib-off)
-```powershell
-# os clean — verify TEMP shrunk
-$before = (Get-ChildItem $env:TEMP -Recurse -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
-.\run.ps1 os clean
-$after  = (Get-ChildItem $env:TEMP -Recurse -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum
-"Freed: $([math]::Round(($before - $after)/1MB,1)) MB"
-
-# os add-user — verify the local account exists
-Get-LocalUser <name>
-
-# os hib-off — verify hiberfil.sys is gone
-Test-Path C:\hiberfil.sys      # ✅ should be False
-powercfg /a                     # ✅ "Hibernation has not been enabled."
-```
-✅ TEMP shrinks (any positive number is fine), `Get-LocalUser` returns the new account, and `hiberfil.sys` is absent after `os hib-off`.
-
-#### Phase 8 — Script 52 (VS Code folder-only context menu repair)
-
-After running `.\run.ps1 -I 52 install`, confirm the **"Open with Code"** entry
-shows up **only when right-clicking a folder** — not on files and not on empty
-folder background. All commands are **read-only** and safe to run without admin.
+Don't hand-roll registry probes per script. Every installer ships a built-in
+`verify` subcommand that runs the same checks the script ran post-install
+(binary on PATH, registry values, settings file present, etc.) and prints a
+structured PASS/FAIL summary -- no walls of `Test-Path` / `Get-ItemProperty`
+in this README.
 
 ```powershell
-# 1) Folder entry MUST exist (this is the one we want)
-$dir = 'Registry::HKEY_CLASSES_ROOT\Directory\shell\VSCode'
-Test-Path $dir                                                    # ✅ True
-(Get-ItemProperty $dir).'(default)'                               # ✅ "Open with Code"
-(Get-ItemProperty "$dir\command").'(default)'                     # ✅ "...\Code.exe" "%1"
+# Verify a single script (by ID or by keyword)
+.\run.ps1 -I 47 verify
+.\run.ps1 verify ubuntu-font
 
-# 2) File entry MUST be gone (right-click on a .txt should NOT show VS Code)
-Test-Path 'Registry::HKEY_CLASSES_ROOT\*\shell\VSCode'            # ✅ False
+# Verify a batch (one row per script, non-zero exit on any FAIL)
+.\run.ps1 verify 47..52
+.\run.ps1 verify 2025-batch
 
-# 3) Background entry MUST be gone (right-click inside an empty folder)
-Test-Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\VSCode'  # ✅ False
+# Verify everything that's been installed (reads .resolved/installed/)
+.\run.ps1 verify --all
 
-# 4) Icon points at the real Code.exe (no broken icon in the menu)
-(Get-ItemProperty $dir).Icon                                      # ✅ resolves to existing Code.exe
-
-# 5) Insiders edition (only if enabled in config.json → enabledEditions)
-$ins = 'Registry::HKEY_CLASSES_ROOT\Directory\shell\VSCodeInsiders'
-Test-Path $ins                                                    # ✅ True (if insiders enabled)
-(Get-ItemProperty $ins).'(default)'                               # ✅ "Open with Code - Insiders"
-Test-Path 'Registry::HKEY_CLASSES_ROOT\*\shell\VSCodeInsiders'                  # ✅ False
-Test-Path 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\VSCodeInsiders' # ✅ False
+# Machine-readable output for CI / dashboards
+.\run.ps1 verify --all --json > .resolved\verify-report.json
 ```
 
-**One-liner sanity check** (prints PASS/FAIL per target):
-```powershell
-@(
-  @{ Name='Folder (must exist)';     Path='Registry::HKEY_CLASSES_ROOT\Directory\shell\VSCode';            Want=$true  },
-  @{ Name='File (must be gone)';     Path='Registry::HKEY_CLASSES_ROOT\*\shell\VSCode';                    Want=$false },
-  @{ Name='Background (must be gone)'; Path='Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\VSCode'; Want=$false }
-) | ForEach-Object {
-  $have = Test-Path $_.Path
-  $ok   = ($have -eq $_.Want)
-  '{0,-28} got={1,-5} want={2,-5} {3}' -f $_.Name, $have, $_.Want, $(if ($ok) { 'PASS' } else { 'FAIL' })
-}
-```
+Each script owns its own check list -- never duplicated here:
 
-**Live UI check** (the real proof):
-1. Open File Explorer → right-click any **folder** → expect **"Open with Code"** ✅
-2. Right-click any **file** (e.g. `notes.txt`) → "Open with Code" must **NOT** appear ❌→gone
-3. Open a folder, right-click on the **empty background** → "Open with Code" must **NOT** appear ❌→gone
-4. Click the menu entry → VS Code opens with that folder as the workspace root.
+- **Logic** -> `scripts/<NN>-*/helpers/<name>.ps1` exposes `Test-<Name>Install`,
+  called by both `install` (post-step) and `verify` (standalone).
+- **Expected values + remediation hints** -> `scripts/<NN>-*/log-messages.json`
+  under `verify.checks[]` / `verify.failHints[]`.
+- **Last run's evidence** -> `.resolved\logs\latest-<NN>.json` records every
+  probed path/key + failure reason (CODE RED rule).
 
-> If Explorer still shows the old entries, the script restarts `explorer.exe`
-> automatically (`restartExplorer: true`, `restartExplorerWaitMs: 800` in
-> [`scripts/52-vscode-folder-repair/config.json`](scripts/52-vscode-folder-repair/config.json)).
-> If you skipped that, sign out and back in — the shell caches context menus per session.
-
-❌ **If a check fails:** open `.resolved\logs\latest-52.json` — every registry
-write/delete is logged with the exact key path and the failure reason
-(CODE RED rule). Re-run with `.\run.ps1 -I 52 install` after fixing permissions
-or closing any VS Code instance that has the registry hive open.
+If a check fails: open the matching `latest-<NN>.json`, fix what it points
+at, then re-run `.\run.ps1 -I <NN> verify`. All `verify` runs are read-only
+and need no admin for HKCU / file-existence checks.
 
 ### 🛠️ Manual repair — VS Code folder context menu (no script)
 
