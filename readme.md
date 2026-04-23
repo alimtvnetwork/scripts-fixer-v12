@@ -12,7 +12,7 @@
 [![Tools Installed](https://img.shields.io/badge/Tools-46%2B-8b5cf6?logo=tools&logoColor=white)](#what-it-does)
 [![Databases](https://img.shields.io/badge/Databases-12-0ea5e9?logo=databricks&logoColor=white)](#databases-18-29)
 [![License](https://img.shields.io/badge/License-MIT-eab308)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.70.0-f97316)](scripts/version.json)
+[![Version](https://img.shields.io/badge/Version-v0.83.0-f97316)](scripts/version.json)
 [![Changelog](https://img.shields.io/badge/Changelog-Latest-ec4899)](changelog.md)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows)
 [![Maintained](https://img.shields.io/badge/Maintained-Yes-22c55e)](https://github.com/alimtvnetwork/gitmap-v6)
@@ -213,275 +213,10 @@ If a check fails: open the matching `latest-<NN>.json`, fix what it points
 at, then re-run `.\run.ps1 -I <NN> verify`. All `verify` runs are read-only
 and need no admin for HKCU / file-existence checks.
 
-### 🛠️ Manual repair — VS Code folder context menu (no script)
+### 🛠️ VS Code folder context-menu repair
 
-Use this when you want to fix the **"Open with Code"** entry by hand (no
-`run.ps1`, no Chocolatey) — for example on a locked-down machine or when
-auditing exactly what gets written to the registry. The end state matches
-what Script 52 produces:
-
-| Right-click target          | Expected after repair         |
-|-----------------------------|-------------------------------|
-| A **folder** in Explorer    | ✅ "Open with Code" shows     |
-| A **file** (e.g. `a.txt`)   | ❌ entry removed              |
-| **Empty background** inside a folder | ❌ entry removed     |
-
-**Why so strict?** VS Code's installer adds the entry to all three targets
-(`*`, `Directory`, `Directory\Background`), which clutters every right-click.
-We only want it on the folder itself.
-
-#### Step 0 — Locate `Code.exe`, **validate it**, and close VS Code
-
-A registry entry that points at a missing or wrong `Code.exe` produces a
-broken or — worse — a misleading menu item. Before any registry write we
-prove four things about the resolved path:
-
-1. **It exists** as a file (not a folder, not a dangling symlink).
-2. **The file extension is `.exe`.**
-3. **The version-info matches Microsoft's VS Code build** (CompanyName
-   "Microsoft Corporation" + ProductName containing "Visual Studio Code").
-4. *(Optional, recommended)* **Authenticode signature is `Valid`** and
-   the signer is `CN=Microsoft Corporation`.
-
-Drop the helper below into your elevated PowerShell session — every
-subsequent step calls `Resolve-AndValidateVsCodeExe` instead of using a
-raw path.
-
-```powershell
-function Resolve-AndValidateVsCodeExe {
-    <#
-      Resolves Code.exe (override > user install > system install) AND
-      validates it is a legitimate VS Code binary before returning the
-      path. Throws on any failure with the exact path + reason
-      (CODE RED rule -- every error names the offending path).
-    #>
-    param(
-        [ValidateSet('stable','insiders')]
-        [string]$EditionName  = 'stable',
-        [string]$OverridePath,                             # optional explicit path
-        [switch]$RequireSignature                          # turn on Authenticode check
-    )
-
-    # 1) Build the candidate list -----------------------------------------
-    $exeName = if ($EditionName -eq 'insiders') { 'Code - Insiders.exe' } else { 'Code.exe' }
-    $folder  = if ($EditionName -eq 'insiders') { 'Microsoft VS Code Insiders' } else { 'Microsoft VS Code' }
-    $candidates = @()
-    if ($OverridePath)                  { $candidates += $OverridePath }
-    $candidates += "$env:LOCALAPPDATA\Programs\$folder\$exeName"   # user install
-    $candidates += "$env:ProgramFiles\$folder\$exeName"            # system install
-
-    $resolved = $candidates |
-        Where-Object { $_ -and (Test-Path -LiteralPath $_) } |
-        Select-Object -First 1
-    if (-not $resolved) {
-        throw ("Code.exe not found. Tried:`n  - " + ($candidates -join "`n  - "))
-    }
-
-    # 2) Must be a *file*, not a directory or broken link -----------------
-    $item = Get-Item -LiteralPath $resolved -Force
-    if ($item.PSIsContainer) {
-        throw "path=$resolved reason=resolved path is a directory, not a file"
-    }
-    if ($item.Extension -ne '.exe') {
-        throw "path=$resolved reason=expected .exe, got '$($item.Extension)'"
-    }
-
-    # 3) Version-info fingerprint -----------------------------------------
-    $vi = $item.VersionInfo
-    $isMicrosoft = $vi.CompanyName -match '^Microsoft Corporation'
-    $isVsCode    = $vi.ProductName -match 'Visual Studio Code'
-    if (-not ($isMicrosoft -and $isVsCode)) {
-        throw ("path=$resolved reason=version-info mismatch " +
-               "(CompanyName='$($vi.CompanyName)' ProductName='$($vi.ProductName)')")
-    }
-
-    # 4) Optional Authenticode check --------------------------------------
-    if ($RequireSignature) {
-        $sig = Get-AuthenticodeSignature -LiteralPath $resolved
-        if ($sig.Status -ne 'Valid') {
-            throw "path=$resolved reason=Authenticode status='$($sig.Status)'"
-        }
-        $isMsSigner = $sig.SignerCertificate.Subject -match 'CN=Microsoft Corporation'
-        if (-not $isMsSigner) {
-            throw "path=$resolved reason=signer is not Microsoft ('$($sig.SignerCertificate.Subject)')"
-        }
-    }
-
-    Write-Host ("[OK] {0} v{1} -> {2}" -f $vi.ProductName, $vi.ProductVersion, $resolved) -ForegroundColor Green
-    return $resolved
-}
-
-# Use it. The function THROWS on failure, so $code is only set when valid.
-$code = Resolve-AndValidateVsCodeExe -EditionName 'stable' -RequireSignature
-$code   # prints the validated path
-
-# Close any running VS Code so the registry hive isn't locked
-Get-Process Code -ErrorAction SilentlyContinue | Stop-Process -Force
-```
-
-Sample success line:
-
-```text
-[OK] Visual Studio Code v1.95.3 -> C:\Users\you\AppData\Local\Programs\Microsoft VS Code\Code.exe
-```
-
-Sample failure lines (any one of these aborts before any registry write):
-
-```text
-Code.exe not found. Tried:
-  - C:\Users\you\AppData\Local\Programs\Microsoft VS Code\Code.exe
-  - C:\Program Files\Microsoft VS Code\Code.exe
-
-path=D:\tools\fake.exe reason=version-info mismatch (CompanyName='Acme' ProductName='Notepad++')
-path=C:\...\Code.exe reason=Authenticode status='HashMismatch'
-```
-
-> ❗ If validation fails, **stop**. Install VS Code (`choco install vscode -y`
-> or the official installer) or pass `-OverridePath` to point at a known-good
-> binary. Do **not** continue to Step 2 with an unvalidated `$code`.
-
-#### Step 1 — Open an **elevated** PowerShell
-
-The keys live under `HKEY_CLASSES_ROOT` (HKCR), which requires admin to
-modify. Right-click PowerShell → **Run as Administrator**, then verify:
-
-```powershell
-([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-  [Security.Principal.WindowsBuiltInRole]::Administrator
-)   # ✅ must print True
-```
-
-#### Step 2 — Remove the noisy entries (file + background)
-
-```powershell
-$toRemove = @(
-  'Registry::HKEY_CLASSES_ROOT\*\shell\VSCode',                     # right-click any FILE
-  'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\VSCode'   # right-click EMPTY background
-)
-
-foreach ($key in $toRemove) {
-  if (Test-Path $key) {
-    try {
-      Remove-Item -Path $key -Recurse -Force -ErrorAction Stop
-      Write-Host "[OK]   removed $key" -ForegroundColor Green
-    } catch {
-      # CODE RED: log exact path + reason
-      Write-Host "[ERR]  path=$key reason=$($_.Exception.Message)" -ForegroundColor Red
-    }
-  } else {
-    Write-Host "[SKIP] not present: $key" -ForegroundColor DarkGray
-  }
-}
-```
-
-#### Step 3 — Ensure the folder entry exists and points at `Code.exe`
-
-```powershell
-# Pre-flight gate -- re-validate $code right before writing. This catches
-# the case where someone tweaked $code between Step 0 and Step 3 (or
-# pasted the wrong block in a fresh shell).
-if (-not $code -or -not (Test-Path -LiteralPath $code)) {
-    throw "path='$code' reason=`$code is empty or no longer exists. Re-run Step 0."
-}
-$code = Resolve-AndValidateVsCodeExe -OverridePath $code   # throws on mismatch
-
-$dirKey = 'Registry::HKEY_CLASSES_ROOT\Directory\shell\VSCode'
-$cmdKey = "$dirKey\command"
-
-# Create both keys if missing
-New-Item -Path $dirKey -Force | Out-Null
-New-Item -Path $cmdKey -Force | Out-Null
-
-# Menu label, icon, and the actual command
-Set-ItemProperty -Path $dirKey -Name '(default)' -Value 'Open with Code'
-Set-ItemProperty -Path $dirKey -Name 'Icon'      -Value $code
-Set-ItemProperty -Path $cmdKey -Name '(default)' -Value ('"{0}" "%1"' -f $code)
-
-Write-Host "[OK] folder entry installed -> $code" -ForegroundColor Green
-```
-
-> The `"%1"` argument is what makes VS Code open the **folder you
-> right-clicked** as the workspace root. Do **not** use `%V` here — that
-> variant is for the background entry, which we deliberately removed.
-
-#### Step 4 — Restart Explorer so the menu cache refreshes
-
-```powershell
-Stop-Process -Name explorer -Force
-Start-Sleep -Milliseconds 800
-Start-Process explorer
-```
-
-If you'd rather not restart Explorer, sign out and back in — Windows caches
-context menus per session.
-
-#### Step 5 — Verify (same checks as Phase 8)
-
-```powershell
-$dir = 'Registry::HKEY_CLASSES_ROOT\Directory\shell\VSCode'
-@(
-  @{ Name='Folder (must exist)';        Path=$dir;                                                              Want=$true  },
-  @{ Name='File (must be gone)';        Path='Registry::HKEY_CLASSES_ROOT\*\shell\VSCode';                      Want=$false },
-  @{ Name='Background (must be gone)';  Path='Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\VSCode';   Want=$false }
-) | ForEach-Object {
-  $have = Test-Path $_.Path
-  $ok   = ($have -eq $_.Want)
-  '{0,-30} got={1,-5} want={2,-5} {3}' -f $_.Name, $have, $_.Want, $(if ($ok) { 'PASS' } else { 'FAIL' })
-}
-
-(Get-ItemProperty $dir).'(default)'           # ✅ "Open with Code"
-(Get-ItemProperty "$dir\command").'(default)' # ✅ "...\Code.exe" "%1"
-```
-
-**Live UI smoke test:**
-1. Right-click a **folder** → "Open with Code" appears, click it → VS Code opens that folder. ✅
-2. Right-click a **file** → no "Open with Code" entry. ❌→gone
-3. Open a folder, right-click the **empty background** → no "Open with Code" entry. ❌→gone
-
-#### Optional — VS Code **Insiders** edition
-
-Repeat Steps 2–3 with the Insiders paths:
-
-```powershell
-$codeIns = "$env:LOCALAPPDATA\Programs\Microsoft VS Code Insiders\Code - Insiders.exe"
-if (-not (Test-Path $codeIns)) {
-  $codeIns = "$env:ProgramFiles\Microsoft VS Code Insiders\Code - Insiders.exe"
-}
-
-# Remove file + background variants
-Remove-Item 'Registry::HKEY_CLASSES_ROOT\*\shell\VSCodeInsiders'                    -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item 'Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\VSCodeInsiders' -Recurse -Force -ErrorAction SilentlyContinue
-
-# Ensure folder variant
-$insDir = 'Registry::HKEY_CLASSES_ROOT\Directory\shell\VSCodeInsiders'
-New-Item -Path $insDir            -Force | Out-Null
-New-Item -Path "$insDir\command"  -Force | Out-Null
-Set-ItemProperty -Path $insDir           -Name '(default)' -Value 'Open with Code - Insiders'
-Set-ItemProperty -Path $insDir           -Name 'Icon'      -Value $codeIns
-Set-ItemProperty -Path "$insDir\command" -Name '(default)' -Value ('"{0}" "%1"' -f $codeIns)
-```
-
-#### Rollback — restore VS Code's default (all three targets)
-
-If you want the original (noisy) behaviour back, the easiest path is to
-re-run the VS Code installer and tick **"Add 'Open with Code' action to
-Windows Explorer file context menu"** + the directory + background options.
-Or manually recreate the keys you removed in Step 2 with the same
-`(default) = "Open with Code"` and `command\(default) = "Code.exe" "%V"`
-(note `%V`, not `%1`, for the background variant).
-
-> 📄 The script-driven equivalent of every step above lives in
-> [`scripts/52-vscode-folder-repair/`](scripts/52-vscode-folder-repair/) —
-> see [`config.json`](scripts/52-vscode-folder-repair/config.json) for the
-> exact registry paths, labels, and the `restartExplorerWaitMs: 800` knob.
-> The inverse operation (restore default entries on **all three** targets)
-> ships as [`rollback.ps1`](scripts/52-vscode-folder-repair/rollback.ps1).
-
-#### One-liner — every step is a `run.ps1` subcommand
-
-All workflows below are exposed as **subcommands of `run.ps1`**. You never
-need to invoke `manual-repair.ps1` or `rollback.ps1` directly with long
-parameter lists — the dispatcher in `run.ps1` forwards to the right helper.
+Use the root dispatcher only. The root README should document root commands,
+not direct script paths or manual registry editing.
 
 | Subcommand   | What it does                                                          |
 | ------------ | --------------------------------------------------------------------- |
@@ -500,38 +235,38 @@ Common flags accepted by every subcommand: `-Edition stable|insiders`,
 
 ```powershell
 # Default: auto-detect edition, repair, restart Explorer
-.\scripts\52-vscode-folder-repair\run.ps1
+.\run.ps1 vscode-folder
 
-# Dry-run first (no writes, no snapshots) — ALWAYS recommended
-.\scripts\52-vscode-folder-repair\run.ps1 dry-run
+# Dry-run first (no writes, no snapshots)
+.\run.ps1 vscode-folder dry-run
 
 # Real run, Stable, with Authenticode signer check
-.\scripts\52-vscode-folder-repair\run.ps1 repair -Edition stable -RequireSignature
+.\run.ps1 vscode-folder repair -Edition stable -RequireSignature
 
 # CI / unattended (defaults to 'stable', no prompt)
-.\scripts\52-vscode-folder-repair\run.ps1 repair -NonInteractive
+.\run.ps1 vscode-folder repair -NonInteractive
 
-# Verbose registry trace (read/compare/write/delete/import)
-.\scripts\52-vscode-folder-repair\run.ps1 trace
+# Verbose registry trace
+.\run.ps1 vscode-folder trace
 
 # Verify final state without touching anything
-.\scripts\52-vscode-folder-repair\run.ps1 verify
+.\run.ps1 vscode-folder verify
 
 # Insiders, custom snapshot folder, skip Explorer restart
-.\scripts\52-vscode-folder-repair\run.ps1 no-restart -Edition insiders -SnapshotDir 'D:\snapshots\vscode-menu'
+.\run.ps1 vscode-folder no-restart -Edition insiders -SnapshotDir 'D:\snapshots\vscode-menu'
 
 # Undo the repair by re-importing the newest BEFORE snapshot
-.\scripts\52-vscode-folder-repair\run.ps1 restore
+.\run.ps1 vscode-folder restore
 
 # Restore from an explicit snapshot file
-.\scripts\52-vscode-folder-repair\run.ps1 restore -Edition insiders `
+.\run.ps1 vscode-folder restore -Edition insiders `
     -RestoreFromFile 'D:\snapshots\vscode-menu\vscode-menu-insiders-BEFORE-20260422-143012.reg'
 
 # Inverse: restore the default installer entries on all 3 targets
-.\scripts\52-vscode-folder-repair\run.ps1 rollback
+.\run.ps1 vscode-folder rollback
 ```
 
-> 🛟 **How `-RestoreDefaultEntries` works.** It picks the newest
+> 🛟 **How restore works.** It picks the newest
 > `vscode-menu-<edition>-BEFORE-*.reg` from `-SnapshotDir` (or the file
 > you pass via `-RestoreFromFile`), wipes the three current keys for
 > the edition so the import lands on a clean slate, runs
@@ -566,182 +301,6 @@ Errors          : 0
 If anything failed (validation, registry write, snapshot, verify), it
 exits with code `1` and lists every error with `path=<exact> reason=<what>`
 so you know precisely what to fix.
-
-#### Step 6 — Capture a before/after `.reg` export and diff it
-
-Whenever you touch the registry, snapshot the affected keys **before** you
-run anything and **again after**. A two-file diff gives you a one-glance
-audit trail and makes any unexpected change obvious.
-
-The three keys touched by Script 52 / the manual repair / `rollback.ps1`
-are exactly:
-
-```text
-HKCR\*\shell\VSCode                       (file target,       VS Code Stable)
-HKCR\Directory\shell\VSCode               (directory target,  VS Code Stable)
-HKCR\Directory\Background\shell\VSCode    (background target, VS Code Stable)
-```
-
-Replace `VSCode` with `VSCodeInsiders` for the Insiders edition.
-
-##### 6a — Snapshot **before** the change
-
-Run from an elevated PowerShell prompt **before** you run `run.ps1`,
-`rollback.ps1`, or any manual `reg.exe` edit:
-
-```powershell
-# Pick any folder you like. A scratch dir on the desktop works fine.
-$snapDir = "$env:USERPROFILE\Desktop\vscode-menu-snapshots"
-New-Item -ItemType Directory -Force -Path $snapDir | Out-Null
-
-$stamp   = Get-Date -Format "yyyyMMdd-HHmmss"
-$before  = Join-Path $snapDir "vscode-menu-BEFORE-$stamp.reg"
-
-# Three keys to snapshot. reg.exe export only handles ONE key per call,
-# so we concatenate the per-key exports into a single .reg file.
-$keys = @(
-  'HKCR\*\shell\VSCode',
-  'HKCR\Directory\shell\VSCode',
-  'HKCR\Directory\Background\shell\VSCode'
-)
-
-Remove-Item $before -ErrorAction SilentlyContinue
-foreach ($k in $keys) {
-  $tmp = [IO.Path]::GetTempFileName() + '.reg'
-  $null = reg.exe export $k $tmp /y 2>&1
-  $isExported = ($LASTEXITCODE -eq 0) -and (Test-Path $tmp)
-  if ($isExported) {
-    Add-Content -Path $before -Value "; ----- $k -----"
-    Get-Content -Path $tmp | Add-Content -Path $before
-    Remove-Item $tmp -Force
-  } else {
-    Add-Content -Path $before -Value "; ----- $k ----- (absent at snapshot time)"
-  }
-}
-Write-Host "BEFORE snapshot written: $before"
-```
-
-##### 6b — Run your change
-
-```powershell
-# folder-only repair
-.\scripts\52-vscode-folder-repair\run.ps1            # default = repair
-
-# …or restore defaults (subcommand of run.ps1)
-.\scripts\52-vscode-folder-repair\run.ps1 rollback
-```
-
-##### 6c — Snapshot **after** the change
-
-Same loop, just to a new file:
-
-```powershell
-$after = Join-Path $snapDir "vscode-menu-AFTER-$stamp.reg"
-Remove-Item $after -ErrorAction SilentlyContinue
-foreach ($k in $keys) {
-  $tmp = [IO.Path]::GetTempFileName() + '.reg'
-  $null = reg.exe export $k $tmp /y 2>&1
-  $isExported = ($LASTEXITCODE -eq 0) -and (Test-Path $tmp)
-  if ($isExported) {
-    Add-Content -Path $after -Value "; ----- $k -----"
-    Get-Content -Path $tmp | Add-Content -Path $after
-    Remove-Item $tmp -Force
-  } else {
-    Add-Content -Path $after -Value "; ----- $k ----- (absent at snapshot time)"
-  }
-}
-Write-Host "AFTER snapshot written: $after"
-```
-
-##### 6d — Simple diff summary
-
-A built-in `Compare-Object` view is enough for a sanity check — no extra
-tools required:
-
-```powershell
-$diff = Compare-Object `
-          -ReferenceObject  (Get-Content $before) `
-          -DifferenceObject (Get-Content $after)  |
-        Where-Object { $_.InputObject -notmatch '^;|^Windows Registry|^\s*$' }
-
-"" ; "=== DIFF SUMMARY ($before  vs  $after) ===" ; ""
-$diff | ForEach-Object {
-  $tag = if ($_.SideIndicator -eq '<=') { 'REMOVED' } else { 'ADDED  ' }
-  '{0}  {1}' -f $tag, $_.InputObject
-}
-
-"" ; "Removed lines: {0}" -f ($diff | Where-Object SideIndicator -eq '<=').Count
-"Added   lines: {0}"      -f ($diff | Where-Object SideIndicator -eq '=>').Count
-```
-
-Expected pattern after running `manual-repair.ps1` (folder-only repair)
-on a fresh default install. The summary is **grouped by target** and
-shows **value-level** changes, not raw `.reg` lines:
-
-```text
-=== DIFF SUMMARY (grouped by target, value-level) ===
-
-  [file      ]  +0 added   -2 removed   ~0 modified
-    HKEY_CLASSES_ROOT\*\shell\VSCode
-      REMOVED  <key> (was <key existed>)
-    HKEY_CLASSES_ROOT\*\shell\VSCode\command
-      REMOVED  <key> (was <key existed>)
-
-  [directory ] no changes      ← already present, only file/background changed
-
-  [background]  +0 added   -2 removed   ~0 modified
-    HKEY_CLASSES_ROOT\Directory\Background\shell\VSCode
-      REMOVED  (default) (was Open with Code)
-      REMOVED  Icon      (was C:\Users\you\AppData\Local\Programs\Microsoft VS Code\Code.exe)
-    HKEY_CLASSES_ROOT\Directory\Background\shell\VSCode\command
-      REMOVED  (default) (was "C:\...\Code.exe" "%V")
-
-Totals:  +0 added   -4 removed   ~0 modified
-```
-
-Expected pattern after running `manual-repair.ps1 -RestoreDefaultEntries`
-from a folder-only state — note the `MODIFIED` rows that show **before**
-and **after** values side-by-side when an existing value's data changes:
-
-```text
-=== DIFF SUMMARY (grouped by target, value-level) ===
-
-  [file      ]  +2 added   -0 removed   ~0 modified
-    HKEY_CLASSES_ROOT\*\shell\VSCode
-      ADDED    (default) = Open with Code
-      ADDED    Icon      = C:\...\Code.exe
-    HKEY_CLASSES_ROOT\*\shell\VSCode\command
-      ADDED    (default) = "C:\...\Code.exe" "%1"
-
-  [directory ]  +0 added   -0 removed   ~1 modified
-    HKEY_CLASSES_ROOT\Directory\shell\VSCode\command
-      MODIFIED (default)
-          before: "C:\...\Code.exe" "%1"
-          after : "C:\...\Code.exe" "%V"
-
-  [background]  +2 added   -0 removed   ~0 modified
-    HKEY_CLASSES_ROOT\Directory\Background\shell\VSCode
-      ADDED    (default) = Open with Code
-      ADDED    Icon      = C:\...\Code.exe
-
-Totals:  +4 added   -0 removed   ~1 modified
-```
-
-The same per-target totals are echoed in the script's final **Run summary**
-block:
-
-```text
-Diff totals     : +4 added  -0 removed  ~1 modified
-  - file       : +2 / -0 / ~0
-  - directory  : +0 / -0 / ~1
-  - background : +2 / -0 / ~0
-```
-
-> 🛟 **Restoring from a snapshot.** Either `.reg` file is a valid Windows
-> registry export. To roll back to the exact state you captured, double-click
-> the `BEFORE` file (or run `reg.exe import vscode-menu-BEFORE-<stamp>.reg`)
-> from an elevated prompt. This restores keys, default values, icons, and
-> command lines verbatim — no script needed.
 
 > **Log location:** every script writes a structured JSON log under
 > `.resolved/logs/<script-id>-<timestamp>.json`. If a verification step

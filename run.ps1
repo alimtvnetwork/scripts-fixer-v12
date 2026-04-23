@@ -264,6 +264,7 @@ function Show-RootHelp {
     Write-Host "    $(".\run.ps1 models list".PadRight($col))" -NoNewline; Write-Host "List all models from both catalogs" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 -M".PadRight($col))" -NoNewline; Write-Host "Shortcut for 'models'" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 os <action>".PadRight($col))" -NoNewline; Write-Host "OS housekeeping: clean, temp-clean, hib-off, flp, add-user ('os help')" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 vscode-folder <action>".PadRight($col))" -NoNewline; Write-Host "VS Code folder-only context-menu repair ('vscode-folder help')" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 profile <name>".PadRight($col))" -NoNewline; Write-Host "Run a profile recipe (minimal, base, advance, small-dev, ...)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 gsa".PadRight($col))" -NoNewline; Write-Host "git safe.directory='*' (wildcard, idempotent)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 gsa --scan <path>".PadRight($col))" -NoNewline; Write-Host "Add each .git repo under <path> individually" -ForegroundColor DarkGray
@@ -2177,6 +2178,7 @@ if ($hasCommand) {
     $isBareDoctorCommand  = $normalizedCommand -eq "doctor"
     $isBareModelsCommand  = $normalizedCommand -eq "models" -or $normalizedCommand -eq "model"
     $isBareOsCommand      = $normalizedCommand -eq "os"
+    $isBareVscodeFolderCommand = $normalizedCommand -in @("vscode-folder", "vscode-folder-repair", "vscodefolder", "vscodefolderrepair")
     $isBareProfileCommand = $normalizedCommand -eq "profile" -or $normalizedCommand -eq "profiles"
     $isBareGitToolsCommand = $normalizedCommand -eq "git-tools" -or $normalizedCommand -eq "gittools"
     $isBareGsaCommand     = $normalizedCommand -eq "gsa" -or $normalizedCommand -eq "git-safe-all" -or $normalizedCommand -eq "gitsafeall"
@@ -2192,6 +2194,19 @@ if ($hasCommand) {
             exit 1
         }
         & $osScript @Install
+        exit $LASTEXITCODE
+    }
+
+    if ($isBareVscodeFolderCommand) {
+        Show-VersionHeader
+        $vscodeFolderScript = Join-Path $RootDir "scripts\52-vscode-folder-repair\run.ps1"
+        $isVscodeFolderScriptPresent = Test-Path $vscodeFolderScript
+        if (-not $isVscodeFolderScriptPresent) {
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "VS Code folder repair dispatcher missing at: $vscodeFolderScript"
+            exit 1
+        }
+        & $vscodeFolderScript @Install
         exit $LASTEXITCODE
     }
 
