@@ -62,6 +62,60 @@ if ($Help -or $Command -eq "--help") {
     return
 }
 
+# --------------------------------------------------------------------------
+# Subcommand dispatcher
+#
+# All "manual" workflows that used to require calling manual-repair.ps1
+# directly with long parameter lists are now exposed as named subcommands
+# of run.ps1. The dispatcher forwards to the right helper and exits.
+# Anything not matched here falls through to the legacy folder-only
+# repair flow below (kept for backwards compatibility).
+# --------------------------------------------------------------------------
+function Invoke-ManualRepair {
+    param([hashtable]$Extra = @{})
+
+    $manual = Join-Path $scriptDir "manual-repair.ps1"
+    if (-not (Test-Path -LiteralPath $manual)) {
+        Write-Host "FATAL: manual-repair.ps1 not found at $manual" -ForegroundColor Red
+        exit 2
+    }
+
+    $args = @{}
+    if (-not [string]::IsNullOrWhiteSpace($Edition))         { $args['Edition']           = $Edition }
+    if (-not [string]::IsNullOrWhiteSpace($SnapshotDir))     { $args['SnapshotDir']       = $SnapshotDir }
+    if (-not [string]::IsNullOrWhiteSpace($RestoreFromFile)) { $args['RestoreFromFile']   = $RestoreFromFile }
+    if ($RequireSignature)                                   { $args['RequireSignature']  = $true }
+    if ($NonInteractive)                                     { $args['NonInteractive']    = $true }
+    foreach ($k in $Extra.Keys) { $args[$k] = $Extra[$k] }
+
+    & $manual @args
+    exit $LASTEXITCODE
+}
+
+function Invoke-Rollback {
+    $rb = Join-Path $scriptDir "rollback.ps1"
+    if (-not (Test-Path -LiteralPath $rb)) {
+        Write-Host "FATAL: rollback.ps1 not found at $rb" -ForegroundColor Red
+        exit 2
+    }
+    $args = @{}
+    if (-not [string]::IsNullOrWhiteSpace($Edition)) { $args['Edition'] = $Edition }
+    & $rb @args
+    exit $LASTEXITCODE
+}
+
+switch ($Command.ToLower()) {
+    'help'       { Show-ScriptHelp -LogMessages $logMessages; return }
+    'dry-run'    { Invoke-ManualRepair -Extra @{ WhatIf = $true } }
+    'whatif'     { Invoke-ManualRepair -Extra @{ WhatIf = $true } }
+    'trace'      { Invoke-ManualRepair -Extra @{ VerboseRegistry = $true } }
+    'verify'     { Invoke-ManualRepair -Extra @{ WhatIf = $true; VerboseRegistry = $true } }
+    'restore'    { Invoke-ManualRepair -Extra @{ RestoreDefaultEntries = $true } }
+    'rollback'   { Invoke-Rollback }
+    'repair'     { Invoke-ManualRepair }
+    default      { } # 'all' / 'no-restart' / unknown -> fall through to legacy path
+}
+
 # -- Banner -------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
 
