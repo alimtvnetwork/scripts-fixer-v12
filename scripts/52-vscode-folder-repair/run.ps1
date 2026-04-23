@@ -34,7 +34,10 @@ param(
     [switch]$RequireSignature,
     [switch]$NonInteractive,
 
-    [switch]$Help
+    [switch]$Help,
+
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Rest
 )
 
 Set-StrictMode -Version Latest
@@ -112,6 +115,23 @@ switch ($Command.ToLower()) {
     'verify'     { Invoke-ManualRepair -Extra @{ WhatIf = $true; VerboseRegistry = $true } }
     'restore'    { Invoke-ManualRepair -Extra @{ RestoreDefaultEntries = $true } }
     'rollback'   { Invoke-Rollback }
+    'refresh'    {
+        # Minimum-components shell refresh. Optional --restart adds full explorer.exe relaunch.
+        $isFullRestart = $false
+        if ($null -ne $Rest -and $Rest.Count -gt 0) {
+            foreach ($a in $Rest) {
+                $low = "$a".Trim().ToLower()
+                if ($low -in @('--restart', '-restart', 'restart', '--full', '-full', 'full')) {
+                    $isFullRestart = $true
+                }
+            }
+        }
+        $waitMs = 800
+        $hasWait = $config.PSObject.Properties.Match('restartExplorerWaitMs').Count -gt 0
+        if ($hasWait) { $waitMs = [int]$config.restartExplorerWaitMs }
+        $ok = Invoke-ShellRefresh -LogMsgs $logMessages -FullRestart:$isFullRestart -WaitMs $waitMs
+        if ($ok) { exit 0 } else { exit 1 }
+    }
     'repair'     { Invoke-ManualRepair }
     default      { } # 'all' / 'no-restart' / unknown -> fall through to legacy path
 }
