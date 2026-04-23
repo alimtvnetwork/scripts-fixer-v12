@@ -38,9 +38,9 @@ type: feature
 ## Pending Suggestions
 
 ### High Priority
-- [ ] Model catalog auto-update -- check Hugging Face for new GGUF releases
-- [ ] SHA256 checksums in catalog for download integrity verification
-- [ ] Parallel model downloads using aria2c batch input file mode
+- [~] Model catalog auto-update -- spec written (`spec/2025-batch/suggestions/01-catalog-auto-update.md`); PowerShell helper pending
+- [~] SHA256 checksums in catalog -- verification logic shipped; spec for population helper at `spec/2025-batch/suggestions/02-sha256-population.md`; data fill pending
+- [~] Parallel model downloads (aria2c batch) -- spec written (`spec/2025-batch/suggestions/03-parallel-downloads.md`); implementation pending
 
 ### Medium Priority
 - [ ] GUI/TUI interface for model picker (curses or Windows Forms)

@@ -42,3 +42,11 @@ type: feature
 ## Spec
 
 Full algorithm, edge cases, and reference implementations: `spec/install-bootstrap/readme.md`
+
+## See also (v0.75.0+)
+
+The cross-repo behavior for `quick-install`, `release-install`, and
+`error-manage` is now governed by the generic spec at
+`spec/00-generic-install-script-behavior/`. Locked defaults: fixed
+v1..v20 HEAD probe, auto-redirect, log-only when no newer found,
+strict release-tag mode forbids main fallback.
