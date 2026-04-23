@@ -213,19 +213,46 @@ function Invoke-ShellRefresh {
 
     .PARAMETER WaitMs
         Forwarded to Restart-Explorer when -FullRestart is on.
+
+    .PARAMETER SendAssoc
+        If set, sends SHChangeNotify(SHCNE_ASSOCCHANGED). Default: ON.
+        Use -SendAssoc:$false to skip.
+
+    .PARAMETER SendBroadcast
+        If set, sends WM_SETTINGCHANGE broadcast with lParam='Environment'.
+        Default: ON. Use -SendBroadcast:$false to skip.
+
+        At least one of SendAssoc / SendBroadcast must be enabled, otherwise
+        the function logs an error and returns $false.
     #>
     param(
         [PSObject]$LogMsgs,
         [switch]$FullRestart,
-        [int]$WaitMs = 800
+        [int]$WaitMs = 800,
+        [bool]$SendAssoc = $true,
+        [bool]$SendBroadcast = $true
     )
 
     Write-Log $LogMsgs.messages.refreshingShell -Level "info"
 
+    $isNothingSelected = (-not $SendAssoc) -and (-not $SendBroadcast) -and (-not $FullRestart)
+    if ($isNothingSelected) {
+        Write-Log $LogMsgs.messages.refreshNothingSelected -Level "error"
+        return $false
+    }
+
+    # Print the exact plan up-front so the user sees what will be sent.
+    $planParts = @()
+    if ($SendAssoc)     { $planParts += "SHChangeNotify(SHCNE_ASSOCCHANGED=0x08000000, SHCNF_IDLIST=0x0000, NULL, NULL)" }
+    if ($SendBroadcast) { $planParts += "SendMessageTimeout(HWND_BROADCAST=0xFFFF, WM_SETTINGCHANGE=0x001A, 0, 'Environment', SMTO_ABORTIFHUNG=0x0002, 5000ms)" }
+    if ($FullRestart)   { $planParts += "Restart-Explorer(WaitMs=$WaitMs)" }
+    $planText = if ($planParts.Count -gt 0) { $planParts -join ' | ' } else { '(none)' }
+    Write-Log (($LogMsgs.messages.refreshPlan -replace '\{plan\}', $planText)) -Level "info"
+
     $hasFailed = $false
 
     # 1) SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL)
-    try {
+    if ($SendAssoc) { try {
         $shellApiSig = @'
 using System;
 using System.Runtime.InteropServices;
@@ -245,20 +272,43 @@ public static class ShellNotify {
         }
 
         # SHCNE_ASSOCCHANGED = 0x08000000, SHCNF_IDLIST = 0x0000
+        Write-Log (($LogMsgs.messages.refreshSendingAssoc)) -Level "info"
         [ShellNotify]::SHChangeNotify(0x08000000, 0x0000, [IntPtr]::Zero, [IntPtr]::Zero)
         Write-Log $LogMsgs.messages.refreshAssocOk -Level "success"
     } catch {
         $hasFailed = $true
         $reason = "SHChangeNotify failed -- reason: $($_.Exception.Message)"
         Write-Log (($LogMsgs.messages.refreshFailed -replace '\{step\}', 'SHChangeNotify') -replace '\{error\}', $reason) -Level "error"
+    } } else {
+        Write-Log (($LogMsgs.messages.refreshSkipped -replace '\{step\}', 'SHChangeNotify(SHCNE_ASSOCCHANGED)')) -Level "info"
     }
 
     # 2) WM_SETTINGCHANGE broadcast (HWND_BROADCAST = 0xFFFF, WM_SETTINGCHANGE = 0x001A)
-    try {
+    if ($SendBroadcast) { try {
+        # Ensure the P/Invoke type is loaded even when SendAssoc was skipped.
+        $isTypeMissing = -not ('ShellNotify' -as [type])
+        if ($isTypeMissing) {
+            $shellApiSig2 = @'
+using System;
+using System.Runtime.InteropServices;
+public static class ShellNotify {
+    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+    public static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
+        uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+}
+'@
+            Add-Type -TypeDefinition $shellApiSig2 -ErrorAction Stop
+        }
+
         $isTypePresent = ('ShellNotify' -as [type]) -ne $null
         if ($isTypePresent) {
             $result = [UIntPtr]::Zero
             # SMTO_ABORTIFHUNG = 0x0002, 5000ms timeout
+            Write-Log (($LogMsgs.messages.refreshSendingBroadcast)) -Level "info"
             [void][ShellNotify]::SendMessageTimeout(
                 [IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, "Environment",
                 0x0002, 5000, [ref]$result)
@@ -268,6 +318,8 @@ public static class ShellNotify {
         $hasFailed = $true
         $reason = "WM_SETTINGCHANGE broadcast failed -- reason: $($_.Exception.Message)"
         Write-Log (($LogMsgs.messages.refreshFailed -replace '\{step\}', 'WM_SETTINGCHANGE') -replace '\{error\}', $reason) -Level "error"
+    } } else {
+        Write-Log (($LogMsgs.messages.refreshSkipped -replace '\{step\}', "WM_SETTINGCHANGE broadcast ('Environment')")) -Level "info"
     }
 
     if ($FullRestart) {

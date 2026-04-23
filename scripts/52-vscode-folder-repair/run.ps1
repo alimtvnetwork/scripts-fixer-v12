@@ -116,20 +116,49 @@ switch ($Command.ToLower()) {
     'restore'    { Invoke-ManualRepair -Extra @{ RestoreDefaultEntries = $true } }
     'rollback'   { Invoke-Rollback }
     'refresh'    {
-        # Minimum-components shell refresh. Optional --restart adds full explorer.exe relaunch.
-        $isFullRestart = $false
+        # Minimum-components shell refresh.
+        # Flags (parsed from $Rest):
+        #   --assoc-only      Only SHChangeNotify(SHCNE_ASSOCCHANGED)
+        #   --broadcast-only  Only WM_SETTINGCHANGE 'Environment' broadcast
+        #   --both            Send both (default)
+        #   --restart|--full  Also kill+relaunch explorer.exe (fallback)
+        $isAssocOnly     = $false
+        $isBroadcastOnly = $false
+        $isExplicitBoth  = $false
+        $isFullRestart   = $false
         if ($null -ne $Rest -and $Rest.Count -gt 0) {
             foreach ($a in $Rest) {
                 $low = "$a".Trim().ToLower()
-                if ($low -in @('--restart', '-restart', 'restart', '--full', '-full', 'full')) {
-                    $isFullRestart = $true
+                switch ($low) {
+                    { $_ -in @('--assoc-only','-assoc-only','assoc-only','--assoc','-assoc','assoc') }         { $isAssocOnly = $true }
+                    { $_ -in @('--broadcast-only','-broadcast-only','broadcast-only','--broadcast','broadcast') } { $isBroadcastOnly = $true }
+                    { $_ -in @('--both','-both','both') }                                                       { $isExplicitBoth = $true }
+                    { $_ -in @('--restart','-restart','restart','--full','-full','full') }                       { $isFullRestart = $true }
+                    default { }
                 }
             }
         }
+        $hasConflict = $isAssocOnly -and $isBroadcastOnly
+        if ($hasConflict) {
+            Write-Host "ERROR: --assoc-only and --broadcast-only are mutually exclusive. Use --both (or no flag) to send both." -ForegroundColor Red
+            exit 2
+        }
+        $sendAssoc     = $true
+        $sendBroadcast = $true
+        if ($isAssocOnly)     { $sendBroadcast = $false }
+        if ($isBroadcastOnly) { $sendAssoc     = $false }
+        # --both is the default; flag is accepted explicitly for clarity.
+        if ($isExplicitBoth)  { $sendAssoc = $true; $sendBroadcast = $true }
+
         $waitMs = 800
         $hasWait = $config.PSObject.Properties.Match('restartExplorerWaitMs').Count -gt 0
         if ($hasWait) { $waitMs = [int]$config.restartExplorerWaitMs }
-        $ok = Invoke-ShellRefresh -LogMsgs $logMessages -FullRestart:$isFullRestart -WaitMs $waitMs
+        $ok = Invoke-ShellRefresh `
+                -LogMsgs       $logMessages `
+                -FullRestart:$isFullRestart `
+                -WaitMs        $waitMs `
+                -SendAssoc     $sendAssoc `
+                -SendBroadcast $sendBroadcast
         if ($ok) { exit 0 } else { exit 1 }
     }
     'repair'     { Invoke-ManualRepair }
