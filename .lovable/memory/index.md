@@ -24,6 +24,7 @@ OneNote install (`onenote` keyword) must do ONLY OneNote. OneDrive disable lives
 - [Questionnaire](mem://features/questionnaire) — Questionnaire system for script 12
 - [Resolved folder](mem://features/resolved-folder) — .resolved/ runtime state persistence
 - [Shared helpers](mem://features/shared-helpers) — Shared PowerShell helper modules
+- [Models catalog](mem://features/models-catalog) — 90 GGUF models incl. OpenRouter leaderboard open-weight portion (Nov 2025)
 - [VS Code Project Manager sync](mem://features/vscode-projects-sync) — `run.ps1 scan <path>` upserts discovered projects into VS Code Project Manager projects.json (match by rootPath, atomic writes, never opens VS Code)
 - [Generic install spec (in design)](mem://features/generic-install-spec) — Cross-repo install behavior: strict tag mode, main fallback, v1..v20 parallel discovery. Awaiting 15-item checklist confirmation.
 - [Install bootstrap](mem://features/install-bootstrap) — scripts-fixer-vN auto-discovery installers (concrete instance of generic spec)
