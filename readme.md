@@ -617,6 +617,65 @@ Override the dev drive globally before running any profile:
 
 ---
 
+## 🤖 Local AI Models — 91 GGUFs + Ollama
+
+Two backends, one orchestrator. Install local LLMs without juggling
+Hugging Face URLs, RAM math, or quantization codes.
+
+| Backend | Catalog | What it does | Entry point |
+|---|---|---|---|
+| **llama.cpp** | [`models-list.md`](scripts/43-install-llama-cpp/models-list.md) — **91 GGUF models, 33 families** | Hardware-aware picker. 4-filter chain (RAM → Size → Speed → Capability). Direct GGUF download + verify. | `.\run.ps1 install llama-cpp` |
+| **Ollama** | [`config.json`](scripts/42-install-ollama/config.json) — daemon-managed pulls | Daemon-based pull/push. Slug install (`llama3.2`, `qwen2.5-coder`, `deepseek-r1:8b`). Auto-detects existing models on uninstall. | `.\run.ps1 install ollama` |
+
+The catalog includes the **open-weight portion of the OpenRouter LLM
+Leaderboard (Nov 2025)** — MiMo-V2-Flash, Qwen 3.6, DeepSeek V3.2,
+MiniMax M2/M2.7, StepFun Step 3.5 Flash, NVIDIA Nemotron 3 Super 120B,
+Z.AI GLM 5.1, Moonshot Kimi K2.6, OpenAI gpt-oss-120b. Closed-source
+API models (Claude, GPT-5.4, Gemini, Grok) are intentionally excluded
+because they cannot be downloaded as GGUF files.
+
+### Quick install
+
+```powershell
+# Interactive picker — auto-detects RAM, walks 4 filters, multi-select
+.\run.ps1 install llama-cpp
+
+# Direct CSV install (skip filters, by id)
+.\run.ps1 models qwen2.5-coder-3b,phi-4-mini-3.8b,gemma-3-4b-it
+
+# Browse the full catalog without installing
+.\run.ps1 models list llama
+
+# Pick the Ollama backend instead
+.\run.ps1 models -Backend ollama llama3.2,qwen2.5-coder,deepseek-r1:8b
+
+# Search Ollama hub live
+.\run.ps1 models search reasoning
+
+# Remove installed models (works for both backends)
+.\run.ps1 models uninstall llama
+.\run.ps1 models uninstall ollama -Force
+```
+
+### What's in the catalog
+
+- **91 models** across **33 families** (Qwen, Llama, Gemma, Phi, DeepSeek,
+  Mistral, Granite, Codestral, StarCoder, CodeLlama, Whisper, Nemotron,
+  GLM, MiniMax, Kimi, gpt-oss, MiMo, Step, …)
+- **Capabilities tracked per model**: `isCoding`, `isReasoning`,
+  `isWriting`, `isVoice`, `isMultilingual`, `isChat` + ratings 0-10 for
+  coding / reasoning / speed / overall
+- **Hardware metadata**: `fileSizeGB`, `ramRequiredGB`, `ramRecommendedGB`,
+  `quantization`, `parameters`
+- **9 datacenter-class models** (≥64 GB RAM) for workstation/server use:
+  DeepSeek V3.2, Kimi K2.6, GLM 5.1, MiniMax M2 / M2.7, Nemotron 3 Super,
+  gpt-oss-120b, Qwen 3.5 122B-A10B, DeepSeek R1 70B
+
+👉 **Full table of every model with size, RAM, capabilities, license, and
+download link**: [`scripts/43-install-llama-cpp/models-list.md`](scripts/43-install-llama-cpp/models-list.md)
+
+---
+
 ## 🧹 OS Toolbox — Clean & Tweak Windows
 
 The `os` subcommand family wraps Windows housekeeping tasks behind one
