@@ -2496,6 +2496,7 @@ if ($hasInstallKeywords) {
         40 = "JAVA_MODE"
         41 = "PYTHON_LIBS_MODE"
         48 = "CONEMU_MODE"
+        50 = "ONENOTE_MODE"
     }
 
     foreach ($entry in $resolvedEntries) {

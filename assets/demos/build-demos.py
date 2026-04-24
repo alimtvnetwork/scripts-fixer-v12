@@ -304,6 +304,139 @@ def demo_profile() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Demo 1b: profile minimal (4-step bootstrap)
+# ---------------------------------------------------------------------------
+
+def demo_profile_minimal() -> None:
+    lines: List[Line] = [
+        Line(prompt_segments(".\\run.ps1 profile minimal"), delay=0.4, typed=True),
+
+        Line([("", TEXT_FG)], delay=3.4),
+        Line([("==> Profile: minimal  (fresh-Windows bootstrap)", ACCENT_HEADER)], delay=3.5),
+        Line([("    4 steps: choco -> git -> 7zip -> chrome", DIM_FG)], delay=3.65),
+        Line([("", TEXT_FG)], delay=3.8),
+
+        Line([("[1/4] ", ACCENT_INFO), ("chocolatey           ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.0),
+        Line([("[2/4] ", ACCENT_INFO), ("git + lfs            ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.4),
+        Line([("[3/4] ", ACCENT_INFO), ("7-zip                ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.8),
+        Line([("[4/4] ", ACCENT_INFO), ("google chrome        ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.2),
+
+        Line([("", TEXT_FG)], delay=5.6),
+        Line([("Bootstrap done in ", DIM_FG), ("1m 47s", ACCENT_WARN), (" - browser + archiver + git ready.", DIM_FG)], delay=5.8),
+
+        Line(prompt_segments(""), delay=6.6, typed=False),
+    ]
+    build_svg(
+        title="run profile minimal  -  4-step fresh-Windows bootstrap",
+        lines=lines,
+        loop_seconds=9.0,
+        out_path=OUT_DIR / "run-profile-minimal.svg",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Demo 1c: profile small-dev (advance + Go/Python/Node/pnpm)
+# ---------------------------------------------------------------------------
+
+def demo_profile_small_dev() -> None:
+    lines: List[Line] = [
+        Line(prompt_segments(".\\run.ps1 profile small-dev"), delay=0.4, typed=True),
+
+        Line([("", TEXT_FG)], delay=3.6),
+        Line([("==> Profile: small-dev  (advance + 4 runtimes)", ACCENT_HEADER)], delay=3.7),
+        Line([("    Expanded: 19 steps (advance + Go/Py/Node/pnpm)", DIM_FG)], delay=3.85),
+        Line([("", TEXT_FG)], delay=4.0),
+
+        Line([("[ 1-12 ] ", ACCENT_INFO), ("base profile (12 steps) ........ ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.2),
+        Line([("[13-15 ] ", ACCENT_INFO), ("git-compact (3 steps) .......... ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.55),
+        Line([("[16/19 ] ", ACCENT_INFO), ("golang ......................... ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.9),
+        Line([("[17/19 ] ", ACCENT_INFO), ("python + pip ................... ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.25),
+        Line([("[18/19 ] ", ACCENT_INFO), ("node.js + yarn + bun ........... ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.6),
+        Line([("[19/19 ] ", ACCENT_INFO), ("pnpm ........................... ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.95),
+
+        Line([("", TEXT_FG)], delay=6.3),
+        Line([("Coding box ready in ", DIM_FG), ("6m 28s", ACCENT_WARN), (" - Go/Py/Node/pnpm + IDE on PATH.", DIM_FG)], delay=6.5),
+
+        Line(prompt_segments(""), delay=7.3, typed=False),
+    ]
+    build_svg(
+        title="run profile small-dev  -  tight everyday dev box",
+        lines=lines,
+        loop_seconds=10.0,
+        out_path=OUT_DIR / "run-profile-small-dev.svg",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Demo 1d: profile git-compact
+# ---------------------------------------------------------------------------
+
+def demo_profile_git() -> None:
+    lines: List[Line] = [
+        Line(prompt_segments(".\\run.ps1 profile git-compact"), delay=0.4, typed=True),
+
+        Line([("", TEXT_FG)], delay=3.8),
+        Line([("==> Profile: git-compact", ACCENT_HEADER)], delay=3.9),
+        Line([("    Git stack + SSH key + GitHub dir + .gitconfig", DIM_FG)], delay=4.05),
+        Line([("", TEXT_FG)], delay=4.2),
+
+        Line([("[1/5] ", ACCENT_INFO), ("git + git-lfs + gh           ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.4),
+        Line([("[2/5] ", ACCENT_INFO), ("github desktop               ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.75),
+        Line([("[3/5] ", ACCENT_INFO), ("ssh key (ed25519)            ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.1),
+        Line([("       ", DIM_FG), ("public key copied to clipboard", DIM_FG)], delay=5.3),
+        Line([("[4/5] ", ACCENT_INFO), ("default github dir           ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.6),
+        Line([("       ", DIM_FG), ("created C:\\Users\\dev\\GitHub", DIM_FG)], delay=5.8),
+        Line([("[5/5] ", ACCENT_INFO), ("apply default .gitconfig     ", TEXT_FG), ("OK", ACCENT_OK)], delay=6.1),
+
+        Line([("", TEXT_FG)], delay=6.5),
+        Line([("git-compact done in ", DIM_FG), ("2m 04s", ACCENT_WARN), (" - clone & push, ready.", DIM_FG)], delay=6.7),
+
+        Line(prompt_segments(""), delay=7.5, typed=False),
+    ]
+    build_svg(
+        title="run profile git-compact  -  git + ssh + GitHub dir + .gitconfig",
+        lines=lines,
+        loop_seconds=10.2,
+        out_path=OUT_DIR / "run-profile-git-compact.svg",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Demo 1e: os clean detailed (folders + sizes)
+# ---------------------------------------------------------------------------
+
+def demo_os_clean_detailed() -> None:
+    lines: List[Line] = [
+        Line(prompt_segments(".\\run.ps1 os clean --dry-run"), delay=0.4, typed=True),
+
+        Line([("", TEXT_FG)], delay=4.0),
+        Line([("==> OS toolbox: clean (DRY RUN -- nothing deleted)", ACCENT_HEADER)], delay=4.1),
+        Line([("    Scope: temp + caches + recycle bin + event logs", DIM_FG)], delay=4.3),
+        Line([("", TEXT_FG)], delay=4.5),
+
+        Line([("  [scan] ", ACCENT_INFO), ("%TEMP%                          ", TEXT_FG), ("4,812 files   2.10 GB", DIM_FG)], delay=4.7),
+        Line([("  [scan] ", ACCENT_INFO), ("%LOCALAPPDATA%\\Temp             ", TEXT_FG), ("1,203 files   780 MB", DIM_FG)], delay=4.95),
+        Line([("  [scan] ", ACCENT_INFO), ("C:\\Windows\\Temp                 ", TEXT_FG), ("612 files   340 MB", DIM_FG)], delay=5.2),
+        Line([("  [scan] ", ACCENT_INFO), ("C:\\Windows\\SoftwareDistribution ", TEXT_FG), ("2,041 files   1.40 GB", DIM_FG)], delay=5.45),
+        Line([("  [scan] ", ACCENT_INFO), ("chocolatey lib-bad/lib-bkp      ", TEXT_FG), ("18 files   62 MB", DIM_FG)], delay=5.7),
+        Line([("  [scan] ", ACCENT_INFO), ("Recycle Bin (all drives)        ", TEXT_FG), ("87 items   210 MB", DIM_FG)], delay=5.95),
+        Line([("  [scan] ", ACCENT_INFO), ("Event logs + PSReadLine history ", TEXT_FG), ("- ", DIM_FG), ("clear", ACCENT_OK)], delay=6.2),
+
+        Line([("", TEXT_FG)], delay=6.55),
+        Line([("Total reclaimable: ", DIM_FG), ("4.89 GB", ACCENT_WARN), ("   files: ", DIM_FG), ("8,773", ACCENT_WARN)], delay=6.75),
+        Line([("Re-run without --dry-run to delete.", DIM_FG)], delay=7.0),
+
+        Line(prompt_segments(""), delay=7.8, typed=False),
+    ]
+    build_svg(
+        title="run os clean --dry-run  -  preview reclaimable disk space",
+        lines=lines,
+        loop_seconds=10.5,
+        out_path=OUT_DIR / "run-os-clean-detailed.svg",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Demo 2: install postgresql
 # ---------------------------------------------------------------------------
 
@@ -379,8 +512,12 @@ def demo_os_clean() -> None:
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     demo_profile()
+    demo_profile_minimal()
+    demo_profile_small_dev()
+    demo_profile_git()
     demo_postgres()
     demo_os_clean()
+    demo_os_clean_detailed()
 
 
 if __name__ == "__main__":

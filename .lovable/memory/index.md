@@ -8,6 +8,8 @@ Project includes PowerShell utility scripts alongside the React web app.
 User prefers structured script projects: external JSON configs, spec docs, suggestions folder, colorful logging.
 CODE RED: Every file/path error MUST log exact file path + failure reason. Use Write-FileError helper.
 Install scripts: no tag → main branch; tag given → STRICT (no fallback, no vN hopping); discovery probes `<prefix>-v1..v20` lowercase parallel. See generic-install-spec.
+Never read files under `assets/` (demos/icons are large generated artifacts) — reference by path only.
+OneNote install (`onenote` keyword) must do ONLY OneNote. OneDrive disable lives in a separate combo `onenote+rm-onedrive`.
 
 ## Memories
 - [Script structure](mem://preferences/script-structure) — How the user wants scripts organized with configs, specs, and suggestions
@@ -25,3 +27,4 @@ Install scripts: no tag → main branch; tag given → STRICT (no fallback, no v
 - [VS Code Project Manager sync](mem://features/vscode-projects-sync) — `run.ps1 scan <path>` upserts discovered projects into VS Code Project Manager projects.json (match by rootPath, atomic writes, never opens VS Code)
 - [Generic install spec (in design)](mem://features/generic-install-spec) — Cross-repo install behavior: strict tag mode, main fallback, v1..v20 parallel discovery. Awaiting 15-item checklist confirmation.
 - [Install bootstrap](mem://features/install-bootstrap) — scripts-fixer-vN auto-discovery installers (concrete instance of generic spec)
+- [Assets folder no-read](mem://constraints/assets-folder-noread) — Never read assets/ files into context

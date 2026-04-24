@@ -19,8 +19,9 @@
       "notes": "Replaces the deprecated Win10 standalone (LinkID=2024522). This URL pulls the current Microsoft 365 OneNote desktop app via Click-to-Run -- the only OneNote variant Microsoft is shipping going forward (Win10 OneNote sunset)."
     },
     "tweaks": {
-      "removeTrayIcon": true,
-      "disableOneDrive": true
+      "_comment": "Tweaks are OFF by default. Plain `install onenote` does ONLY OneNote. Use `install onenote+rm-onedrive` to enable both. CLI flags also override: `-I 50 -- with-tweaks` or `-Mode with-tweaks`.",
+      "removeTrayIcon": false,
+      "disableOneDrive": false
     }
   }
 }

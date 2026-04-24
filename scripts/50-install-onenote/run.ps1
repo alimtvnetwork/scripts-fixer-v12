@@ -44,6 +44,30 @@ try {
         return
     }
 
+    # Mode resolution -- decides whether post-install tweaks (tray + OneDrive) run.
+    # Order of precedence:
+    #   1) Explicit Command arg: install | with-tweaks | rm-onedrive | all
+    #   2) Env var ONENOTE_MODE (set by keyword dispatcher for `onenote+rm-onedrive`)
+    #   3) Falls back to config defaults (which ship as OFF -> install-only)
+    $cmd     = $Command.ToLower()
+    $envMode = if ($env:ONENOTE_MODE) { $env:ONENOTE_MODE.ToLower() } else { "" }
+
+    $applyTweaks = $false
+    switch ($cmd) {
+        "install"     { $applyTweaks = $false }
+        "with-tweaks" { $applyTweaks = $true }
+        "rm-onedrive" { $applyTweaks = $true }
+        "all"         { $applyTweaks = ($envMode -in @("with-tweaks","rm-onedrive","all")) }
+        default       { $applyTweaks = ($envMode -in @("with-tweaks","rm-onedrive","all")) }
+    }
+
+    # Push resolved decision into config so the helper stays declarative.
+    $config.onenote.tweaks.removeTrayIcon  = $applyTweaks
+    $config.onenote.tweaks.disableOneDrive = $applyTweaks
+
+    $modeLabel = if ($applyTweaks) { "install + rm-onedrive (tray + OneDrive autostart disabled)" } else { "install-only (no tweaks, OneDrive untouched)" }
+    Write-Log "OneNote mode: $modeLabel" -Level "info"
+
     $ok = Install-OneNote -OneConfig $config.onenote -LogMessages $logMessages
 
     $isSuccess = $ok -eq $true

@@ -1,7 +1,7 @@
 {
   "scriptName": "install-onenote",
-  "scriptTitle": "Install OneNote (+ tray remove + OneDrive disable)",
-  "scriptDesc": "Install OneNote desktop, remove OneNote tray icon, disable OneDrive autostart and scheduled tasks",
+  "scriptTitle": "Install OneNote",
+  "scriptDesc": "Install OneNote desktop. Plain run = OneNote only. With `with-tweaks` / `rm-onedrive` mode = also remove tray icon + disable OneDrive autostart.",
   "messages": {
     "checking": "Checking for existing OneNote install...",
     "alreadyInstalled": "OneNote already installed at: {path}",
@@ -30,12 +30,18 @@
   },
   "help": {
     "commands": {
-      "install": "Install OneNote + remove tray + disable OneDrive (default)",
+      "install": "Install ONLY OneNote (default -- no tweaks, no OneDrive disable)",
+      "with-tweaks": "Install OneNote + remove tray + disable OneDrive autostart",
+      "rm-onedrive": "Alias for with-tweaks (install + disable OneDrive)",
+      "all": "Install + apply tweaks if ONENOTE_MODE is set (used by keyword dispatcher)",
       "uninstall": "Uninstall OneNote, remove tracking"
     },
     "examples": [
       ".\\run.ps1 install onenote",
+      ".\\run.ps1 install onenote+rm-onedrive",
       ".\\run.ps1 -I 50",
+      ".\\run.ps1 -I 50 -- with-tweaks",
+      ".\\run.ps1 -I 50 -- rm-onedrive",
       ".\\run.ps1 -I 50 -- -Help",
       ".\\run.ps1 -I 50 uninstall"
     ]

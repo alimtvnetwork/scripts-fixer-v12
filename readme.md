@@ -117,66 +117,145 @@ anything is deleted.
 
 ---
 
-## 2025 Setup Batch — Phase Roadmap
+## 🎯 Profiles — Curated Multi-Tool Installs
 
-The **2025 batch** adds five Chocolatey-based installers and a new `os`
-subcommand family. Phases run in order; each one is a single command.
-Specs live in [`spec/2025-batch/`](spec/2025-batch/).
+Profiles are **named recipes** that bundle several scripts into a single
+command. Use them when you want a complete environment in one shot instead
+of remembering individual script IDs.
 
-Legend — **Admin**: 🛡️ required · 👤 user-scope OK · ⚠️ partial (some sub-actions need elevation). **Reboot**: 🔁 recommended · ✅ none · ↩️ sign-out only.
+| Profile | Command | What it sets up | Steps | Demo |
+|---------|---------|-----------------|:-----:|:----:|
+| **Minimal** | `.\run.ps1 profile minimal` | Fresh-Windows bootstrap: choco + git + 7zip + chrome | 4 | _(below)_ |
+| **Base** | `.\run.ps1 profile base` | Daily-driver Windows: package mgrs, media, browser, terminal, Notepad++, ConEmu, Ubuntu font, XMind, hibernation off, PSReadLine | 12 | _(see advance)_ |
+| **Git-compact** | `.\run.ps1 profile git-compact` | Git stack + GitHub Desktop + SSH key + GitHub dir + opinionated `.gitconfig` | 5 | _(below)_ |
+| **Advance** | `.\run.ps1 profile advance` | base + git-compact + WordWeb, Beyond Compare, OBS+settings, WhatsApp, VSCode + sync | ~25 | _(below)_ |
+| **C++ + DirectX** | `.\run.ps1 profile cpp-dx` | VC++ runtimes + DirectX runtime + DirectX SDK | 3 | _(none)_ |
+| **Small Dev** | `.\run.ps1 profile small-dev` | advance + Go + Python + Node.js + pnpm — tight everyday dev box | ~29 | _(below)_ |
 
-| Phase | Script | What it does | Status | Admin | Reboot | Next command | Uninstall / rollback |
-|:-----:|:------:|--------------|:------:|:-----:|:------:|--------------|----------------------|
-| **1** | **47 — Ubuntu Font** | Installs the Ubuntu font family system-wide via `ubuntu.font` (no dev-dir prompt). | ✅ **Done** | 🛡️ Yes | ✅ None<br/>_(restart apps to pick up font)_ | `.\run.ps1 -I 47` | `.\run.ps1 -I 47 uninstall`<br/>_(removes Ubuntu*.ttf from `%WINDIR%\Fonts` + registry keys)_ |
-| **2** | **48 — ConEmu** | Installs ConEmu and syncs `ConEmu.xml` from `settings/06 - conemu/` to `%APPDATA%\ConEmu\` (with timestamped backup). 3 modes + `export`. | ✅ **Done** | ⚠️ Install needs admin (choco); `settings-only` & `export` run as user | ✅ None<br/>_(close ConEmu before sync)_ | `.\run.ps1 -I 48`<br/>`.\run.ps1 -I 48 -- -Mode settings-only`<br/>`.\run.ps1 -I 48 -- export` | `.\run.ps1 -I 48 uninstall`<br/>_(choco uninstall + restores latest `.bak.*` of `ConEmu.xml`)_ |
-| **3** | **49 — WhatsApp Desktop** | Installs WhatsApp Desktop via Chocolatey (skips Microsoft Store entirely). | ⏳ Pending audit | 🛡️ Yes (choco) | ✅ None | `.\run.ps1 -I 49`<br/>`.\run.ps1 install whatsapp` | `.\run.ps1 -I 49 uninstall`<br/>`choco uninstall whatsapp -y` |
-| **4** | **50 — OneNote** | Installs OneNote (free desktop), removes the tray icon, disables OneDrive autostart. Choco first, direct-download fallback. | ⏳ Pending audit | 🛡️ Yes (install + HKLM autostart key) | ↩️ Sign-out<br/>_(to fully drop OneDrive autostart)_ | `.\run.ps1 -I 50`<br/>`.\run.ps1 install onenote` | `.\run.ps1 -I 50 uninstall`<br/>_(reverts OneDrive autostart + removes OneNote)_ |
-| **5** | **51 — Lightshot** | Installs Lightshot and applies registry tweaks: no notifications, no upload prompt, JPEG 100%, copy-to-clipboard default. | ⏳ Pending audit | ⚠️ Install needs admin; `HKCU` registry tweaks run as user | ✅ None | `.\run.ps1 -I 51`<br/>`.\run.ps1 install lightshot` | `.\run.ps1 -I 51 uninstall`<br/>_(choco uninstall + reverts `HKCU\Software\Skillbrains\Lightshot` tweaks)_ |
-| **6** | **`os flp`** | Enables Windows long-path support (>260 chars) via registry — same toggle as gpedit's *"Enable Win32 long paths"*. | ⏳ Pending build | 🛡️ **Yes — writes `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`** | 🔁 **Recommended**<br/>_(some apps cache the 260-char limit until reboot)_ | `.\run.ps1 os flp`<br/>`.\run.ps1 os fix-long-path` | `.\run.ps1 os flp -- -Disable`<br/>_(sets `LongPathsEnabled = 0` in `HKLM\SYSTEM\…\FileSystem`)_ |
-| **7** | **`os` group remainder** | Remaining `os` subcommands (clean, add-user, hib-off …). Spec review in progress. | 🗒️ Spec WIP | 🛡️ Mostly yes — `clean`, `add-user`, `hib-off` all need elevation | ✅ None<br/>_(except `add-user` → ↩️ sign-out for new profile)_ | _(TBD — see [`spec/2025-batch/`](spec/2025-batch/))_ | `os clean` → no-op (read-only purge); `os add-user` → `net user <name> /delete`; `os hib-off` → `powercfg /hibernate on` |
+Source of truth: [`scripts/profile/config.json`](scripts/profile/config.json) ·
+spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 
-> **🛡️ Admin tip:** launch your terminal as Administrator (`Start` → right-click
-> *Windows Terminal* / *ConEmu* → **Run as administrator**) before any 🛡️ phase.
-> The dispatcher will detect missing elevation and abort with a clear error
-> rather than half-applying changes.
->
-> **🔁 Reboot tip:** Phase 6 (`os flp`) is the only batch step that benefits from
-> a full reboot. Everything else is either no-op or sign-out-scoped. Plan
-> Phase 6 for the end of your install session.
->
-> **Tip:** every phase ships with `-Help` and `uninstall`. Example:
-> `.\run.ps1 -I 48 -- -Help` shows the ConEmu mode flags;
-> `.\run.ps1 -I 48 uninstall` removes it cleanly and purges tracking.
+### Profile demos
 
-### ▶️ Next Up — Phase 3: Script 49 (WhatsApp Desktop)
+#### `profile minimal` — 4-step bootstrap
+<p align="center">
+  <img src="assets/demos/run-profile-minimal.svg" alt="Demo: profile minimal — 4-step fresh Windows bootstrap" width="100%"/>
+</p>
 
-Say **`next`** in chat to kick off the Phase 3 audit + build. To run it
-yourself once it lands, copy-paste **any one** of these:
+#### `profile git-compact` — git + ssh + GitHub dir
+<p align="center">
+  <img src="assets/demos/run-profile-git-compact.svg" alt="Demo: profile git-compact — git + ssh + GitHub dir + .gitconfig" width="100%"/>
+</p>
+
+#### `profile advance` — full developer profile (25 tools)
+<p align="center">
+  <img src="assets/demos/run-profile-advance.svg" alt="Demo: profile advance — full developer profile" width="100%"/>
+</p>
+
+#### `profile small-dev` — coding box with runtimes
+<p align="center">
+  <img src="assets/demos/run-profile-small-dev.svg" alt="Demo: profile small-dev — advance + Go/Python/Node/pnpm" width="100%"/>
+</p>
+
+### Profile commands
 
 ```powershell
-# Preferred — by script ID (always works, no keyword resolution)
-.\run.ps1 -I 49
+# List every profile + its expanded steps
+.\run.ps1 profile list
 
-# By keyword (short)
-.\run.ps1 install wa
+# Dry-run any profile (prints expanded steps, executes nothing)
+.\run.ps1 profile advance --dry-run
+.\run.ps1 profile small-dev --dry-run     # expands advance -> base + git-compact + extras
 
-# By keyword (full name)
-.\run.ps1 install whatsapp
+# Run for real (skip per-step prompts)
+.\run.ps1 profile minimal -y
+.\run.ps1 profile base
+.\run.ps1 profile git-compact
+.\run.ps1 profile advance
+.\run.ps1 profile cpp-dx
+.\run.ps1 profile small-dev
 
-# Show help / available flags
-.\run.ps1 -I 49 -- -Help
-
-# Clean uninstall + tracking purge
-.\run.ps1 -I 49 uninstall
+# Same thing via the install keyword family
+.\run.ps1 install profile-minimal
+.\run.ps1 install profile-base
+.\run.ps1 install profile-git           # alias for profile-git-compact
+.\run.ps1 install profile-advance
+.\run.ps1 install profile-cpp-dx
+.\run.ps1 install profile-small-dev
 ```
 
-> **What it does:** installs WhatsApp Desktop via Chocolatey
-> (`choco install whatsapp -y`) — **skips the Microsoft Store path entirely**
-> per the locked decision in [`spec/2025-batch/03-whatsapp.md`](spec/2025-batch/03-whatsapp.md).
-> Verifies the install via `%LOCALAPPDATA%\WhatsApp\WhatsApp.exe` or the
-> `whatsapp` shim on PATH.
+> 🧠 **What's in each profile?** Open
+> [`scripts/profile/config.json`](scripts/profile/config.json) — every step is
+> declared as `{ kind: script|choco|subcommand|inline|profile, ... }`.
+> Profiles compose other profiles (`small-dev` includes `advance` which
+> includes `base` + `git-compact`), with cycle detection at runtime.
 
-### 🔬 How to verify each phase
+---
+
+## 🧹 OS Toolbox — Clean & Tweak Windows
+
+The `os` subcommand family wraps Windows housekeeping tasks behind one
+dispatcher: [`scripts/os/run.ps1`](scripts/os/run.ps1).
+
+| Subcommand | What it does | Admin |
+|------------|--------------|:-----:|
+| `os clean` | Master cleaner: temp + Windows Update cache + chocolatey lib-bad/lib-bkp + recycle bin + event logs + PSReadLine history | 🛡️ Yes |
+| `os clean --dry-run` | **Preview only** — scans every target and reports files + size, deletes nothing | 👤 No |
+| `os clean-<category>` | Run a single category — 36 categories, e.g. `clean-chrome`, `clean-recycle`, `clean-obs-recordings`, `clean-chkdsk` (see `os --help`) | varies |
+| `os hib-off` / `os hib-on` | `powercfg /hibernate off` (frees `C:\hiberfil.sys`, often 4-16 GB) | 🛡️ Yes |
+| `os flp` | Fix long paths (`HKLM\SYSTEM\...\FileSystem\LongPathsEnabled = 1`) | 🛡️ Yes · 🔁 reboot |
+| `os add-user` | Create a local Windows user account with sensible defaults | 🛡️ Yes |
+
+### What `os clean` actually touches
+
+All paths are declared in [`scripts/os/config.json`](scripts/os/config.json) —
+nothing else is deleted.
+
+| Target | Path | Why |
+|--------|------|-----|
+| User temp | `%TEMP%` | Per-user app debris, installer leftovers |
+| LocalAppData temp | `%LOCALAPPDATA%\Temp` | Per-user app caches |
+| Windows temp | `C:\Windows\Temp` | System-level installer/log scratch |
+| Update cache | `C:\Windows\SoftwareDistribution\Download` | Already-applied Windows Update payloads |
+| Choco quarantine | `C:\ProgramData\chocolatey\lib-bad`, `lib-bkp` | Failed/orphaned package backups |
+| Choco temp | `%TEMP%\chocolatey` | Mid-install scratch |
+| Recycle Bin | All drives | Standard empty-recycle-bin |
+| Event logs | Application/System/Security | Cleared via `wevtutil cl` |
+| PSReadLine history | `~\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt` | Shell command history |
+
+<p align="center">
+  <img src="assets/demos/run-os-clean-detailed.svg" alt="Demo: os clean --dry-run — preview reclaimable disk space across temp/cache/recycle folders" width="100%"/>
+</p>
+
+### OS commands
+
+```powershell
+# Always preview first
+.\run.ps1 os clean --dry-run
+
+# Real run (asks for confirmation per target)
+.\run.ps1 os clean
+
+# Skip specific categories
+.\run.ps1 os clean --skip recycle,ms-search
+
+# Single-category cleans (no prompts, scoped)
+.\run.ps1 os clean-chrome
+.\run.ps1 os clean-recycle --yes
+.\run.ps1 os clean-obs-recordings --days 7 --dry-run
+
+# Other os tasks
+.\run.ps1 os hib-off          # disable hibernation, free hiberfil.sys
+.\run.ps1 os flp              # enable Win32 long paths (HKLM, reboot recommended)
+.\run.ps1 os add-user         # create a local user
+
+# Help
+.\run.ps1 os --help           # shows every action incl. the 36 clean-* categories
+```
+
+---
+
+## 🔬 How to verify any script
 
 Don't hand-roll registry probes per script. Every installer ships a built-in
 `verify` subcommand that runs the same checks the script ran post-install
@@ -400,33 +479,48 @@ Console:
 > back to direct download per the open question in
 > [`spec/2025-batch/03-whatsapp.md`](spec/2025-batch/03-whatsapp.md).
 
-#### ✅ Success — `.\run.ps1 -I 50` (OneNote + OneDrive autostart off)
+#### ✅ Success — `.\run.ps1 install onenote` (OneNote-only — default)
 
 Console:
 ```text
+[Install OneNote] 14:25:11  INFO  OneNote mode: install-only (no tweaks, OneDrive untouched)
 [Install OneNote] 14:25:11  INFO  Strategy: choco first, direct-download fallback
 [Install OneNote] 14:25:12  INFO  choco install onenote -y ...
 [Install OneNote] 14:26:02  OK    choco exit 0 — ONENOTE.EXE found
-[Install OneNote] 14:26:02  INFO  Disabling OneDrive autostart (HKCU\...\Run\OneDrive)
-[Install OneNote] 14:26:02  OK    Removed Run-key value 'OneDrive'
 [Install OneNote] 14:26:03  DONE  Status: ok  (duration: 52.0s)
         log → .resolved\logs\50-install-onenote-20260422-142511.json
 ```
+
+To **also** disable OneDrive autostart and remove the OneNote tray icon,
+use the explicit combo keyword instead — see
+[OneNote install variants](#onenote-install-variants) below.
 
 `.resolved/logs/50-install-onenote-20260422-142511.json`:
 ```json
 {
   "scriptId": 50,
   "status": "ok",
+  "mode": "install-only",
   "installStrategy": "choco",
   "verifiedPath": "C:\\Program Files\\Microsoft Office\\root\\Office16\\ONENOTE.EXE",
-  "tweaks": {
-    "onedriveAutostart": { "before": "C:\\...\\OneDrive.exe /background", "after": null, "ok": true }
-  }
+  "tweaks": { "removeTrayIcon": false, "disableOneDrive": false }
 }
 ```
 
-#### ❌ Failure — `.\run.ps1 -I 50` (HKCU registry write blocked)
+#### ✅ Success — `.\run.ps1 install onenote+rm-onedrive` (combo)
+
+Console:
+```text
+[Install OneNote] 14:28:00  INFO  OneNote mode: install + rm-onedrive (tray + OneDrive autostart disabled)
+[Install OneNote] 14:28:01  OK    choco install onenote -y → exit 0
+[Install OneNote] 14:28:02  INFO  Removing OneNote tray icon (ONENOTEM.EXE)...
+[Install OneNote] 14:28:02  OK    OneNote tray helper killed + Run-key removed
+[Install OneNote] 14:28:02  INFO  Disabling OneDrive (process kill + scheduled tasks + autostart)
+[Install OneNote] 14:28:03  OK    Removed OneDrive autostart entry from HKCU Run key
+[Install OneNote] 14:28:03  DONE  Status: ok  (duration: 53.7s)
+```
+
+#### ❌ Failure — `.\run.ps1 install onenote+rm-onedrive` (HKCU registry write blocked)
 
 Console:
 ```text
@@ -623,12 +717,18 @@ A modular collection of **46 PowerShell scripts** that automate everything from 
 
 | ID | Script | What It Does | Admin |
 |----|--------|--------------|-------|
-| 32 | **DBeaver Community** | Universal database visualization and management tool | Yes |
-| 33 | **Notepad++ (NPP)** | Install NPP, NPP Settings, or NPP + Settings | Yes |
-| 34 | **Simple Sticky Notes** | Install Simple Sticky Notes via Chocolatey | Yes |
-| 35 | **GitMap** | Git repository navigator CLI tool | Yes |
-| 36 | **OBS Studio** | Install OBS, OBS Settings, or OBS + Settings | Yes |
-| 37 | **Windows Terminal** | Install WT, WT Settings, or WT + Settings | Yes |
+| 32 | **[DBeaver Community](scripts/32-install-dbeaver/)** | Universal database visualization and management tool | Yes |
+| 33 | **[Notepad++ (NPP)](scripts/33-install-notepadpp/)** | Install NPP, NPP Settings, or NPP + Settings | Yes |
+| 34 | **[Simple Sticky Notes](scripts/34-install-sticky-notes/)** | Install Simple Sticky Notes via Chocolatey | Yes |
+| 35 | **[GitMap](scripts/35-install-gitmap/)** | Git repository navigator CLI tool | Yes |
+| 36 | **[OBS Studio](scripts/36-install-obs/)** | Install OBS, OBS Settings, or OBS + Settings | Yes |
+| 37 | **[Windows Terminal](scripts/37-install-windows-terminal/)** | Install WT, WT Settings, or WT + Settings | Yes |
+| 47 | **[Ubuntu Font](scripts/47-install-ubuntu-font/)** | Install Ubuntu font family system-wide | Yes |
+| 48 | **[ConEmu](scripts/48-install-conemu/)** | Install ConEmu + sync `ConEmu.xml` (3 modes + export) | Yes |
+| 49 | **[WhatsApp Desktop](scripts/49-install-whatsapp/)** | Install WhatsApp Desktop via Chocolatey | Yes |
+| 50 | **[OneNote](scripts/50-install-onenote/)** | Install OneNote — pure (default) or `+rm-onedrive` combo | Yes |
+| 51 | **[Lightshot](scripts/51-install-lightshot/)** | Install Lightshot + opinionated registry tweaks | Yes |
+| 52 | **[VSCode Folder Repair](scripts/52-vscode-folder-repair/)** | Repair VSCode folder context-menu (subcommands: dry-run, restore, refresh, ...) | Yes |
 
 ---
 
@@ -677,6 +777,58 @@ Install tools by human-friendly name instead of script ID:
 .\run.ps1 install dbeaver            # DBeaver + Settings
 .\run.ps1 -Install python,php        # Named parameter style
 ```
+
+### Multi-tool install — by name (preferred) or by ID
+
+Names compose freely with commas. IDs accept ranges and lists too. Mix
+them when you want to grab a specific batch.
+
+```powershell
+# By name -- the readable way
+.\run.ps1 install vscode,git,nodejs,pnpm,python
+.\run.ps1 install npp,obs,wt,dbeaver,conemu       # all desktop tools at once
+.\run.ps1 install whatsapp,onenote,lightshot      # 2025-batch desktop apps
+.\run.ps1 install ubuntu-font,conemu              # font + terminal pair
+.\run.ps1 install go,rust,cpp,dotnet,java         # all systems-language runtimes
+
+# By ID range -- handy for sweeping the 2025-batch
+.\run.ps1 install 47..52                          # Ubuntu Font -> ConEmu -> WhatsApp -> OneNote -> Lightshot -> VSCode-folder-repair
+.\run.ps1 install 47..49,51                       # skip OneNote (50) but grab Lightshot (51)
+.\run.ps1 install 1,7,11                          # VSCode + Git + VSCode settings sync
+
+# Mix names and IDs
+.\run.ps1 install vscode,11,git,nodejs            # name + id, in any order
+
+# Profiles bundle dozens of tools behind one name
+.\run.ps1 install profile-small-dev               # advance + Go/Py/Node/pnpm
+.\run.ps1 install profile-cpp-dx                  # VC++ runtimes + DirectX
+```
+
+> 🧠 **XMind?** XMind ships as a Chocolatey step inside
+> [`profile base`](scripts/profile/config.json) (and therefore `advance` /
+> `small-dev`). It does not have its own numbered script. Run
+> `.\run.ps1 profile base` to get it, or `choco install xmind -y` directly
+> if you only want XMind.
+
+<a id="onenote-install-variants"></a>
+
+### OneNote install variants
+
+Plain `onenote` does **only** OneNote. To also disable OneDrive autostart
+and remove the OneNote tray icon, use the `+rm-onedrive` combo. Runs are
+separate by design — install OneNote alone today, decide on OneDrive later.
+
+| Keyword | What runs |
+|---------|-----------|
+| `install onenote` | Script 50 in `install` mode → OneNote only, no tweaks, OneDrive untouched |
+| `install onenote+rm-onedrive` | Script 50 in `with-tweaks` mode → install + remove tray + disable OneDrive autostart + scheduled tasks |
+| `install onenote+tweaks` | Alias of `onenote+rm-onedrive` |
+| `-I 50 -- with-tweaks` | Same as the combo, by script ID |
+| `-I 50 -- rm-onedrive` | Same as the combo, by script ID |
+| `-I 50 uninstall` | Choco uninstall + tracking purge (does **not** re-enable OneDrive) |
+
+Source: [`scripts/50-install-onenote/run.ps1`](scripts/50-install-onenote/run.ps1) ·
+config: [`scripts/50-install-onenote/config.json`](scripts/50-install-onenote/config.json).
 
 ### Python & Libraries Keywords
 
