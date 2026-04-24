@@ -58,6 +58,11 @@
     "verifyReportLatest":  "Latest report mirror: {path}",
     "verifyReportFailed":  "FAILED to write verification report at {path} -- {error}",
     "verifyReportSkipped": "Verification report skipped (use --report to enable on standalone runs).",
+    "verifyRepairTriggered":    "Pass 1 verification FAILED -- --verify-repair is on, attempting auto-recovery...",
+    "verifyRepairRetryPlan":    "Pass 2 plan: refresh with --both (SHChangeNotify + WM_SETTINGCHANGE) AND --restart (kill+relaunch explorer.exe), then re-verify.",
+    "verifyRepairSecondVerify": "Pass 2 refresh complete -- running second verification...",
+    "verifyRepairRecovered":    "Pass 2 verification PASSED -- handlers recovered after auto-repair.",
+    "verifyRepairStillFailing": "Pass 2 verification still FAILED -- manual intervention required. See verify-reports/ for both passes.",
     "done": "Folder-only context menu repair completed successfully.",
     "completedWithWarnings": "Repair completed with warnings -- check output above.",
     "unknownEdition": "Unknown edition '{name}' in enabledEditions -- skipping",
@@ -106,6 +111,7 @@
       ".\\run.ps1 refresh --restart                          # minimum refresh PLUS full explorer.exe restart fallback",
       ".\\run.ps1 refresh --verify                           # refresh, then check handlers and print PASS/FAIL",
       ".\\run.ps1 refresh --verify -Edition stable          # refresh + verify, scoped, JSON report saved",
+      ".\\run.ps1 refresh --verify-repair                    # verify, and on FAIL auto-rerun --both --restart then re-verify",
       ".\\run.ps1 verify-handlers                            # standalone PASS/FAIL check (no writes, no refresh)",
       ".\\run.ps1 verify-handlers -Edition stable            # check only the stable edition",
       ".\\run.ps1 verify-handlers --report                   # ALSO save JSON troubleshooting report",
@@ -114,7 +120,7 @@
     "refresh": {
       "title": "refresh -- lightweight Windows shell refresh after a context-menu repair",
       "summary": "Tells Explorer + every top-level window to reload shell associations and settings WITHOUT killing explorer.exe. Use this right after 'repair' so right-click menus update immediately. Each step is independent and controlled by its own flag.",
-      "usage": ".\\run.ps1 refresh [--assoc-only | --broadcast-only | --both] [--restart] [--verify] [-Edition stable|insiders]",
+      "usage": ".\\run.ps1 refresh [--assoc-only | --broadcast-only | --both] [--restart] [--verify | --verify-repair] [-Edition stable|insiders]",
       "steps": [
         {
           "name": "1. SHChangeNotify(SHCNE_ASSOCCHANGED)",
@@ -143,6 +149,13 @@
           "when": "Use in CI / unattended runs to fail fast when the registry state did not match expectations.",
           "enabledBy": "OFF by default. Add '--verify' to enable. Honors '-Edition' to scope the check.",
           "sideEffects": "Writes JSON file(s) under .resolved/. Exit code becomes non-zero if any in-scope handler is missing or invalid."
+        },
+        {
+          "name": "5. Auto-repair on verification failure  [opt-in]",
+          "what": "Two-pass mode. Pass 1 runs the refresh + verify exactly as configured by your other flags. If verify FAILS, pass 2 automatically re-runs the refresh with the strongest settings (--both AND --restart, ignoring earlier --assoc-only / --broadcast-only) and verifies a second time. Both passes write separate JSON reports tagged 'pass1' and 'pass2'.",
+          "when": "Use in CI or first-time machine setup where you want self-healing behaviour: try the cheap refresh first, fall back to the heavy explorer kill only when needed.",
+          "enabledBy": "OFF by default. Add '--verify-repair' (implies '--verify'). Honors '-Edition'.",
+          "sideEffects": "Pass 2 ALWAYS kills + relaunches explorer.exe (visible flicker). Two JSON reports per run. Exit code is 0 only if pass 2 passes."
         }
       ],
       "flags": [
@@ -151,12 +164,14 @@
         { "flag": "--both",           "effect": "Send steps 1 AND 2. This is the default; flag is accepted for clarity." },
         { "flag": "--restart / --full", "effect": "ALSO run step 3 (kill + relaunch explorer.exe). Combines with any of the above." },
         { "flag": "--verify",         "effect": "ALSO run step 4 (handler PASS/FAIL check) after the refresh. Always saves a JSON troubleshooting report under .resolved/52-vscode-folder-repair/verify-reports/." },
+        { "flag": "--verify-repair",  "effect": "Implies --verify. On verification FAIL, automatically retry refresh with --both --restart and verify again. Saves two JSON reports (pass1, pass2)." },
         { "flag": "-Edition <name>",  "effect": "Scope step 4 to one edition: 'stable' or 'insiders'. No effect on steps 1-3." }
       ],
       "rules": [
         "--assoc-only and --broadcast-only are mutually exclusive (the dispatcher exits 2 if both are passed).",
         "At least one of --assoc / --broadcast / --restart must remain enabled, otherwise the refresh aborts with an error.",
-        "Exit code is 0 only when every enabled step succeeded AND (if --verify) every checked handler passed."
+        "Exit code is 0 only when every enabled step succeeded AND (if --verify) every checked handler passed.",
+        "With --verify-repair, exit code is 0 only when pass 2 passes (or pass 1 already passed)."
       ],
       "examples": [
         ".\\run.ps1 refresh                                    # default: steps 1 + 2",
@@ -164,7 +179,9 @@
         ".\\run.ps1 refresh --broadcast-only                   # only WM_SETTINGCHANGE",
         ".\\run.ps1 refresh --both --verify                    # steps 1 + 2, then PASS/FAIL check",
         ".\\run.ps1 refresh --restart                          # steps 1 + 2 + full explorer restart",
-        ".\\run.ps1 refresh --restart --verify -Edition stable # nuke + verify only stable"
+        ".\\run.ps1 refresh --restart --verify -Edition stable # nuke + verify only stable",
+        ".\\run.ps1 refresh --verify-repair                    # cheap refresh + verify; auto-escalate to --both --restart on FAIL",
+        ".\\run.ps1 refresh --assoc-only --verify-repair       # try cheapest path first, escalate only if verify fails"
       ]
     }
   }
