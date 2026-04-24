@@ -23,28 +23,95 @@
 
 ## Overview
 
-Implementation folder for **Script 10 — Vscode Context Menu Fix**. The full design contract lives in the spec.
+Restores the **"Open with Code"** entry to the Windows right-click menu on three targets:
 
-## Quick start
+| Target | Where it appears |
+|--------|------------------|
+| `*` (file) | Right-click any file |
+| `Directory` | Right-click any folder |
+| `Directory\Background` | Right-click empty space inside a folder |
+
+Works for both **VS Code Stable** and **VS Code Insiders**, in either user-install (`%LOCALAPPDATA%`) or system-install (`C:\Program Files`) layouts. The path, label, and edition list are all driven by [`config.json`](./config.json) — no code edits required.
+
+> **Requires Administrator.** Writes to `HKEY_CLASSES_ROOT`. The script aborts with a clear message if launched without elevation.
+
+## Copy-paste usage
+
+Run from the repo root in an **elevated PowerShell** session:
 
 ```powershell
-# From repo root
+# Install: register all three context-menu entries (file + folder + background)
 .\run.ps1 -I 10 install
+
+# Uninstall: remove every entry the script created (both Stable and Insiders)
+.\run.ps1 -I 10 uninstall
+
+# Show built-in help
+.\run.ps1 -I 10 -- -Help
 ```
 
-## Layout
+After install, right-click a file/folder/empty space — you should see **"Open with Code"** (and **"Open with Code - Insiders"** if Insiders is installed).
+
+## Expected registry keys
+
+The script writes to `HKEY_CLASSES_ROOT` (`HKCR`) under each target. For **VS Code Stable** the keys are:
+
+| Target | Registry path |
+|--------|---------------|
+| File | `HKCR\*\shell\VSCode` |
+| Folder | `HKCR\Directory\shell\VSCode` |
+| Background | `HKCR\Directory\Background\shell\VSCode` |
+
+For **VS Code Insiders** the suffix becomes `VSCodeInsiders`, e.g. `HKCR\Directory\shell\VSCodeInsiders`.
+
+Each key contains:
+
+| Value | Type | Example |
+|-------|------|---------|
+| `(Default)` | `REG_SZ` | `Open with Code` |
+| `Icon` | `REG_SZ` | `"C:\Users\<you>\AppData\Local\Programs\Microsoft VS Code\Code.exe"` |
+
+And a `\command` subkey:
+
+| Value | Type | Example |
+|-------|------|---------|
+| `(Default)` | `REG_SZ` | `"...\Code.exe" "%1"` (file) or `"...\Code.exe" "%V"` (folder/background) |
+
+You can verify a single key from PowerShell:
+
+```powershell
+reg query "HKCR\Directory\shell\VSCode" /s
+```
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `This script must be run as Administrator.` | Re-launch PowerShell with **"Run as administrator"**, then re-run the command. |
+| `No valid VS Code executable found` | Edit [`config.json`](./config.json) → `editions.stable.vscodePath.user` (or `.system`) to point at your actual `Code.exe`. The script tries the configured `installationType` first, then falls back to the other. |
+| Menu entry missing on Windows 11 | Win11 hides classic entries behind **"Show more options"** (or `Shift + F10`). To force the classic menu permanently, see Script 52 (`vscode-folder-repair`) or the `{86ca1aa0-…}` workaround. |
+| Entry appears but does nothing | The cached `Code.exe` path is stale. Delete `.resolved/10-vscode-context-menu-fix/` at the repo root and re-run install. |
+| `Unknown edition '<name>'` warning | `config.json` → `enabledEditions` lists an edition that isn't defined under `editions`. Remove the bad entry or add a matching definition. |
+| Want to undo everything | `.\run.ps1 -I 10 uninstall` — removes all six keys (file/folder/background × Stable/Insiders) that the script created. |
+| Need a folder-only repair (keep file/background untouched) | Use **Script 52** (`vscode-folder-repair`) instead — it has a dedicated `rollback.ps1` for the inverse operation. |
+
+Logs for every run are written under `logs/10-vscode-context-menu-fix/` with a timestamped filename and a `ok`/`fail` status suffix — attach the latest one when reporting issues.
+
+## File layout
 
 | File | Purpose |
 |------|---------|
-| `run.ps1` | Entry point dispatched by the root `run.ps1`. |
-| `config.json` | External config (paths, toggles, edition list). |
-| `log-messages.json` | All user-facing messages (kept out of code). |
-| `helpers/` | Internal PowerShell helper modules. |
+| `run.ps1` | Entry point dispatched by the root `run.ps1`. Handles `install` (default) and `uninstall`. |
+| `config.json` | External config: VS Code paths, registry targets, label, edition list, install-type preference. |
+| `log-messages.json` | All user-facing strings (kept out of code so they can be localized/edited without touching logic). |
+| `helpers/registry.ps1` | Registry write/verify/uninstall helpers + `Invoke-Edition` dispatcher. |
+| `issues.md` | Known issues / open questions for this script. |
 
 ## See also
 
 - [Full spec](../../spec/10-vscode-context-menu-fix/readme.md)
-- [Spec writing guide](../../spec/00-spec-writing-guide/readme.md)
+- [Script 52 — folder-only repair + rollback](../52-vscode-folder-repair/readme.md)
+- [Script 54 — modern menu installer](../54-vscode-menu-installer/readme.md)
 - [Changelog](../../changelog.md)
 
 
