@@ -20,6 +20,18 @@ $script:EmDash = [string][char]0x2014
 # Black star (U+2605) used to mark curated models in the catalog/markdown.
 $script:Star   = [string][char]0x2605
 
+function Format-SizeGB {
+    # Match Python's repr/str(float): shortest round-trip representation
+    # but always at least one decimal digit (e.g. 8.4, 0.075, 130.0).
+    param([Parameter(Mandatory)] [double] $Value)
+    # "R" round-trips the value to the shortest exact representation.
+    $invariant = [System.Globalization.CultureInfo]::InvariantCulture
+    $s = $Value.ToString("R", $invariant)
+    $hasDot = $s.Contains(".")
+    if (-not $hasDot) { $s = "$s.0" }
+    return $s
+}
+
 function Get-ModelTier {
     param([Parameter(Mandatory)] [double] $SizeGB)
     if ($SizeGB -lt 1)  { return "Tiny"   }
@@ -52,14 +64,14 @@ function Get-ModelCapabilities {
 
 function Format-ModelRow {
     param([Parameter(Mandatory)] [psobject] $Model)
-    $sizeGB = [double]$Model.fileSizeGB
-    $tier   = Get-ModelTier  -SizeGB $sizeGB
-    $speed  = Get-ModelSpeed -SizeGB $sizeGB
-    $caps   = Get-ModelCapabilities -Model $Model
-    $coding = "$($Model.rating.coding)/10"
-    $reason = "$($Model.rating.reasoning)/10"
-    $hf     = if ($Model.huggingfacePage) { $Model.huggingfacePage } else { $Model.downloadUrl }
-    $sizeFmt = "{0:N1}" -f $sizeGB
+    $sizeGB  = [double]$Model.fileSizeGB
+    $tier    = Get-ModelTier  -SizeGB $sizeGB
+    $speed   = Get-ModelSpeed -SizeGB $sizeGB
+    $caps    = Get-ModelCapabilities -Model $Model
+    $coding  = "$($Model.rating.coding)/10"
+    $reason  = "$($Model.rating.reasoning)/10"
+    $hf      = if ($Model.huggingfacePage) { $Model.huggingfacePage } else { $Model.downloadUrl }
+    $sizeFmt = Format-SizeGB -Value $sizeGB
     return "| ``$($Model.id)`` | $($Model.displayName) | $($Model.parameters) | $sizeFmt | $tier | $speed | $($Model.ramRequiredGB) | $caps | $coding | $reason | $($Model.quantization) | $($Model.license) | [HF]($hf) |"
 }
 
@@ -143,7 +155,7 @@ function Invoke-ModelsListRegen {
         [void]$sb.AppendLine("|---|---|---|---|---|---|")
         foreach ($m in $leaderboardModels) {
             $caps    = Get-ModelCapabilities -Model $m
-            $sizeFmt = "{0:N1}" -f ([double]$m.fileSizeGB)
+            $sizeFmt = Format-SizeGB -Value ([double]$m.fileSizeGB)
             $hf      = if ($m.huggingfacePage) { $m.huggingfacePage } else { $m.downloadUrl }
             [void]$sb.AppendLine("| $($m.leaderboardRank) | [$($m.displayName)]($hf) | $sizeFmt | $($m.ramRequiredGB)+ | $caps | $($m.source) |")
         }
@@ -184,7 +196,7 @@ function Invoke-ModelsListRegen {
         [void]$sb.AppendLine("$($datacenter.Count) models require workstation/server hardware:")
         [void]$sb.AppendLine("")
         foreach ($m in $datacenter) {
-            $sizeFmt = "{0:N1}" -f ([double]$m.fileSizeGB)
+            $sizeFmt = Format-SizeGB -Value ([double]$m.fileSizeGB)
             [void]$sb.AppendLine("- ``$($m.id)`` $($script:EmDash) $($m.displayName) $($script:EmDash) **$sizeFmt GB file, $($m.ramRequiredGB) GB RAM**")
         }
         [void]$sb.AppendLine("")
