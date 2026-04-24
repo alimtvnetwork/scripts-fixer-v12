@@ -12,7 +12,7 @@
 [![Tools Installed](https://img.shields.io/badge/Tools-46%2B-8b5cf6?logo=tools&logoColor=white)](#what-it-does)
 [![Databases](https://img.shields.io/badge/Databases-12-0ea5e9?logo=databricks&logoColor=white)](#databases-18-29)
 [![License](https://img.shields.io/badge/License-MIT-eab308)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.93.0-f97316)](scripts/version.json)
+[![Version](https://img.shields.io/badge/Version-v0.94.0-f97316)](scripts/version.json)
 [![Changelog](https://img.shields.io/badge/Changelog-Latest-ec4899)](changelog.md)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows)
 [![Maintained](https://img.shields.io/badge/Maintained-Yes-22c55e)](https://github.com/alimtvnetwork/gitmap-v6)
@@ -136,9 +136,11 @@ IDs to remember, no order to figure out, no half-installed tools.
 | 🟢 [Minimal](#-profile-minimal) | `.\run.ps1 profile minimal -y` | 5 | 5 | Fresh Windows in 2 min |
 | 🔵 [Base](#-profile-base) | `.\run.ps1 profile base -y` | 12 | 12 | Daily-driver workstation |
 | 🟣 [Git-compact](#-profile-git-compact) | `.\run.ps1 profile git-compact -y` | 5 | 5 | Source-control box |
-| 🟠 [Advance](#-profile-advance) | `.\run.ps1 profile advance -y` | 23 | 23 | Full creator setup |
+| 🟠 [Advance](#-profile-advance) | `.\run.ps1 profile advance -y` | 23 | 23 | Full creator setup (no langs) |
 | 🔴 [C++ + DirectX](#-profile-cpp--directx) | `.\run.ps1 profile cpp-dx -y` | 3 | 3 | Game / native dev |
-| 🟡 [Small Dev](#-profile-small-dev) | `.\run.ps1 profile small-dev -y` | 27 | 27 | Polyglot dev box |
+| 🟡 [Small Dev](#-profile-small-dev) | `.\run.ps1 profile small-dev -y` | 24 | 24 | advance + Go only |
+| 🟢 [Dev](#-profile-dev) | `.\run.ps1 profile dev -y` | 29 | 29 | Polyglot dev box (Py/Node/pnpm/Rust/PHP) |
+| 🟣 [Dev Advance](#-profile-dev-advance) | `.\run.ps1 profile dev-advance -y` | 33 | 33 | Polyglot + native (.NET + C++/DirectX) |
 
 Source of truth: [`scripts/profile/config.json`](scripts/profile/config.json) ·
 spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
@@ -160,6 +162,8 @@ spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 .\run.ps1 profile advance     -y
 .\run.ps1 profile cpp-dx      -y
 .\run.ps1 profile small-dev   -y
+.\run.ps1 profile dev         -y
+.\run.ps1 profile dev-advance -y
 
 # Same thing via the install keyword family
 .\run.ps1 install profile-minimal
@@ -168,6 +172,8 @@ spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 .\run.ps1 install profile-advance
 .\run.ps1 install profile-cpp-dx
 .\run.ps1 install profile-small-dev
+.\run.ps1 install profile-dev
+.\run.ps1 install profile-dev-advance
 ```
 
 ### Profile totals by destination
@@ -177,9 +183,11 @@ spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 | `minimal` | 5 | Chocolatey, Git, 7-Zip, Chrome | — | — | Win11 classic context menu shim |
 | `base` | 12 | Chocolatey, Git, VLC, 7-Zip, WinRAR, fonts, XMind, Notepad++, Chrome, ConEmu, PSReadLine | — | `%APPDATA%\Notepad++`, `%APPDATA%\ConEmu.xml`, `%USERPROFILE%\Documents\WindowsPowerShell\Modules\PSReadLine\` | Hibernation off |
 | `git-compact` | 5 | Git | — | `%LOCALAPPDATA%\GitHubDesktop`, `%USERPROFILE%\.ssh`, `%USERPROFILE%\.gitconfig`, `%USERPROFILE%\GitHub\` | — |
-| `advance` | 23 | Everything in `base` + WordWeb, Beyond Compare, OBS | — | Everything in `git-compact` + `%LOCALAPPDATA%\WhatsApp`, `%LOCALAPPDATA%\Programs\Microsoft VS Code`, `%APPDATA%\Code\User`, `%APPDATA%\obs-studio\` | Inherits `base` system changes |
+| `advance` | 23 | Everything in `base` + WordWeb, Beyond Compare, OBS (**no langs**) | — | Everything in `git-compact` + `%LOCALAPPDATA%\WhatsApp`, `%LOCALAPPDATA%\Programs\Microsoft VS Code`, `%APPDATA%\Code\User`, `%APPDATA%\obs-studio\` | Inherits `base` system changes |
 | `cpp-dx` | 3 | VC++ runtimes, DirectX runtime, DirectX SDK | — | — | System runtime DLL registration |
-| `small-dev` | 27 | Everything in `advance` | Go, Python, Node.js, pnpm | Inherits `advance` | Inherits `advance` system changes |
+| `small-dev` | 24 | Everything in `advance` | **Go only** | Inherits `advance` | Inherits `advance` system changes |
+| `dev` | 29 | Everything in `small-dev` | + Python, Node.js (+Yarn +Bun), pnpm, Rust, PHP | Inherits `small-dev` | Inherits `small-dev` |
+| `dev-advance` | 33 | Everything in `dev` + VC++ runtimes, DirectX runtime, DirectX SDK, .NET SDK | Inherits `dev` | Inherits `dev` | Inherits `dev` + system runtime DLL registration |
 
 ---
 
