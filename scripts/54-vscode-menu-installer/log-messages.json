@@ -34,12 +34,14 @@
     "checkStart": "Quick verification: reading HKCR\\*\\shell, HKCR\\Directory\\shell, HKCR\\Directory\\Background\\shell (read-only)...",
     "auditWritten": "Audit log written: {path} (one JSONL record per registry change -- safe to grep, diff, or tail)",
     "snapshotWritten": "Pre-install snapshot saved: {path} (manual restore: reg.exe import \"<path>\")",
-    "snapshotSkipped": "Pre-install snapshot was NOT created (failure: see preceding warnings; install will continue)"
+    "snapshotSkipped": "Pre-install snapshot was NOT created (failure: see preceding warnings; install will continue)",
+    "repairStart": "Repair: ensuring folder + folder-background entries, removing file-target entry, stripping suppression hints, sweeping legacy duplicates."
   },
   "help": {
     "commands": {
       "install":   "[ADMIN] Write the file/folder/background context-menu entries for every enabled edition. Writes to HKCR -- requires elevation.",
       "uninstall": "[ADMIN] Surgical removal: deletes ONLY the keys listed in config.json::registryPaths. Never touches sibling keys.",
+      "repair":    "[ADMIN] Make the menu appear on FOLDERS + folder background but NOT on files. Re-asserts directory + background keys, deletes the file-target key, strips suppression values (ProgrammaticAccessOnly, AppliesTo, NoWorkingDirectory), sweeps legacy duplicates listed in config.repair.legacyNames.",
       "rollback":  "[ADMIN] Alias for 'uninstall' (surgical delete). Also prints the path of the most recent pre-install snapshot so you can manually `reg.exe import` it to restore third-party entries.",
       "check":     "[no-admin] Quick read-only registry check. Reports PASS/MISS for file, folder, and background entries per edition. Exit 0=all pass, 1=one or more miss, 2=config missing.",
       "verify":    "[no-admin] Full read-only test harness (leaf existence + command template). Accepts -Edition, -OnlyTargets, -OnlyCases, -NoColor."
@@ -61,6 +63,11 @@
       "# --- uninstall (ADMIN -- surgical, only paths listed in config.json) ---",
       ".\\run.ps1 -I 54 uninstall",
       ".\\run.ps1 -I 54 uninstall -Edition stable",
+      "",
+      "# --- repair (ADMIN -- folders YES, files NO; cleans up legacy + suppression hints) ---",
+      ".\\run.ps1 -I 54 repair",
+      ".\\run.ps1 -I 54 repair -Edition stable",
+      ".\\run.ps1 -I 54 repair -Edition insiders -VsCodePath 'D:\\VSI\\Code - Insiders.exe'",
       "",
       "# --- rollback (ADMIN -- surgical delete + points you at the pre-install snapshot) ---",
       ".\\run.ps1 -I 54 rollback",

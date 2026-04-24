@@ -47,6 +47,9 @@ switch ($Command.ToLower()) {
     "uninstall" {
         & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition
     }
+    "repair" {
+        & (Join-Path $scriptDir "repair.ps1") -Edition $Edition -VsCodePath $VsCodePath
+    }
     "rollback" {
         # Per spec: rollback is a surgical "remove what we added" -- it does
         # NOT auto-import the pre-install snapshot. We point the user at the

@@ -69,6 +69,29 @@ Manual full restore (brings back exactly what was there before the most recent i
 reg.exe import .audit\snapshots\snapshot-<yyyyMMdd-HHmmss>.reg
 ```
 
+## Repair (folders YES, files NO)
+
+If the menu shows up in the wrong places (e.g. on individual files) or
+is hidden by suppression hints a previous tool wrote, run repair:
+
+```powershell
+.\run.ps1 -I 54 repair                  # both editions
+.\run.ps1 -I 54 repair -Edition stable  # just stable
+```
+
+Repair, per edition, performs four passes:
+
+| # | Pass | Effect |
+|---|------|--------|
+| 1 | Ensure | (Re)writes `HKCR\Directory\shell\<Name>` and `HKCR\Directory\Background\shell\<Name>` so the entry shows on folder right-click + folder-background right-click. |
+| 2 | Drop | Deletes `HKCR\*\shell\<Name>` so the entry no longer appears when right-clicking individual files. |
+| 3 | Strip | Removes suppression values from the surviving keys: `ProgrammaticAccessOnly`, `AppliesTo`, `NoWorkingDirectory`, `LegacyDisable`, `CommandFlags`. |
+| 4 | Sweep | Deletes legacy duplicate keys (e.g. `VSCode2`, `OpenWithCode`) under each shell parent. **Allow-list only** -- names live in `config.json::repair.legacyNames`; nothing outside that list is touched. |
+
+Every change is captured in the `.audit/` JSONL log AND in a pre-repair
+`.reg` snapshot under `.audit/snapshots/`, so you can manually
+`reg.exe import` to restore the prior state if needed.
+
 ## Audit log
 
 Every install and uninstall run writes a timestamped audit file to

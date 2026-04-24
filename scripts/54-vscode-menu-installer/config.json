@@ -2,6 +2,14 @@
   "_comment": "VS Code context menu installer/uninstaller. The 'registryPaths' values per edition form the STRICT path allow-list used by uninstall.ps1 -- only these exact keys are deleted, never their siblings.",
   "enabled": true,
   "enabledEditions": ["stable", "insiders"],
+  "repair": {
+    "_comment": "Allow-list for the 'repair' verb. Repair only deletes named child keys that EXACTLY match one of these names under HKCR\\*\\shell, HKCR\\Directory\\shell, and HKCR\\Directory\\Background\\shell. Add/remove names here to tune cleanup -- never enumerates siblings outside this list.",
+    "legacyNames": [
+      "VSCode2", "VSCode3", "VSCodeOld", "VSCode_old",
+      "OpenWithCode", "OpenWithVSCode", "Open with Code", "OpenCode",
+      "VSCodeInsiders2", "VSCodeInsidersOld", "OpenWithInsiders"
+    ]
+  },
   "confirmBeforeLaunch": {
     "_comment": "Optional: route every leaf through scripts/shared/confirm-launch.ps1 (Invoke-ConfirmedCommand variant -- same countdown / Ctrl+C / any-key behavior script 53 uses). When 'enabled' is true the install writer wraps each commandTemplates.<target> with a pwsh launcher that runs the countdown then dispatches the original VS Code command unchanged via cmd.exe /c. Set 'enabled': false (default) to keep direct-launch behavior.",
     "enabled": false,
