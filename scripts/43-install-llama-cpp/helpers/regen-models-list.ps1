@@ -158,7 +158,8 @@ function Invoke-ModelsListRegen {
         [void]$sb.AppendLine("")
         [void]$sb.AppendLine("| ID | Display | Params | Size (GB) | Tier | Speed | RAM (GB) | Capabilities | Coding | Reasoning | Quant | License | Download |")
         [void]$sb.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
-        $sortedFamilyModels = $group.Group | Sort-Object -Property @{ Expression = { [double]$_.fileSizeGB } }, id
+        # Stable sort by file size only -- preserves catalog (JSON) order on ties.
+        $sortedFamilyModels = $group.Group | Sort-Object -Stable -Property @{ Expression = { [double]$_.fileSizeGB } }
         foreach ($m in $sortedFamilyModels) {
             [void]$sb.AppendLine((Format-ModelRow -Model $m))
         }
