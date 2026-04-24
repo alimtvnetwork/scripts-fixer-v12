@@ -14,6 +14,12 @@ if ((Test-Path $_loggingPath) -and -not (Get-Command Write-Log -ErrorAction Sile
     . $_loggingPath
 }
 
+# Audit logger -- side-by-side helper. Loaded once; safe to dot-source again.
+$_auditPath = Join-Path $PSScriptRoot "audit-log.ps1"
+if ((Test-Path $_auditPath) -and -not (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue)) {
+    . $_auditPath
+}
+
 function Get-HkcrSubkeyPath {
     param([string]$PsPath)
     return ($PsPath -replace '^Registry::HKEY_CLASSES_ROOT\\', '')
@@ -72,7 +78,8 @@ function Register-VsCodeMenuEntry {
         [string]$CommandTemplate,    # template with {exe}
         [string]$RepoRoot,           # repo root for confirm-launch wrapper
         $ConfirmCfg,                 # optional confirmBeforeLaunch block
-        $LogMsgs
+        $LogMsgs,
+        [string]$EditionName = ""    # for audit log scoping; optional
     )
 
     $rawCmd = $CommandTemplate -replace '\{exe\}', $VsCodeExe
@@ -115,10 +122,23 @@ function Register-VsCodeMenuEntry {
         $cmdKey.Close()
 
         Write-Log ($LogMsgs.messages.writeOk -replace '\{path\}', $RegistryPath) -Level "success"
+
+        # Audit: record the exact key + values that were just written.
+        if (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue) {
+            $null = Write-RegistryAuditEvent -Operation "add" `
+                -Edition $EditionName -Target $TargetName -RegPath $RegistryPath `
+                -Values @{ "(Default)" = $Label; "Icon" = "`"$VsCodeExe`""; "command" = $cmdLine }
+        }
+
         return $true
     } catch {
         $msg = ($LogMsgs.messages.writeFailed -replace '\{path\}', $RegistryPath) -replace '\{error\}', $_
         Write-Log $msg -Level "error"
+        if (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue) {
+            $null = Write-RegistryAuditEvent -Operation "fail" `
+                -Edition $EditionName -Target $TargetName -RegPath $RegistryPath `
+                -Reason ("write failed: " + $_.Exception.Message)
+        }
         return $false
     }
 }

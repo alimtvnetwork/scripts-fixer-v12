@@ -31,7 +31,8 @@
     "summaryInstall": "Install summary -- editions processed: {processed}, skipped: {skipped}.",
     "summaryUninstall": "Uninstall summary -- keys removed: {removed}, already absent: {absent}, failed: {failed}.",
     "tip": "Tip: re-run with -Edition <stable|insiders> to target a single edition.",
-    "checkStart": "Quick verification: reading HKCR\\*\\shell, HKCR\\Directory\\shell, HKCR\\Directory\\Background\\shell (read-only)..."
+    "checkStart": "Quick verification: reading HKCR\\*\\shell, HKCR\\Directory\\shell, HKCR\\Directory\\Background\\shell (read-only)...",
+    "auditWritten": "Audit log written: {path} (one JSONL record per registry change -- safe to grep, diff, or tail)"
   },
   "help": {
     "commands": {

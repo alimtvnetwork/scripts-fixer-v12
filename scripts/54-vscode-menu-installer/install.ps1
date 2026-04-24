@@ -22,6 +22,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 
 # -- Script helpers -----------------------------------------------------------
 . (Join-Path $scriptDir "helpers\vscode-install.ps1")
+. (Join-Path $scriptDir "helpers\audit-log.ps1")
 
 # -- Load config & log messages -----------------------------------------------
 $configPath = Join-Path $scriptDir "config.json"
@@ -42,6 +43,9 @@ try {
     # -- Disabled check -------------------------------------------------------
     $isDisabled = -not $config.enabled
     if ($isDisabled) { Write-Log $logMessages.messages.scriptDisabled -Level "warn"; return }
+
+    # -- Open audit log (timestamped, one file per run) ----------------------
+    $auditPath = Initialize-RegistryAudit -Action "install" -ScriptDir $scriptDir
 
     # -- Assert admin ---------------------------------------------------------
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
@@ -103,7 +107,8 @@ try {
                 -CommandTemplate $cmdTpl `
                 -RepoRoot        $repoRoot `
                 -ConfirmCfg      $confirmCfg `
-                -LogMsgs         $logMessages
+                -LogMsgs         $logMessages `
+                -EditionName     $editionName
             if (-not $ok) { $isAllOk = $false }
         }
 
@@ -132,6 +137,10 @@ try {
     $msg = (($logMessages.messages.summaryInstall -replace '\{processed\}', $processedCount) -replace '\{skipped\}', $skippedCount)
     Write-Log $msg -Level $(if ($skippedCount -eq 0 -and $processedCount -gt 0) { "success" } else { "warn" })
     Write-Log $logMessages.messages.tip -Level "info"
+    $hasAuditPath = -not [string]::IsNullOrWhiteSpace($auditPath)
+    if ($hasAuditPath) {
+        Write-Log ($logMessages.messages.auditWritten -replace '\{path\}', $auditPath) -Level "info"
+    }
 
 } catch {
     Write-Log "Unhandled error: $_" -Level "error"

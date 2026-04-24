@@ -40,6 +40,40 @@ Implementation folder for **Script 54 — Vscode Menu Installer**. The full desi
 | `config.json` | External config (paths, toggles, edition list). |
 | `log-messages.json` | All user-facing messages (kept out of code). |
 | `helpers/` | Internal PowerShell helper modules. |
+| `.audit/` | Auto-created at runtime. One JSONL file per install/uninstall run, recording every registry key added or removed (timestamped, gitignored). |
+
+## Audit log
+
+Every install and uninstall run writes a timestamped audit file to
+`scripts/54-vscode-menu-installer/.audit/`:
+
+```
+.audit/audit-install-20260424-101523.jsonl
+.audit/audit-uninstall-20260424-101742.jsonl
+```
+
+Each line is one JSON record. Operations recorded:
+
+| `operation` | When |
+|---|---|
+| `session-start` | First line of every file -- captures host / user / pid. |
+| `add` | A registry key + values were just written. Includes `(Default)`, `Icon`, and `command`. |
+| `remove` | A key that existed was deleted. |
+| `skip-absent` | Uninstall asked to remove a key that was already gone. |
+| `fail` | Write or delete attempt failed; `reason` field has the error. |
+
+Useful queries:
+
+```powershell
+# What did the last install touch?
+Get-Content (Get-ChildItem .audit\audit-install-*.jsonl | Sort LastWriteTime | Select -Last 1) |
+    ForEach-Object { $_ | ConvertFrom-Json } |
+    Where-Object operation -eq 'add' |
+    Select-Object ts, edition, target, regPath
+
+# Diff two runs
+code --diff .audit\audit-install-<old>.jsonl .audit\audit-install-<new>.jsonl
+```
 
 ## See also
 
