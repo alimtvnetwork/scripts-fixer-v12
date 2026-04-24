@@ -136,9 +136,9 @@ IDs to remember, no order to figure out, no half-installed tools.
 | 🟢 [Minimal](#-profile-minimal) | `.\run.ps1 profile minimal -y` | 5 | 5 | Fresh Windows in 2 min |
 | 🔵 [Base](#-profile-base) | `.\run.ps1 profile base -y` | 12 | 12 | Daily-driver workstation |
 | 🟣 [Git-compact](#-profile-git-compact) | `.\run.ps1 profile git-compact -y` | 5 | 5 | Source-control box |
-| 🟠 [Advance](#-profile-advance) | `.\run.ps1 profile advance -y` | ~25 | ~25 | Full creator setup |
+| 🟠 [Advance](#-profile-advance) | `.\run.ps1 profile advance -y` | 23 | 23 | Full creator setup |
 | 🔴 [C++ + DirectX](#-profile-cpp--directx) | `.\run.ps1 profile cpp-dx -y` | 3 | 3 | Game / native dev |
-| 🟡 [Small Dev](#-profile-small-dev) | `.\run.ps1 profile small-dev -y` | ~29 | ~29 | Polyglot dev box |
+| 🟡 [Small Dev](#-profile-small-dev) | `.\run.ps1 profile small-dev -y` | 27 | 27 | Polyglot dev box |
 
 Source of truth: [`scripts/profile/config.json`](scripts/profile/config.json) ·
 spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
@@ -169,6 +169,17 @@ spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 .\run.ps1 install profile-cpp-dx
 .\run.ps1 install profile-small-dev
 ```
+
+### Profile totals by destination
+
+| Profile | Total steps | C:\ installs / writes | E:\dev-tool installs | User-profile writes | Registry / system changes |
+|---------|:-----------:|------------------------|-----------------------|---------------------|---------------------------|
+| `minimal` | 5 | Chocolatey, Git, 7-Zip, Chrome | — | — | Win11 classic context menu shim |
+| `base` | 12 | Chocolatey, Git, VLC, 7-Zip, WinRAR, fonts, XMind, Notepad++, Chrome, ConEmu, PSReadLine | — | `%APPDATA%\Notepad++`, `%APPDATA%\ConEmu.xml`, `%USERPROFILE%\Documents\WindowsPowerShell\Modules\PSReadLine\` | Hibernation off |
+| `git-compact` | 5 | Git | — | `%LOCALAPPDATA%\GitHubDesktop`, `%USERPROFILE%\.ssh`, `%USERPROFILE%\.gitconfig`, `%USERPROFILE%\GitHub\` | — |
+| `advance` | 23 | Everything in `base` + WordWeb, Beyond Compare, OBS | — | Everything in `git-compact` + `%LOCALAPPDATA%\WhatsApp`, `%LOCALAPPDATA%\Programs\Microsoft VS Code`, `%APPDATA%\Code\User`, `%APPDATA%\obs-studio\` | Inherits `base` system changes |
+| `cpp-dx` | 3 | VC++ runtimes, DirectX runtime, DirectX SDK | — | — | System runtime DLL registration |
+| `small-dev` | 27 | Everything in `advance` | Go, Python, Node.js, pnpm | Inherits `advance` | Inherits `advance` system changes |
 
 ---
 
