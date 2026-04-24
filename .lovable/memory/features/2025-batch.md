@@ -38,9 +38,9 @@ type: feature
 - `scripts/git-tools/run.ps1` -- handles `gsa` / `git-safe-all`
 - `scripts/profile/run.ps1` -- handles `profile <name>` for 5 profiles
 
-## 6 profiles
+## 8 profiles
 
-minimal (choco + git + 7zip + chrome -- fresh-Windows bootstrap) | base | git-compact | advance (= base + git-compact + extras) | cpp-dx | small-dev (= advance + golang/python/node/pnpm)
+minimal | base | git-compact | advance (= base + git-compact + extras, **no langs**) | cpp-dx | small-dev (= advance + Go only) | dev (= small-dev + Python+Node+pnpm+Rust+PHP) | dev-advance (= dev + .NET + cpp-dx)
 
 Profiles defined declaratively in `scripts/profile/config.json` -- step kinds: `script`, `choco`, `subcommand`, `inline`, `profile` (recursive expansion with cycle detection).
 

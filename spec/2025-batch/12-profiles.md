@@ -6,7 +6,7 @@
 - Keywords: `.\run.ps1 install profile-base`, `.\run.ps1 install profile-advance`, etc.
 - Subcommand: `.\run.ps1 profile base`, `.\run.ps1 profile list`, `.\run.ps1 profile advance --dry-run`
 
-## The 6 profiles
+## The 8 profiles
 
 ### 0. Minimal Bootstrap (`profile minimal`)
 For a quick fresh-Windows bootstrap -- the absolute essentials plus the
@@ -69,16 +69,37 @@ It does **not** install dev runtimes into `E:\dev-tool\`.
 - All OS-dir.
 
 ### 5. Small Dev (`profile small-dev`)
-Total = **27 steps**.
+Total = **24 steps**.
 
 - Includes everything from `profile advance`
 - Adds:
   - Golang (script 06) -- default dir
-  - Python (script 05) -- default dir
-  - NodeJS (script 03) -- default dir
-  - pnpm (script 04) -- default dir
 
-Only these last 4 runtime steps land in `E:\dev-tool\` (or the current custom dev-dir).
+Only this last runtime step lands in `E:\dev-tool\` (or the current custom dev-dir).
+For Python/Node/pnpm/Rust/PHP, use `profile dev`. For C#/.NET + cpp-dx, use `profile dev-advance`.
+
+### 6. Dev (`profile dev`)
+Total = **29 steps**.
+
+- Includes everything from `profile small-dev` (= advance + Go)
+- Adds:
+  - Python + pip (script 05) -- default dir
+  - Node.js + Yarn + Bun (script 03) -- default dir
+  - pnpm (script 04) -- default dir
+  - Rust (script 44) -- default dir
+  - PHP (script 16) -- default dir
+
+All 5 added runtimes land in `E:\dev-tool\` (or current custom dev-dir).
+
+### 7. Dev Advance (`profile dev-advance`)
+Total = **33 steps**.
+
+- Includes everything from `profile dev`
+- Adds:
+  - .NET SDK / C# (script 39) -- OS dir
+  - All of `profile cpp-dx` (vcredist-all + directx + directx-sdk) -- OS dir
+
+The 4 added steps land on **C:\\** (system dir / runtime DLLs).
 
 ## Default git config (applied during git-compact)
 
@@ -110,7 +131,7 @@ param(
     [Parameter(ValueFromRemainingArguments=$true)]$Rest
 )
 . "$PSScriptRoot\..\shared\logging.ps1"
-$validProfiles = @("base", "git-compact", "advance", "cpp-dx", "small-dev")
+$validProfiles = @("minimal", "base", "git-compact", "advance", "cpp-dx", "small-dev", "dev", "dev-advance")
 switch -Wildcard ($Action) {
     "list"    { Show-ProfileList; return }
     {$_ -in $validProfiles} {
@@ -208,7 +229,9 @@ Steps live in `scripts/profile/config.json` for declarative editing:
 "profile-git":       ["profile:git-compact"],
 "profile-advance":   ["profile:advance"],
 "profile-cpp-dx":    ["profile:cpp-dx"],
-"profile-small-dev": ["profile:small-dev"]
+"profile-small-dev": ["profile:small-dev"],
+"profile-dev":         ["profile:dev"],
+"profile-dev-advance": ["profile:dev-advance"]
 ```
 
 `"profile:<name>"` is a new keyword convention parsed by the install dispatcher -- it routes to `scripts/profile/run.ps1 <name>` instead of resolving to a script ID.
@@ -252,7 +275,9 @@ The root README mirrors this table per profile. Keep them in sync. See
 | git-compact | git | -- | GitHubDesktop | -- | `.ssh\id_ed25519`, `.gitconfig`, `GitHub\` | -- | -- |
 | advance     | base + beyondcompare, obs | + wordweb-free | + WhatsApp, VS Code | + `Code\User` | inherits git-compact | -- | inherits |
 | cpp-dx      | -- | DirectX SDK; runtime DLLs in `C:\Windows\System32` | -- | -- | -- | -- | -- |
-| small-dev   | inherits advance | inherits | inherits | inherits | inherits | go, nodejs, python, pnpm | inherits |
+| small-dev   | inherits advance | inherits | inherits | inherits | inherits | go | inherits |
+| dev         | inherits small-dev | inherits | inherits | inherits | inherits | go, python, nodejs (+yarn+bun), pnpm, rust, php | inherits |
+| dev-advance | inherits dev + .NET SDK in `C:\Program Files\dotnet` | inherits + DirectX SDK; runtime DLLs in `C:\Windows\System32` | inherits | inherits | inherits | inherits dev | inherits |
 
 ### Rule for new steps
 

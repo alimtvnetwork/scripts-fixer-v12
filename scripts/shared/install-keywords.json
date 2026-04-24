@@ -281,7 +281,11 @@
     "profile-cpp-dx":    ["profile:cpp-dx"],
     "profile-cppdx":     ["profile:cpp-dx"],
     "profile-small-dev": ["profile:small-dev"],
-    "profile-smalldev":  ["profile:small-dev"]
+    "profile-smalldev":  ["profile:small-dev"],
+    "profile-dev":       ["profile:dev"],
+    "profile-dev-advance":  ["profile:dev-advance"],
+    "profile-devadvance":   ["profile:dev-advance"],
+    "profile-dev-advanced": ["profile:dev-advance"]
   },
   "modes": {
     "notepad++":         { "33": "install+settings" },

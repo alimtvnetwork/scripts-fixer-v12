@@ -12,7 +12,7 @@
 [![Tools Installed](https://img.shields.io/badge/Tools-46%2B-8b5cf6?logo=tools&logoColor=white)](#what-it-does)
 [![Databases](https://img.shields.io/badge/Databases-12-0ea5e9?logo=databricks&logoColor=white)](#databases-18-29)
 [![License](https://img.shields.io/badge/License-MIT-eab308)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.93.0-f97316)](scripts/version.json)
+[![Version](https://img.shields.io/badge/Version-v0.94.0-f97316)](scripts/version.json)
 [![Changelog](https://img.shields.io/badge/Changelog-Latest-ec4899)](changelog.md)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows)
 [![Maintained](https://img.shields.io/badge/Maintained-Yes-22c55e)](https://github.com/alimtvnetwork/gitmap-v6)
@@ -83,8 +83,10 @@ Audit mode, health checks, settings sync, context-menu repair, and CI-tested ver
 
 ### 🎯 Apply a full developer profile
 
-Bundles VS Code, Git, Node, pnpm, Python, Notepad++ with synced settings,
-and ten more tools — installed in dependency order, idempotent, resumable.
+Bundles VS Code, Git, Notepad++/ConEmu/OBS with synced settings, GitHub
+Desktop, WhatsApp, and a dozen more workstation tools — installed in
+dependency order, idempotent, resumable. Add `dev` or `dev-advance` for
+the language runtimes.
 
 <p align="center">
   <img src="assets/demos/run-profile-advance.svg" alt="Demo: applying the 'advance' developer profile in one command" width="100%"/>
@@ -136,9 +138,11 @@ IDs to remember, no order to figure out, no half-installed tools.
 | 🟢 [Minimal](#-profile-minimal) | `.\run.ps1 profile minimal -y` | 5 | 5 | Fresh Windows in 2 min |
 | 🔵 [Base](#-profile-base) | `.\run.ps1 profile base -y` | 12 | 12 | Daily-driver workstation |
 | 🟣 [Git-compact](#-profile-git-compact) | `.\run.ps1 profile git-compact -y` | 5 | 5 | Source-control box |
-| 🟠 [Advance](#-profile-advance) | `.\run.ps1 profile advance -y` | 23 | 23 | Full creator setup |
+| 🟠 [Advance](#-profile-advance) | `.\run.ps1 profile advance -y` | 23 | 23 | Full creator setup (no langs) |
 | 🔴 [C++ + DirectX](#-profile-cpp--directx) | `.\run.ps1 profile cpp-dx -y` | 3 | 3 | Game / native dev |
-| 🟡 [Small Dev](#-profile-small-dev) | `.\run.ps1 profile small-dev -y` | 27 | 27 | Polyglot dev box |
+| 🟡 [Small Dev](#-profile-small-dev) | `.\run.ps1 profile small-dev -y` | 24 | 24 | advance + Go only |
+| 🟢 [Dev](#-profile-dev) | `.\run.ps1 profile dev -y` | 29 | 29 | Polyglot dev box (Py/Node/pnpm/Rust/PHP) |
+| 🟣 [Dev Advance](#-profile-dev-advance) | `.\run.ps1 profile dev-advance -y` | 33 | 33 | Polyglot + native (.NET + C++/DirectX) |
 
 Source of truth: [`scripts/profile/config.json`](scripts/profile/config.json) ·
 spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
@@ -160,6 +164,8 @@ spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 .\run.ps1 profile advance     -y
 .\run.ps1 profile cpp-dx      -y
 .\run.ps1 profile small-dev   -y
+.\run.ps1 profile dev         -y
+.\run.ps1 profile dev-advance -y
 
 # Same thing via the install keyword family
 .\run.ps1 install profile-minimal
@@ -168,6 +174,8 @@ spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 .\run.ps1 install profile-advance
 .\run.ps1 install profile-cpp-dx
 .\run.ps1 install profile-small-dev
+.\run.ps1 install profile-dev
+.\run.ps1 install profile-dev-advance
 ```
 
 ### Profile totals by destination
@@ -177,9 +185,11 @@ spec: [`spec/2025-batch/12-profiles.md`](spec/2025-batch/12-profiles.md).
 | `minimal` | 5 | Chocolatey, Git, 7-Zip, Chrome | — | — | Win11 classic context menu shim |
 | `base` | 12 | Chocolatey, Git, VLC, 7-Zip, WinRAR, fonts, XMind, Notepad++, Chrome, ConEmu, PSReadLine | — | `%APPDATA%\Notepad++`, `%APPDATA%\ConEmu.xml`, `%USERPROFILE%\Documents\WindowsPowerShell\Modules\PSReadLine\` | Hibernation off |
 | `git-compact` | 5 | Git | — | `%LOCALAPPDATA%\GitHubDesktop`, `%USERPROFILE%\.ssh`, `%USERPROFILE%\.gitconfig`, `%USERPROFILE%\GitHub\` | — |
-| `advance` | 23 | Everything in `base` + WordWeb, Beyond Compare, OBS | — | Everything in `git-compact` + `%LOCALAPPDATA%\WhatsApp`, `%LOCALAPPDATA%\Programs\Microsoft VS Code`, `%APPDATA%\Code\User`, `%APPDATA%\obs-studio\` | Inherits `base` system changes |
+| `advance` | 23 | Everything in `base` + WordWeb, Beyond Compare, OBS (**no langs**) | — | Everything in `git-compact` + `%LOCALAPPDATA%\WhatsApp`, `%LOCALAPPDATA%\Programs\Microsoft VS Code`, `%APPDATA%\Code\User`, `%APPDATA%\obs-studio\` | Inherits `base` system changes |
 | `cpp-dx` | 3 | VC++ runtimes, DirectX runtime, DirectX SDK | — | — | System runtime DLL registration |
-| `small-dev` | 27 | Everything in `advance` | Go, Python, Node.js, pnpm | Inherits `advance` | Inherits `advance` system changes |
+| `small-dev` | 24 | Everything in `advance` | **Go only** | Inherits `advance` | Inherits `advance` system changes |
+| `dev` | 29 | Everything in `small-dev` | + Python, Node.js (+Yarn +Bun), pnpm, Rust, PHP | Inherits `small-dev` | Inherits `small-dev` |
+| `dev-advance` | 33 | Everything in `dev` + VC++ runtimes, DirectX runtime, DirectX SDK, .NET SDK | Inherits `dev` | Inherits `dev` | Inherits `dev` + system runtime DLL registration |
 
 ---
 
@@ -380,10 +390,11 @@ all system-drive.
 
 ### 🟡 Profile: small-dev
 
-**Polyglot daily-driver dev box.** `advance` + the four runtimes you
-actually code in: Go, Python, Node.js, pnpm. The runtimes are the **only
-steps that land on E:\\dev-tool** — everything inherited from `advance`
-stays on C:\.
+**`advance` + Go only.** A tight everyday box for someone who lives in
+Go but still wants the full creator stack. Go is the **only step that
+lands on E:\\dev-tool** — everything inherited from `advance` stays on
+C:\\. Looking for Python / Node / pnpm / Rust / PHP too? Use
+[`profile dev`](#-profile-dev) instead.
 
 **Copy-paste one-liner:**
 
@@ -397,24 +408,104 @@ stays on C:\.
 |:-:|------|--------|------------------|:-----:|
 | 1-23 | All of `profile advance` | recursive | _see full table above_ | C:\ |
 | 24 | Go (Golang) | script #06 | `E:\dev-tool\go\` (GOPATH + cache) | **E:\\** |
-| 25 | Python + pip | script #05 | `E:\dev-tool\python\` (incl. PYTHONUSERBASE) | **E:\\** |
-| 26 | Node.js + Yarn + Bun | script #03 | `E:\dev-tool\nodejs\` (npm global prefix) | **E:\\** |
-| 27 | pnpm | script #04 | `E:\dev-tool\pnpm\` (pnpm store) | **E:\\** |
 
 > 🧠 **Why E: by default?** The dev-dir resolver picks the drive with
 > the most free space (preferring `E:` then `D:`). If you only have `C:`,
-> all four runtimes land in `C:\dev-tool\` instead. Override anytime:
+> Go lands in `C:\dev-tool\go\` instead. Override anytime:
 > `.\run.ps1 path F:\my-dev-tool` — then re-run the profile.
 
 **Total outcome after this profile finishes:**
 
-- **27 steps applied**
+- **24 steps applied**
 - **23 steps land on C:\ / profile folders**
-- **4 runtime stacks land on E:\dev-tool\** by default
-- Best choice when you want one command that leaves both **apps on C:\** and **runtimes on E:\**
+- **1 runtime (Go) lands on E:\dev-tool\** by default
+- Best choice when you want the full creator workstation **plus Go** without dragging in the rest of the polyglot stack
 
 <p align="center">
-  <img src="assets/demos/run-profile-small-dev.svg" alt="Demo: profile small-dev — advance + Go/Python/Node/pnpm on E:\dev-tool" width="100%"/>
+  <img src="assets/demos/run-profile-small-dev.svg" alt="Demo: profile small-dev — advance + Go on E:\dev-tool" width="100%"/>
+</p>
+
+---
+
+### 🟢 Profile: dev
+
+**Polyglot daily-driver dev box.** `small-dev` + every runtime you
+actually code in: Python + pip, Node.js (with Yarn and Bun bundled),
+pnpm, Rust (rustup + cargo), PHP. **All five new runtimes land on
+E:\\dev-tool** — everything inherited from `small-dev` (which already
+includes `advance` + Go) stays where it was.
+
+**Copy-paste one-liner:**
+
+```powershell
+.\run.ps1 profile dev -y
+```
+
+**What gets installed and where (full total summary):**
+
+| # | Tool | Source | Install location | Drive |
+|:-:|------|--------|------------------|:-----:|
+| 1-24 | All of `profile small-dev` (= advance + Go) | recursive | _see tables above_ | C:\ + E:\dev-tool\go |
+| 25 | Python + pip | script #05 | `E:\dev-tool\python\` (incl. PYTHONUSERBASE) | **E:\\** |
+| 26 | Node.js + Yarn + Bun | script #03 | `E:\dev-tool\nodejs\` (npm global prefix; Yarn + Bun bundled) | **E:\\** |
+| 27 | pnpm | script #04 | `E:\dev-tool\pnpm\` (pnpm store) | **E:\\** |
+| 28 | Rust (rustup + cargo) | script #44 | `E:\dev-tool\rust\` (CARGO_HOME + RUSTUP_HOME) | **E:\\** |
+| 29 | PHP | script #16 | `E:\dev-tool\php\` (PHP CLI + composer-ready) | **E:\\** |
+
+> 🧠 **Why bundle Yarn + Bun with Node?** Script #03 already installs
+> Yarn (via `corepack`) and Bun alongside Node — one step, three JS
+> package managers (npm, yarn, bun) plus pnpm in step 27.
+
+**Total outcome after this profile finishes:**
+
+- **29 steps applied**
+- **23 steps land on C:\ / profile folders** (everything inherited from `advance`)
+- **6 runtimes land on E:\dev-tool\**: `go`, `python`, `nodejs` (+yarn+bun), `pnpm`, `rust`, `php`
+- Best choice for a working polyglot dev box without native / .NET / DirectX
+
+<p align="center">
+  <img src="assets/demos/run-profile-dev.svg" alt="Demo: profile dev — polyglot daily-driver: small-dev + Python/Node/pnpm/Rust/PHP" width="100%"/>
+</p>
+
+---
+
+### 🟣 Profile: dev-advance
+
+**Everything-bagel dev box.** `dev` + `.NET SDK (C#)` + the entire
+`cpp-dx` profile (VC++ runtimes + DirectX runtime + DirectX SDK).
+Use this when you want one command that leaves you ready for **web,
+systems, native, game, and .NET work** without any follow-up installs.
+
+**Copy-paste one-liner:**
+
+```powershell
+.\run.ps1 profile dev-advance -y
+```
+
+**What gets installed and where (full total summary):**
+
+| # | Tool | Source | Install location | Drive |
+|:-:|------|--------|------------------|:-----:|
+| 1-29 | All of `profile dev` (= small-dev + Py/Node/pnpm/Rust/PHP) | recursive | _see tables above_ | C:\ + E:\dev-tool\\* |
+| 30 | .NET SDK (C#) | script #39 | `C:\Program Files\dotnet\` (system) | C:\ |
+| 31 | VC++ Redistributables (all years) | choco `vcredist-all` | `C:\Windows\System32\` (runtime DLLs) | C:\ |
+| 32 | DirectX runtime | choco `directx` | `C:\Windows\System32\` (DX DLLs) | C:\ |
+| 33 | DirectX SDK | choco `directx-sdk` | `C:\Program Files (x86)\Microsoft DirectX SDK\` | C:\ |
+
+> 🧱 **Native + managed in one shot.** Steps 30-33 are the same
+> components as `profile cpp-dx` plus .NET SDK. They are appended to
+> `dev` so a single command lands you with Go, Python, Node, pnpm,
+> Rust, PHP, .NET, and the full VC++/DirectX stack.
+
+**Total outcome after this profile finishes:**
+
+- **33 steps applied**
+- **6 runtimes on E:\dev-tool\** (inherited from `dev`)
+- **.NET SDK + VC++ runtimes + DirectX runtime + DirectX SDK** added on C:\
+- Best choice for a single one-liner that produces a "code anything tomorrow" box
+
+<p align="center">
+  <img src="assets/demos/run-profile-dev-advance.svg" alt="Demo: profile dev-advance — dev + .NET + cpp-dx, full polyglot + native stack" width="100%"/>
 </p>
 
 ---

@@ -24,14 +24,25 @@ They should also include a short **profile total summary** that states:
   vcredist-all, directx, directx-sdk, whatsapp). Choco does NOT relocate
   to E:\ -- documented as "system drive, no override".
 - **E:\dev-tool\\<tool>** -> dev-runtimes installed by numbered scripts
-  03/04/05/06 (nodejs, pnpm, python, golang) via `$env:DEV_DIR`.
-  These respect `path` subcommand override.
+  03/04/05/06/16/44 (nodejs+yarn+bun, pnpm, python, golang, php, rust)
+  via `$env:DEV_DIR`. These respect `path` subcommand override.
 - **%LOCALAPPDATA%** -> WhatsApp, GitHub Desktop, VS Code (per-user
   installs that do not honor a custom dir).
 - **%USERPROFILE%\.ssh, \.gitconfig, \GitHub** -> git-compact inline
   helpers (`Setup-SshKey`, `Apply-DefaultGitConfig`, `Setup-GitHubDir`).
 - **System registry (HKLM/HKCU)** -> `os hib-off`, Win11 classic
   context-menu restore (HKCU CLSID).
+
+## Profile chain (v0.94.0)
+
+`small-dev` is **advance + Go only** (24 steps). Polyglot runtimes
+moved into two new profiles:
+
+- `dev` = small-dev + Python + Node(+Yarn+Bun) + pnpm + Rust + PHP (29 steps)
+- `dev-advance` = dev + .NET SDK (#39) + cpp-dx (33 steps)
+
+Total profile count is now **8**: minimal, base, git-compact, advance,
+cpp-dx, small-dev, dev, dev-advance.
 
 ## Rule
 

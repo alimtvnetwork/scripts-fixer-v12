@@ -66,13 +66,31 @@
     },
     "small-dev": {
       "label": "Small Dev",
-      "description": "advance + Go + Python + Node.js + pnpm. A tight everyday dev box.",
+      "description": "advance + Go. Tight everyday dev box -- adds only the Go runtime on top of advance.",
       "steps": [
         { "kind": "profile",    "name": "advance" },
-        { "kind": "script",     "id": 6,  "label": "Go (Golang)" },
+        { "kind": "script",     "id": 6,  "label": "Go (Golang)" }
+      ]
+    },
+    "dev": {
+      "label": "Dev",
+      "description": "small-dev + Python/pip + Node.js (incl. Yarn + Bun) + pnpm + Rust + PHP. Polyglot daily-driver dev box.",
+      "steps": [
+        { "kind": "profile",    "name": "small-dev" },
         { "kind": "script",     "id": 5,  "label": "Python + pip" },
-        { "kind": "script",     "id": 3,  "label": "Node.js" },
-        { "kind": "script",     "id": 4,  "label": "pnpm" }
+        { "kind": "script",     "id": 3,  "label": "Node.js + Yarn + Bun" },
+        { "kind": "script",     "id": 4,  "label": "pnpm" },
+        { "kind": "script",     "id": 44, "label": "Rust (rustup + cargo)" },
+        { "kind": "script",     "id": 16, "label": "PHP" }
+      ]
+    },
+    "dev-advance": {
+      "label": "Dev Advance",
+      "description": "dev + C# (.NET SDK) + C++/DirectX runtime + SDK. Full polyglot + native stack.",
+      "steps": [
+        { "kind": "profile",    "name": "dev" },
+        { "kind": "script",     "id": 39, "label": ".NET SDK (C#)" },
+        { "kind": "profile",    "name": "cpp-dx" }
       ]
     }
   },
