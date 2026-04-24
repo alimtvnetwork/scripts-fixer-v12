@@ -20,6 +20,11 @@ if ((Test-Path $_loggingPath) -and -not (Get-Command Write-Log -ErrorAction Sile
     . $_loggingPath
 }
 
+$_auditPath = Join-Path $PSScriptRoot "audit-log.ps1"
+if ((Test-Path $_auditPath) -and -not (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue)) {
+    . $_auditPath
+}
+
 function ConvertTo-RegExePathU {
     param([string]$PsPath)
     $p = $PsPath -replace '^Registry::', ''
@@ -38,7 +43,8 @@ function Remove-VsCodeMenuEntry {
     param(
         [string]$TargetName,
         [string]$RegistryPath,
-        $LogMsgs
+        $LogMsgs,
+        [string]$EditionName = ""
     )
 
     $regPath = ConvertTo-RegExePathU $RegistryPath
@@ -47,6 +53,10 @@ function Remove-VsCodeMenuEntry {
     $isPresent = ($LASTEXITCODE -eq 0)
     if (-not $isPresent) {
         Write-Log ((($LogMsgs.messages.alreadyAbsent -replace '\{target\}', $TargetName) -replace '\{path\}', $regPath)) -Level "info"
+        if (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue) {
+            $null = Write-RegistryAuditEvent -Operation "skip-absent" `
+                -Edition $EditionName -Target $TargetName -RegPath $regPath
+        }
         return 'absent'
     }
 
@@ -56,9 +66,18 @@ function Remove-VsCodeMenuEntry {
     if ($hasFailed) {
         $msg = ($LogMsgs.messages.removeFailed -replace '\{path\}', $regPath) -replace '\{error\}', ("reg.exe exit " + $LASTEXITCODE)
         Write-Log $msg -Level "error"
+        if (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue) {
+            $null = Write-RegistryAuditEvent -Operation "fail" `
+                -Edition $EditionName -Target $TargetName -RegPath $regPath `
+                -Reason ("reg.exe delete exited " + $LASTEXITCODE)
+        }
         return 'failed'
     }
     Write-Log ((($LogMsgs.messages.removed -replace '\{target\}', $TargetName) -replace '\{path\}', $regPath)) -Level "success"
+    if (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue) {
+        $null = Write-RegistryAuditEvent -Operation "remove" `
+            -Edition $EditionName -Target $TargetName -RegPath $regPath
+    }
     return 'removed'
 }
 
