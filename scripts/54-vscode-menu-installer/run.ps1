@@ -21,8 +21,25 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-if ($Help) {
-    & (Join-Path $scriptDir "install.ps1") -Help
+# -- Help (router-level: lists ALL commands, not just install) --------------
+function Show-RouterHelp {
+    $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
+    . (Join-Path $sharedDir "logging.ps1")
+    . (Join-Path $sharedDir "help.ps1")
+    $logMsgs = Get-Content -LiteralPath (Join-Path $scriptDir "log-messages.json") -Raw | ConvertFrom-Json
+    Show-ScriptHelp -LogMessages $logMsgs
+    Write-Host ""
+    Write-Host "  Privilege summary:" -ForegroundColor Yellow
+    Write-Host "    install / uninstall  -- require Administrator (write to HKEY_CLASSES_ROOT)" -ForegroundColor Gray
+    Write-Host "    check / verify       -- read-only, run as any user (HKCR is world-readable)" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Tip: launch an elevated PowerShell with:" -ForegroundColor Yellow
+    Write-Host "    Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-Command','cd ""$((Split-Path -Parent (Split-Path -Parent $scriptDir)))""'" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
+if ($Help -or $Command -ieq "help" -or $Command -ieq "--help" -or $Command -ieq "-h") {
+    Show-RouterHelp
     return
 }
 
