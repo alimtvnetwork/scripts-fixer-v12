@@ -343,26 +343,24 @@ def demo_profile_small_dev() -> None:
         Line(prompt_segments(".\\run.ps1 profile small-dev"), delay=0.4, typed=True),
 
         Line([("", TEXT_FG)], delay=3.6),
-        Line([("==> Profile: small-dev  (advance + 4 runtimes)", ACCENT_HEADER)], delay=3.7),
-        Line([("    Expanded: 19 steps (advance + Go/Py/Node/pnpm)", DIM_FG)], delay=3.85),
+        Line([("==> Profile: small-dev  (advance + Go only)", ACCENT_HEADER)], delay=3.7),
+        Line([("    Expanded: 24 steps (advance 23 + golang)", DIM_FG)], delay=3.85),
         Line([("", TEXT_FG)], delay=4.0),
 
         Line([("[ 1-12 ] ", ACCENT_INFO), ("base profile (12 steps) ........ ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.2),
-        Line([("[13-15 ] ", ACCENT_INFO), ("git-compact (3 steps) .......... ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.55),
-        Line([("[16/19 ] ", ACCENT_INFO), ("golang ......................... ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.9),
-        Line([("[17/19 ] ", ACCENT_INFO), ("python + pip ................... ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.25),
-        Line([("[18/19 ] ", ACCENT_INFO), ("node.js + yarn + bun ........... ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.6),
-        Line([("[19/19 ] ", ACCENT_INFO), ("pnpm ........................... ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.95),
+        Line([("[13-17 ] ", ACCENT_INFO), ("git-compact (5 steps) .......... ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.55),
+        Line([("[18-23 ] ", ACCENT_INFO), ("advance extras (6 steps) ....... ", TEXT_FG), ("OK", ACCENT_OK)], delay=4.9),
+        Line([("[24/24 ] ", ACCENT_INFO), ("golang  -> E:\\dev-tool\\go ...... ", TEXT_FG), ("OK", ACCENT_OK)], delay=5.25),
 
-        Line([("", TEXT_FG)], delay=6.3),
-        Line([("Coding box ready in ", DIM_FG), ("6m 28s", ACCENT_WARN), (" - Go/Py/Node/pnpm + IDE on PATH.", DIM_FG)], delay=6.5),
+        Line([("", TEXT_FG)], delay=5.6),
+        Line([("small-dev ready in ", DIM_FG), ("4m 51s", ACCENT_WARN), (" - advance stack + Go on E:\\.", DIM_FG)], delay=5.8),
 
-        Line(prompt_segments(""), delay=7.3, typed=False),
+        Line(prompt_segments(""), delay=6.6, typed=False),
     ]
     build_svg(
-        title="run profile small-dev  -  tight everyday dev box",
+        title="run profile small-dev  -  advance + Go only",
         lines=lines,
-        loop_seconds=10.0,
+        loop_seconds=9.5,
         out_path=OUT_DIR / "run-profile-small-dev.svg",
     )
 
