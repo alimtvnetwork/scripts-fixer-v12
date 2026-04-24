@@ -13,6 +13,9 @@
 #    trace          Repair with -VerboseRegistry trace
 #    restore        Re-import the newest BEFORE snapshot (undo via snapshot)
 #    rollback       Restore default installer entries on all 3 targets
+#    refresh        Lightweight shell refresh (supports --verify post-check)
+#    verify-handlers  Standalone PASS/FAIL check that VS Code menu handlers
+#                     are registered. Read-only, no writes, no refresh.
 #    help           Show usage + examples
 #
 #  Common options:
