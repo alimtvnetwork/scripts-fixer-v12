@@ -118,6 +118,10 @@ switch ($Command.ToLower()) {
     'verify'     { Invoke-ManualRepair -Extra @{ WhatIf = $true; VerboseRegistry = $true } }
     'restore'    { Invoke-ManualRepair -Extra @{ RestoreDefaultEntries = $true } }
     'rollback'   { Invoke-Rollback }
+    'verify-handlers' {
+        $ok = Test-VsCodeHandlersRegistered -Config $config -LogMsgs $logMessages -EditionFilter $Edition
+        if ($ok) { exit 0 } else { exit 1 }
+    }
     'refresh'    {
         # Minimum-components shell refresh.
         # Flags (parsed from $Rest):
@@ -125,10 +129,12 @@ switch ($Command.ToLower()) {
         #   --broadcast-only  Only WM_SETTINGCHANGE 'Environment' broadcast
         #   --both            Send both (default)
         #   --restart|--full  Also kill+relaunch explorer.exe (fallback)
+        #   --verify          After refresh, run handler PASS/FAIL check
         $isAssocOnly     = $false
         $isBroadcastOnly = $false
         $isExplicitBoth  = $false
         $isFullRestart   = $false
+        $isPostVerify    = $false
         if ($null -ne $Rest -and $Rest.Count -gt 0) {
             foreach ($a in $Rest) {
                 $low = "$a".Trim().ToLower()
@@ -137,6 +143,7 @@ switch ($Command.ToLower()) {
                     { $_ -in @('--broadcast-only','-broadcast-only','broadcast-only','--broadcast','broadcast') } { $isBroadcastOnly = $true }
                     { $_ -in @('--both','-both','both') }                                                       { $isExplicitBoth = $true }
                     { $_ -in @('--restart','-restart','restart','--full','-full','full') }                       { $isFullRestart = $true }
+                    { $_ -in @('--verify','-verify','verify') }                                                  { $isPostVerify = $true }
                     default { }
                 }
             }
@@ -162,7 +169,11 @@ switch ($Command.ToLower()) {
                 -WaitMs        $waitMs `
                 -SendAssoc     $sendAssoc `
                 -SendBroadcast $sendBroadcast
-        if ($ok) { exit 0 } else { exit 1 }
+        $verifyOk = $true
+        if ($isPostVerify) {
+            $verifyOk = Test-VsCodeHandlersRegistered -Config $config -LogMsgs $logMessages -EditionFilter $Edition
+        }
+        if ($ok -and $verifyOk) { exit 0 } else { exit 1 }
     }
     'repair'     { Invoke-ManualRepair }
     default      { } # 'all' / 'no-restart' / unknown -> fall through to legacy path
