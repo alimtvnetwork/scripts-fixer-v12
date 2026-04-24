@@ -21,6 +21,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "installed.ps1")
 
 . (Join-Path $scriptDir "helpers\vscode-uninstall.ps1")
+. (Join-Path $scriptDir "helpers\audit-log.ps1")
 
 $configPath = Join-Path $scriptDir "config.json"
 $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -48,6 +49,9 @@ try {
 
     Write-Log $logMessages.messages.uninstallStart -Level "info"
 
+    # -- Open audit log (timestamped, one file per run) ----------------------
+    $auditPath = Initialize-RegistryAudit -Action "uninstall" -ScriptDir $scriptDir
+
     $editions = if ([string]::IsNullOrWhiteSpace($Edition)) {
         @($config.enabledEditions)
     } else {
@@ -74,7 +78,8 @@ try {
             $status = Remove-VsCodeMenuEntry `
                 -TargetName   $entry.Target `
                 -RegistryPath $entry.Path `
-                -LogMsgs      $logMessages
+                -LogMsgs      $logMessages `
+                -EditionName  $editionName
             switch ($status) {
                 'removed' { $removed++ }
                 'absent'  { $absent++  }
@@ -91,6 +96,10 @@ try {
 
     $msg = ((($logMessages.messages.summaryUninstall -replace '\{removed\}', $removed) -replace '\{absent\}', $absent) -replace '\{failed\}', $failed)
     Write-Log $msg -Level $(if ($failed -eq 0) { "success" } else { "error" })
+    $hasAuditPath = -not [string]::IsNullOrWhiteSpace($auditPath)
+    if ($hasAuditPath) {
+        Write-Log ($logMessages.messages.auditWritten -replace '\{path\}', $auditPath) -Level "info"
+    }
 
 } catch {
     Write-Log "Unhandled error: $_" -Level "error"
