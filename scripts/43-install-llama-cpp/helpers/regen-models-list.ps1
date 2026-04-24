@@ -85,7 +85,11 @@ function Invoke-ModelsListRegen {
 
     $models       = @($catalog.models)
     $totalCount   = $models.Count
-    $version      = if ($catalog.PSObject.Properties.Name -contains "version") { $catalog.version } else { "unknown" }
+    $hasCatVer    = $catalog.PSObject.Properties.Name -contains "catalogVersion"
+    $hasVer       = $catalog.PSObject.Properties.Name -contains "version"
+    if ($hasCatVer)  { $version = $catalog.catalogVersion }
+    elseif ($hasVer) { $version = $catalog.version        }
+    else             { $version = "unknown"               }
     $familyGroups = $models | Group-Object -Property family | Sort-Object Name
     $familyCount  = $familyGroups.Count
 
@@ -94,7 +98,7 @@ function Invoke-ModelsListRegen {
     # -- Header ---------------------------------------------------------------
     [void]$sb.AppendLine("# Local AI Models Catalog")
     [void]$sb.AppendLine("> $totalCount downloadable GGUF models for ``llama.cpp`` (script ``43-install-llama-cpp``).")
-    [void]$sb.AppendLine("> Catalog version **$version** -- auto-grouped by family, size, capability.")
+    [void]$sb.AppendLine([string]([char]0x003E + " Catalog version **$version** " + [char]0x2014 + " auto-grouped by family, size, capability."))
     [void]$sb.AppendLine("> Models marked ***** are curated picks. Models tagged **[Leaderboard #N]** are the open-weight portion of the OpenRouter LLM Leaderboard (Nov 2025).")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("## Quick install")
