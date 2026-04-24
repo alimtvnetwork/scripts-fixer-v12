@@ -772,6 +772,58 @@ Install tools by human-friendly name instead of script ID:
 .\run.ps1 -Install python,php        # Named parameter style
 ```
 
+### Multi-tool install — by name (preferred) or by ID
+
+Names compose freely with commas. IDs accept ranges and lists too. Mix
+them when you want to grab a specific batch.
+
+```powershell
+# By name -- the readable way
+.\run.ps1 install vscode,git,nodejs,pnpm,python
+.\run.ps1 install npp,obs,wt,dbeaver,conemu       # all desktop tools at once
+.\run.ps1 install whatsapp,onenote,lightshot      # 2025-batch desktop apps
+.\run.ps1 install ubuntu-font,conemu              # font + terminal pair
+.\run.ps1 install go,rust,cpp,dotnet,java         # all systems-language runtimes
+
+# By ID range -- handy for sweeping the 2025-batch
+.\run.ps1 install 47..52                          # Ubuntu Font -> ConEmu -> WhatsApp -> OneNote -> Lightshot -> VSCode-folder-repair
+.\run.ps1 install 47..49,51                       # skip OneNote (50) but grab Lightshot (51)
+.\run.ps1 install 1,7,11                          # VSCode + Git + VSCode settings sync
+
+# Mix names and IDs
+.\run.ps1 install vscode,11,git,nodejs            # name + id, in any order
+
+# Profiles bundle dozens of tools behind one name
+.\run.ps1 install profile-small-dev               # advance + Go/Py/Node/pnpm
+.\run.ps1 install profile-cpp-dx                  # VC++ runtimes + DirectX
+```
+
+> 🧠 **XMind?** XMind ships as a Chocolatey step inside
+> [`profile base`](scripts/profile/config.json) (and therefore `advance` /
+> `small-dev`). It does not have its own numbered script. Run
+> `.\run.ps1 profile base` to get it, or `choco install xmind -y` directly
+> if you only want XMind.
+
+<a id="onenote-install-variants"></a>
+
+### OneNote install variants
+
+Plain `onenote` does **only** OneNote. To also disable OneDrive autostart
+and remove the OneNote tray icon, use the `+rm-onedrive` combo. Runs are
+separate by design — install OneNote alone today, decide on OneDrive later.
+
+| Keyword | What runs |
+|---------|-----------|
+| `install onenote` | Script 50 in `install` mode → OneNote only, no tweaks, OneDrive untouched |
+| `install onenote+rm-onedrive` | Script 50 in `with-tweaks` mode → install + remove tray + disable OneDrive autostart + scheduled tasks |
+| `install onenote+tweaks` | Alias of `onenote+rm-onedrive` |
+| `-I 50 -- with-tweaks` | Same as the combo, by script ID |
+| `-I 50 -- rm-onedrive` | Same as the combo, by script ID |
+| `-I 50 uninstall` | Choco uninstall + tracking purge (does **not** re-enable OneDrive) |
+
+Source: [`scripts/50-install-onenote/run.ps1`](scripts/50-install-onenote/run.ps1) ·
+config: [`scripts/50-install-onenote/config.json`](scripts/50-install-onenote/config.json).
+
 ### Python & Libraries Keywords
 
 ```powershell
