@@ -17,6 +17,8 @@ Set-StrictMode -Version Latest
 # Hard-coded as a unicode escape so this source file stays ASCII-safe and
 # survives any encoding round-trip (matches the user's banner-safety rule).
 $script:EmDash = [string][char]0x2014
+# Black star (U+2605) used to mark curated models in the catalog/markdown.
+$script:Star   = [string][char]0x2605
 
 function Get-ModelTier {
     param([Parameter(Mandatory)] [double] $SizeGB)
@@ -104,7 +106,7 @@ function Invoke-ModelsListRegen {
     [void]$sb.AppendLine("# Local AI Models Catalog")
     [void]$sb.AppendLine("> $totalCount downloadable GGUF models for ``llama.cpp`` (script ``43-install-llama-cpp``).")
     [void]$sb.AppendLine("> Catalog version **$version** $($script:EmDash) auto-grouped by family, size, capability.")
-    [void]$sb.AppendLine("> Models marked ***** are curated picks. Models tagged **[Leaderboard #N]** are the open-weight portion of the OpenRouter LLM Leaderboard (Nov 2025).")
+    [void]$sb.AppendLine("> Models marked **$($script:Star)** are curated picks. Models tagged **[Leaderboard #N]** are the open-weight portion of the OpenRouter LLM Leaderboard (Nov 2025).")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("## Quick install")
     [void]$sb.AppendLine('```powershell')
