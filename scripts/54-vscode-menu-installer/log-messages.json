@@ -32,12 +32,15 @@
     "summaryUninstall": "Uninstall summary -- keys removed: {removed}, already absent: {absent}, failed: {failed}.",
     "tip": "Tip: re-run with -Edition <stable|insiders> to target a single edition.",
     "checkStart": "Quick verification: reading HKCR\\*\\shell, HKCR\\Directory\\shell, HKCR\\Directory\\Background\\shell (read-only)...",
-    "auditWritten": "Audit log written: {path} (one JSONL record per registry change -- safe to grep, diff, or tail)"
+    "auditWritten": "Audit log written: {path} (one JSONL record per registry change -- safe to grep, diff, or tail)",
+    "snapshotWritten": "Pre-install snapshot saved: {path} (manual restore: reg.exe import \"<path>\")",
+    "snapshotSkipped": "Pre-install snapshot was NOT created (failure: see preceding warnings; install will continue)"
   },
   "help": {
     "commands": {
       "install":   "[ADMIN] Write the file/folder/background context-menu entries for every enabled edition. Writes to HKCR -- requires elevation.",
       "uninstall": "[ADMIN] Surgical removal: deletes ONLY the keys listed in config.json::registryPaths. Never touches sibling keys.",
+      "rollback":  "[ADMIN] Alias for 'uninstall' (surgical delete). Also prints the path of the most recent pre-install snapshot so you can manually `reg.exe import` it to restore third-party entries.",
       "check":     "[no-admin] Quick read-only registry check. Reports PASS/MISS for file, folder, and background entries per edition. Exit 0=all pass, 1=one or more miss, 2=config missing.",
       "verify":    "[no-admin] Full read-only test harness (leaf existence + command template). Accepts -Edition, -OnlyTargets, -OnlyCases, -NoColor."
     },
@@ -58,6 +61,12 @@
       "# --- uninstall (ADMIN -- surgical, only paths listed in config.json) ---",
       ".\\run.ps1 -I 54 uninstall",
       ".\\run.ps1 -I 54 uninstall -Edition stable",
+      "",
+      "# --- rollback (ADMIN -- surgical delete + points you at the pre-install snapshot) ---",
+      ".\\run.ps1 -I 54 rollback",
+      ".\\run.ps1 -I 54 rollback -Edition stable",
+      "# Manual full restore (importing the snapshot brings back any pre-existing third-party entries):",
+      "reg.exe import .audit\\snapshots\\snapshot-<yyyyMMdd-HHmmss>.reg",
       "",
       "# --- check (no admin -- quick PASS/MISS, exit code drives CI) ---",
       ".\\run.ps1 -I 54 check",
