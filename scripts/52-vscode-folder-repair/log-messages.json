@@ -81,6 +81,7 @@
       "restore":    "Re-import newest BEFORE snapshot for the chosen edition",
       "rollback":   "Restore DEFAULT installer entries on all 3 targets (inverse of repair)",
         "refresh":    "Refresh shell with minimum components. Flags: --assoc-only | --broadcast-only | --both (default) | --restart. Prints exact API calls sent.",
+      "verify-handlers": "Check whether VS Code context menu handlers are registered. Prints PASS/FAIL per target. Read-only.",
       "help":       "Show this help"
     },
     "examples": [
@@ -99,6 +100,9 @@
         ".\\run.ps1 refresh --broadcast-only                   # only WM_SETTINGCHANGE 'Environment' broadcast",
         ".\\run.ps1 refresh --both                             # explicit: both notifications (same as default)",
       ".\\run.ps1 refresh --restart                          # minimum refresh PLUS full explorer.exe restart fallback",
+      ".\\run.ps1 refresh --verify                           # refresh, then check handlers and print PASS/FAIL",
+      ".\\run.ps1 verify-handlers                            # standalone PASS/FAIL check (no writes, no refresh)",
+      ".\\run.ps1 verify-handlers -Edition stable            # check only the stable edition",
       ".\\run.ps1 help"
     ]
   }
