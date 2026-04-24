@@ -251,6 +251,14 @@ function Invoke-ShellRefresh {
 
     $hasFailed = $false
 
+    # Track per-step outcomes for the final on-screen summary.
+    # Values: 'sent' | 'skipped' | 'failed'
+    $stepStatus = [ordered]@{
+        'SHChangeNotify(SHCNE_ASSOCCHANGED)'             = 'skipped'
+        "WM_SETTINGCHANGE broadcast ('Environment')"     = 'skipped'
+        'Restart-Explorer (full kill+relaunch)'          = 'skipped'
+    }
+
     # 1) SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL)
     if ($SendAssoc) { try {
         $shellApiSig = @'
@@ -275,10 +283,12 @@ public static class ShellNotify {
         Write-Log (($LogMsgs.messages.refreshSendingAssoc)) -Level "info"
         [ShellNotify]::SHChangeNotify(0x08000000, 0x0000, [IntPtr]::Zero, [IntPtr]::Zero)
         Write-Log $LogMsgs.messages.refreshAssocOk -Level "success"
+        $stepStatus['SHChangeNotify(SHCNE_ASSOCCHANGED)'] = 'sent'
     } catch {
         $hasFailed = $true
         $reason = "SHChangeNotify failed -- reason: $($_.Exception.Message)"
         Write-Log (($LogMsgs.messages.refreshFailed -replace '\{step\}', 'SHChangeNotify') -replace '\{error\}', $reason) -Level "error"
+        $stepStatus['SHChangeNotify(SHCNE_ASSOCCHANGED)'] = 'failed'
     } } else {
         Write-Log (($LogMsgs.messages.refreshSkipped -replace '\{step\}', 'SHChangeNotify(SHCNE_ASSOCCHANGED)')) -Level "info"
     }
@@ -313,19 +323,49 @@ public static class ShellNotify {
                 [IntPtr]0xFFFF, 0x001A, [UIntPtr]::Zero, "Environment",
                 0x0002, 5000, [ref]$result)
             Write-Log $LogMsgs.messages.refreshBroadcastOk -Level "success"
+            $stepStatus["WM_SETTINGCHANGE broadcast ('Environment')"] = 'sent'
         }
     } catch {
         $hasFailed = $true
         $reason = "WM_SETTINGCHANGE broadcast failed -- reason: $($_.Exception.Message)"
         Write-Log (($LogMsgs.messages.refreshFailed -replace '\{step\}', 'WM_SETTINGCHANGE') -replace '\{error\}', $reason) -Level "error"
+        $stepStatus["WM_SETTINGCHANGE broadcast ('Environment')"] = 'failed'
     } } else {
         Write-Log (($LogMsgs.messages.refreshSkipped -replace '\{step\}', "WM_SETTINGCHANGE broadcast ('Environment')")) -Level "info"
     }
 
     if ($FullRestart) {
         Write-Log $LogMsgs.messages.refreshFullRestart -Level "info"
-        $null = Restart-Explorer -WaitMs $WaitMs -LogMsgs $LogMsgs
+        $okRestart = Restart-Explorer -WaitMs $WaitMs -LogMsgs $LogMsgs
+        if ($okRestart) {
+            $stepStatus['Restart-Explorer (full kill+relaunch)'] = 'sent'
+        } else {
+            $stepStatus['Restart-Explorer (full kill+relaunch)'] = 'failed'
+            $hasFailed = $true
+        }
     }
+
+    # ---- On-screen summary (always printed) --------------------------------
+    Write-Host ""
+    Write-Host $LogMsgs.messages.refreshSummaryHeader -ForegroundColor Cyan
+    foreach ($step in $stepStatus.Keys) {
+        $status = $stepStatus[$step]
+        switch ($status) {
+            'sent' {
+                $line = ($LogMsgs.messages.refreshSummarySent -replace '\{step\}', $step)
+                Write-Host $line -ForegroundColor Green
+            }
+            'failed' {
+                $line = ($LogMsgs.messages.refreshSummaryFailed -replace '\{step\}', $step)
+                Write-Host $line -ForegroundColor Red
+            }
+            default {
+                $line = ($LogMsgs.messages.refreshSummarySkipped -replace '\{step\}', $step)
+                Write-Host $line -ForegroundColor DarkGray
+            }
+        }
+    }
+    Write-Host ""
 
     if (-not $hasFailed) {
         Write-Log $LogMsgs.messages.refreshDone -Level "success"
