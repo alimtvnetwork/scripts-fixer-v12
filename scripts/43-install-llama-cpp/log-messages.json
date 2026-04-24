@@ -38,7 +38,9 @@
     "progressDone": "Progress {bar} {total}/{total} files (100%) | done",
     "preflightOk": "[PREFLIGHT] aria2c OK -- {reason}",
     "preflightDisable": "[PREFLIGHT] Parallel mode auto-disabled: {reason}",
-    "preflightFallback": "[PREFLIGHT] Falling back to sequential downloads for this run."
+    "preflightFallback": "[PREFLIGHT] Falling back to sequential downloads for this run.",
+    "preflightStart": "[PREFLIGHT] Validating models-catalog.json schema before mutation...",
+    "preflightAbort": "[PREFLIGHT] Catalog schema invalid -- aborting before any catalog mutation. Fix the issues above and re-run."
   },
   "help": {
     "commands": {

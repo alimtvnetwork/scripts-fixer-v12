@@ -44,6 +44,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $scriptDir "helpers\catalog-update.ps1")
 . (Join-Path $scriptDir "helpers\regen-models-list.ps1")
 . (Join-Path $scriptDir "helpers\sha256-fill.ps1")
+. (Join-Path $scriptDir "helpers\catalog-preflight.ps1")
 
 # -- Load config & log messages -----------------------------------------------
 $config       = Import-JsonConfig (Join-Path $scriptDir "config.json")
@@ -80,6 +81,12 @@ if ($isRegenListMode) {
     Write-Banner -Title $logMessages.scriptName
     Initialize-Logging -ScriptName $logMessages.scriptName
     try {
+        Write-Log $logMessages.messages.preflightStart -Level "info"
+        $isCatalogValid = Test-CatalogSchema -CatalogPath $catalogPath
+        if (-not $isCatalogValid) {
+            Write-Log $logMessages.messages.preflightAbort -Level "error"
+            return
+        }
         $listPath = Join-Path $scriptDir "models-list.md"
         $isOk = Invoke-ModelsListRegen -CatalogPath $catalogPath -OutputPath $listPath
         if (-not $isOk) {
@@ -101,6 +108,12 @@ if ($isFillShaMode) {
     Write-Banner -Title $logMessages.scriptName
     Initialize-Logging -ScriptName $logMessages.scriptName
     try {
+        Write-Log $logMessages.messages.preflightStart -Level "info"
+        $isCatalogValid = Test-CatalogSchema -CatalogPath $catalogPath
+        if (-not $isCatalogValid) {
+            Write-Log $logMessages.messages.preflightAbort -Level "error"
+            return
+        }
         $idsArg = if ($Path) { $Path } else { "" }
         $isOk = Invoke-Sha256Fill -CatalogPath $catalogPath -Ids $idsArg
         if (-not $isOk) {
