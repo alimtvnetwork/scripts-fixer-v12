@@ -250,8 +250,15 @@ hibernation disabled to free `C:\hiberfil.sys`. Includes everything in
 > ℹ️ **No E:\dev-tool entries here.** `base` is purely OS hygiene + GUI
 > apps. Dev runtimes (Node, Python, Go, pnpm) come in via `small-dev`.
 
+**Total outcome after this profile finishes:**
+
+- **12 steps applied**
+- **C:\ only** for apps, fonts, and synced settings
+- **0 tools on E:\dev-tool**
+- **System tweaks included:** hibernation off, PSReadLine updated
+
 <p align="center">
-  <img src="assets/demos/run-profile-advance.svg" alt="Demo: profile advance (which includes base) — full developer profile" width="100%"/>
+  <img src="assets/demos/run-profile-base.svg" alt="Demo: profile base — daily-driver Windows workstation profile" width="100%"/>
 </p>
 
 ---
@@ -302,18 +309,37 @@ Beyond Compare + OBS (with synced settings) + WhatsApp Desktop + VS Code
 .\run.ps1 profile advance -y
 ```
 
-**What gets installed and where (extras only — see `base` + `git-compact` for the rest):**
+**What gets installed and where (full total):**
 
 | # | Tool | Source | Install location | Drive |
 |:-:|------|--------|------------------|:-----:|
-| — | All of `profile base` (12 steps) | recursive | _see above_ | C:\ |
-| — | All of `profile git-compact` (5 steps) | recursive | _see above_ | C:\ |
-| 18 | WordWeb dictionary | choco `wordweb-free` | `C:\Program Files (x86)\WordWeb\` | C:\ |
-| 19 | Beyond Compare | choco `beyondcompare` | `C:\Program Files\Beyond Compare 4\` | C:\ |
-| 20 | OBS Studio + settings | script #36 (`install+settings`) | `C:\Program Files\obs-studio\` + `%APPDATA%\obs-studio\` | C:\ |
-| 21 | WhatsApp Desktop | script #49 (choco) | `%LOCALAPPDATA%\WhatsApp\` | C:\ |
-| 22 | Visual Studio Code | script #01 | `%LOCALAPPDATA%\Programs\Microsoft VS Code\` | C:\ |
-| 23 | VS Code settings sync | script #11 | `%APPDATA%\Code\User\` + extensions | C:\ |
+| 1 | Chocolatey package manager | bootstrap | `C:\ProgramData\chocolatey\` | C:\ |
+| 2 | Git + Git LFS + gh | script #07 (choco) | `C:\Program Files\Git\` | C:\ |
+| 3 | VLC media player | choco `vlc` | `C:\Program Files\VideoLAN\VLC\` | C:\ |
+| 4 | 7-Zip archiver | choco `7zip.install` | `C:\Program Files\7-Zip\` | C:\ |
+| 5 | WinRAR | choco `winrar` | `C:\Program Files\WinRAR\` | C:\ |
+| 6 | Ubuntu font family | script #47 | `C:\Windows\Fonts\` | C:\ |
+| 7 | XMind | choco `xmind` | `C:\Program Files (x86)\XMind\` | C:\ |
+| 8 | Notepad++ + settings | script #33 (`install+settings`) | `C:\Program Files\Notepad++\` + `%APPDATA%\Notepad++\` | C:\ |
+| 9 | Google Chrome | choco `googlechrome` | `C:\Program Files\Google\Chrome\` | C:\ |
+| 10 | ConEmu + settings | script #48 (`install+settings`) | `C:\Program Files\ConEmu\` + `%APPDATA%\ConEmu.xml` | C:\ |
+| 11 | Disable hibernation | subcommand `os hib-off` | `powercfg /hibernate off` | C:\ |
+| 12 | PSReadLine (latest) | inline | `%USERPROFILE%\Documents\WindowsPowerShell\Modules\PSReadLine\` | C:\ |
+| 13 | GitHub Desktop | script #08 (per-user installer) | `%LOCALAPPDATA%\GitHubDesktop\` | C:\ |
+| 14 | SSH key (ed25519) | inline `Setup-SshKey` | `%USERPROFILE%\.ssh\id_ed25519` | C:\ |
+| 15 | Default GitHub dir | inline `Setup-GitHubDir` | `%USERPROFILE%\GitHub\` | C:\ |
+| 16 | Default `.gitconfig` | inline `Apply-DefaultGitConfig` | `%USERPROFILE%\.gitconfig` | C:\ |
+| 17 | WordWeb dictionary | choco `wordweb-free` | `C:\Program Files (x86)\WordWeb\` | C:\ |
+| 18 | Beyond Compare | choco `beyondcompare` | `C:\Program Files\Beyond Compare 4\` | C:\ |
+| 19 | OBS Studio + settings | script #36 (`install+settings`) | `C:\Program Files\obs-studio\` + `%APPDATA%\obs-studio\` | C:\ |
+| 20 | WhatsApp Desktop | script #49 | `%LOCALAPPDATA%\WhatsApp\` | C:\ |
+| 21 | Visual Studio Code | script #01 | `%LOCALAPPDATA%\Programs\Microsoft VS Code\` | C:\ |
+| 22 | VS Code settings sync | script #11 | `%APPDATA%\Code\User\` + extensions | C:\ |
+| 23 | Win11 classic right-click menu | inherited from `minimal`? | **Not included in `advance`** | — |
+
+> ✅ **Exact total:** `advance` currently applies **23 steps**, all on **C:\ / user profile paths**. It does **not** place anything in `E:\dev-tool\`.
+
+> ℹ️ **About the classic right-click fix:** that Win11 registry tweak is part of `profile minimal`, not `base` / `advance`. If you want it too, run `profile minimal` first or expose it as a standalone helper later.
 
 <p align="center">
   <img src="assets/demos/run-profile-advance.svg" alt="Demo: profile advance — full developer profile" width="100%"/>
@@ -356,20 +382,27 @@ stays on C:\.
 .\run.ps1 profile small-dev -y
 ```
 
-**What gets installed and where (extras only — see `advance` for the rest):**
+**What gets installed and where (full total summary):**
 
 | # | Tool | Source | Install location | Drive |
 |:-:|------|--------|------------------|:-----:|
-| — | All of `profile advance` (~25 steps) | recursive | _see above_ | C:\ |
-| 26 | Go (Golang) | script #06 | `E:\dev-tool\go\` (GOPATH + cache) | **E:\\** |
-| 27 | Python + pip | script #05 | `E:\dev-tool\python\` (incl. PYTHONUSERBASE) | **E:\\** |
-| 28 | Node.js + Yarn + Bun | script #03 | `E:\dev-tool\nodejs\` (npm global prefix) | **E:\\** |
-| 29 | pnpm | script #04 | `E:\dev-tool\pnpm\` (pnpm store) | **E:\\** |
+| 1-23 | All of `profile advance` | recursive | _see full table above_ | C:\ |
+| 24 | Go (Golang) | script #06 | `E:\dev-tool\go\` (GOPATH + cache) | **E:\\** |
+| 25 | Python + pip | script #05 | `E:\dev-tool\python\` (incl. PYTHONUSERBASE) | **E:\\** |
+| 26 | Node.js + Yarn + Bun | script #03 | `E:\dev-tool\nodejs\` (npm global prefix) | **E:\\** |
+| 27 | pnpm | script #04 | `E:\dev-tool\pnpm\` (pnpm store) | **E:\\** |
 
 > 🧠 **Why E: by default?** The dev-dir resolver picks the drive with
 > the most free space (preferring `E:` then `D:`). If you only have `C:`,
 > all four runtimes land in `C:\dev-tool\` instead. Override anytime:
 > `.\run.ps1 path F:\my-dev-tool` — then re-run the profile.
+
+**Total outcome after this profile finishes:**
+
+- **27 steps applied**
+- **23 steps land on C:\ / profile folders**
+- **4 runtime stacks land on E:\dev-tool\** by default
+- Best choice when you want one command that leaves both **apps on C:\** and **runtimes on E:\**
 
 <p align="center">
   <img src="assets/demos/run-profile-small-dev.svg" alt="Demo: profile small-dev — advance + Go/Python/Node/pnpm on E:\dev-tool" width="100%"/>
