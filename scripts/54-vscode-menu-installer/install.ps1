@@ -23,6 +23,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 # -- Script helpers -----------------------------------------------------------
 . (Join-Path $scriptDir "helpers\vscode-install.ps1")
 . (Join-Path $scriptDir "helpers\audit-log.ps1")
+. (Join-Path $scriptDir "helpers\registry-snapshot.ps1")
 
 # -- Load config & log messages -----------------------------------------------
 $configPath = Join-Path $scriptDir "config.json"
@@ -46,6 +47,18 @@ try {
 
     # -- Open audit log (timestamped, one file per run) ----------------------
     $auditPath = Initialize-RegistryAudit -Action "install" -ScriptDir $scriptDir
+
+    # -- Pre-install snapshot (always-on; per user spec) ---------------------
+    # Captures the current state of every target key BEFORE any write so the
+    # user has a forensic trail / manual restore path. Snapshot is best-effort
+    # -- a snapshot failure must not block the install.
+    $snapshotPath = New-PreInstallSnapshot -Config $config -ScriptDir $scriptDir
+    $hasSnapshot = -not [string]::IsNullOrWhiteSpace($snapshotPath)
+    if ($hasSnapshot) {
+        Write-Log ($logMessages.messages.snapshotWritten -replace '\{path\}', $snapshotPath) -Level "info"
+    } else {
+        Write-Log $logMessages.messages.snapshotSkipped -Level "warn"
+    }
 
     # -- Assert admin ---------------------------------------------------------
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
