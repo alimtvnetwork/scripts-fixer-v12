@@ -30,12 +30,14 @@
     "removeFailed": "  FAILED to remove {path} -- {error}",
     "summaryInstall": "Install summary -- editions processed: {processed}, skipped: {skipped}.",
     "summaryUninstall": "Uninstall summary -- keys removed: {removed}, already absent: {absent}, failed: {failed}.",
-    "tip": "Tip: re-run with -Edition <stable|insiders> to target a single edition."
+    "tip": "Tip: re-run with -Edition <stable|insiders> to target a single edition.",
+    "checkStart": "Quick verification: reading HKCR\\*\\shell, HKCR\\Directory\\shell, HKCR\\Directory\\Background\\shell (read-only)..."
   },
   "help": {
     "commands": {
       "install": "Write context menu entries for every enabled edition",
       "uninstall": "Remove ONLY the keys listed in config.json -- never touches sibling keys",
+      "check": "Quick read-only registry check: reports PASS/MISS for file, folder, and background entries per edition. Exit code 0=all pass, 1=one or more miss.",
       "verify": "Run the read-only test harness against the live registry (leaf existence + command template). Accepts -Edition, -OnlyTargets, -OnlyCases, -NoColor."
     },
     "examples": [
@@ -46,6 +48,8 @@
       ".\\uninstall.ps1 -Edition stable",
       ".\\run.ps1 install",
       ".\\run.ps1 uninstall",
+      ".\\run.ps1 check",
+      ".\\run.ps1 check -Edition stable",
       ".\\run.ps1 verify",
       ".\\run.ps1 verify -Edition stable -OnlyTargets file,directory",
       ".\\run.ps1 verify -OnlyCases 1,4 -NoColor"

@@ -30,6 +30,29 @@ switch ($Command.ToLower()) {
     "uninstall" {
         & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition
     }
+    "check" {
+        # Quick read-only registry verification for folder + background +
+        # file context-menu entries. Independent of the heavier 'verify'
+        # test harness -- safe to run without admin (read-only HKCR).
+        $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
+        . (Join-Path $sharedDir "logging.ps1")
+        . (Join-Path $scriptDir "helpers\vscode-check.ps1")
+
+        $configPath = Join-Path $scriptDir "config.json"
+        $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
+        if ($isConfigMissing) {
+            Write-Host "FATAL: config.json not found at: $configPath (failure: cannot run check without config)" -ForegroundColor Red
+            exit 2
+        }
+        $logPath = Join-Path $scriptDir "log-messages.json"
+        $config  = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+        $logMsgs = Get-Content -LiteralPath $logPath    -Raw | ConvertFrom-Json
+
+        Write-Log $logMsgs.messages.checkStart -Level "info"
+        $result = Invoke-VsCodeMenuCheck -Config $config -LogMsgs $logMsgs -EditionFilter $Edition
+        $hasMisses = $result.totalMiss -gt 0
+        if ($hasMisses) { exit 1 } else { exit 0 }
+    }
     "verify" {
         $harness = Join-Path $scriptDir "tests\run-tests.ps1"
         $isHarnessMissing = -not (Test-Path -LiteralPath $harness)
