@@ -201,11 +201,14 @@ switch ($Command.ToLower()) {
         #   --both            Send both (default)
         #   --restart|--full  Also kill+relaunch explorer.exe (fallback)
         #   --verify          After refresh, run handler PASS/FAIL check
+        #   --verify-repair   Like --verify, but on FAIL auto-rerun refresh
+        #                     with --both --restart and verify a second time
         $isAssocOnly     = $false
         $isBroadcastOnly = $false
         $isExplicitBoth  = $false
         $isFullRestart   = $false
         $isPostVerify    = $false
+        $isVerifyRepair  = $false
         if ($null -ne $Rest -and $Rest.Count -gt 0) {
             foreach ($a in $Rest) {
                 $low = "$a".Trim().ToLower()
@@ -215,6 +218,7 @@ switch ($Command.ToLower()) {
                     { $_ -in @('--both','-both','both') }                                                       { $isExplicitBoth = $true }
                     { $_ -in @('--restart','-restart','restart','--full','-full','full') }                       { $isFullRestart = $true }
                     { $_ -in @('--verify','-verify','verify') }                                                  { $isPostVerify = $true }
+                    { $_ -in @('--verify-repair','-verify-repair','verify-repair') }                            { $isVerifyRepair = $true; $isPostVerify = $true }
                     default { }
                 }
             }
@@ -234,18 +238,50 @@ switch ($Command.ToLower()) {
         $waitMs = 800
         $hasWait = $config.PSObject.Properties.Match('restartExplorerWaitMs').Count -gt 0
         if ($hasWait) { $waitMs = [int]$config.restartExplorerWaitMs }
+
+        # ---- Pass 1: refresh as requested by user flags ----------------------
         $ok = Invoke-ShellRefresh `
                 -LogMsgs       $logMessages `
                 -FullRestart:$isFullRestart `
                 -WaitMs        $waitMs `
                 -SendAssoc     $sendAssoc `
                 -SendBroadcast $sendBroadcast
+
         $verifyOk = $true
         if ($isPostVerify) {
             $result   = Test-VsCodeHandlersRegistered -Config $config -LogMsgs $logMessages -EditionFilter $Edition
             $verifyOk = $result.ok
-            # --verify ALWAYS writes a JSON troubleshooting report so it can be shared.
-            $null = Save-VerificationReport -Result $result -Trigger 'refresh-verify' -EditionFilter $Edition -ScriptDir $scriptDir -LogMsgs $logMessages
+            $trigger  = if ($isVerifyRepair) { 'refresh-verify-repair-pass1' } else { 'refresh-verify' }
+            $null = Save-VerificationReport -Result $result -Trigger $trigger -EditionFilter $Edition -ScriptDir $scriptDir -LogMsgs $logMessages
+
+            # ---- Pass 2: auto-repair if --verify-repair and pass 1 FAILED ----
+            $shouldRetry = $isVerifyRepair -and (-not $verifyOk)
+            if ($shouldRetry) {
+                Write-Log $logMessages.messages.verifyRepairTriggered -Level "warn"
+                Write-Log $logMessages.messages.verifyRepairRetryPlan -Level "info"
+
+                $okRetry = Invoke-ShellRefresh `
+                            -LogMsgs       $logMessages `
+                            -FullRestart:$true `
+                            -WaitMs        $waitMs `
+                            -SendAssoc     $true `
+                            -SendBroadcast $true
+
+                Write-Log $logMessages.messages.verifyRepairSecondVerify -Level "info"
+                $result2   = Test-VsCodeHandlersRegistered -Config $config -LogMsgs $logMessages -EditionFilter $Edition
+                $verifyOk2 = $result2.ok
+                $null = Save-VerificationReport -Result $result2 -Trigger 'refresh-verify-repair-pass2' -EditionFilter $Edition -ScriptDir $scriptDir -LogMsgs $logMessages
+
+                if ($verifyOk2) {
+                    Write-Log $logMessages.messages.verifyRepairRecovered -Level "success"
+                    $ok = $okRetry
+                    $verifyOk = $true
+                } else {
+                    Write-Log $logMessages.messages.verifyRepairStillFailing -Level "error"
+                    $ok = $okRetry
+                    $verifyOk = $false
+                }
+            }
         }
         if ($ok -and $verifyOk) { exit 0 } else { exit 1 }
     }
