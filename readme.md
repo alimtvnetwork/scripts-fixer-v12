@@ -718,11 +718,17 @@ A modular collection of **46 PowerShell scripts** that automate everything from 
 | ID | Script | What It Does | Admin |
 |----|--------|--------------|-------|
 | 32 | **[DBeaver Community](scripts/32-install-dbeaver/)** | Universal database visualization and management tool | Yes |
-| 33 | **Notepad++ (NPP)** | Install NPP, NPP Settings, or NPP + Settings | Yes |
-| 34 | **Simple Sticky Notes** | Install Simple Sticky Notes via Chocolatey | Yes |
-| 35 | **GitMap** | Git repository navigator CLI tool | Yes |
-| 36 | **OBS Studio** | Install OBS, OBS Settings, or OBS + Settings | Yes |
-| 37 | **Windows Terminal** | Install WT, WT Settings, or WT + Settings | Yes |
+| 33 | **[Notepad++ (NPP)](scripts/33-install-notepadpp/)** | Install NPP, NPP Settings, or NPP + Settings | Yes |
+| 34 | **[Simple Sticky Notes](scripts/34-install-sticky-notes/)** | Install Simple Sticky Notes via Chocolatey | Yes |
+| 35 | **[GitMap](scripts/35-install-gitmap/)** | Git repository navigator CLI tool | Yes |
+| 36 | **[OBS Studio](scripts/36-install-obs/)** | Install OBS, OBS Settings, or OBS + Settings | Yes |
+| 37 | **[Windows Terminal](scripts/37-install-windows-terminal/)** | Install WT, WT Settings, or WT + Settings | Yes |
+| 47 | **[Ubuntu Font](scripts/47-install-ubuntu-font/)** | Install Ubuntu font family system-wide | Yes |
+| 48 | **[ConEmu](scripts/48-install-conemu/)** | Install ConEmu + sync `ConEmu.xml` (3 modes + export) | Yes |
+| 49 | **[WhatsApp Desktop](scripts/49-install-whatsapp/)** | Install WhatsApp Desktop via Chocolatey | Yes |
+| 50 | **[OneNote](scripts/50-install-onenote/)** | Install OneNote — pure (default) or `+rm-onedrive` combo | Yes |
+| 51 | **[Lightshot](scripts/51-install-lightshot/)** | Install Lightshot + opinionated registry tweaks | Yes |
+| 52 | **[VSCode Folder Repair](scripts/52-vscode-folder-repair/)** | Repair VSCode folder context-menu (subcommands: dry-run, restore, refresh, ...) | Yes |
 
 ---
 
