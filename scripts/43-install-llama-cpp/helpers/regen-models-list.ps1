@@ -13,6 +13,11 @@
 
 Set-StrictMode -Version Latest
 
+# Em dash (U+2014). The original models-list.md uses em dashes in prose.
+# Hard-coded as a unicode escape so this source file stays ASCII-safe and
+# survives any encoding round-trip (matches the user's banner-safety rule).
+$script:EmDash = [string][char]0x2014
+
 function Get-ModelTier {
     param([Parameter(Mandatory)] [double] $SizeGB)
     if ($SizeGB -lt 1)  { return "Tiny"   }
@@ -98,7 +103,7 @@ function Invoke-ModelsListRegen {
     # -- Header ---------------------------------------------------------------
     [void]$sb.AppendLine("# Local AI Models Catalog")
     [void]$sb.AppendLine("> $totalCount downloadable GGUF models for ``llama.cpp`` (script ``43-install-llama-cpp``).")
-    [void]$sb.AppendLine([string]([char]0x003E + " Catalog version **$version** " + [char]0x2014 + " auto-grouped by family, size, capability."))
+    [void]$sb.AppendLine("> Catalog version **$version** $($script:EmDash) auto-grouped by family, size, capability.")
     [void]$sb.AppendLine("> Models marked ***** are curated picks. Models tagged **[Leaderboard #N]** are the open-weight portion of the OpenRouter LLM Leaderboard (Nov 2025).")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("## Quick install")
@@ -130,7 +135,7 @@ function Invoke-ModelsListRegen {
     $leaderboardModels = @($models | Where-Object { & $hasRankProp $_ } | Sort-Object -Property leaderboardRank)
     if ($leaderboardModels.Count -gt 0) {
         [void]$sb.AppendLine("## OpenRouter Leaderboard (Open-Weight Coverage)")
-        [void]$sb.AppendLine("Source: OpenRouter LLM Leaderboard, Nov 2025. Closed-source API models (Claude, GPT-5.4, Gemini, Grok) are intentionally excluded -- this catalog only ships locally-runnable GGUF models.")
+        [void]$sb.AppendLine("Source: OpenRouter LLM Leaderboard, Nov 2025. Closed-source API models (Claude, GPT-5.4, Gemini, Grok) are intentionally excluded $($script:EmDash) this catalog only ships locally-runnable GGUF models.")
         [void]$sb.AppendLine("")
         [void]$sb.AppendLine("| Rank | Model | Size (GB) | RAM (GB) | Capabilities | Source |")
         [void]$sb.AppendLine("|---|---|---|---|---|---|")
@@ -161,10 +166,10 @@ function Invoke-ModelsListRegen {
     # -- Filters explainer ---------------------------------------------------
     [void]$sb.AppendLine("## Filters (interactive picker)")
     [void]$sb.AppendLine("The picker chains four optional filters; press Enter at any prompt to skip.")
-    [void]$sb.AppendLine("1. **RAM** -- auto-detects system RAM, presets 4/8/16/32/64 GB, free input.")
-    [void]$sb.AppendLine("2. **Size** -- Tiny <1, Small <3, Medium <6, Large <12, XLarge 12+ GB.")
-    [void]$sb.AppendLine("3. **Speed** -- Instant <1, Fast <3, Moderate <8, Slow 8+ GB.")
-    [void]$sb.AppendLine("4. **Capability** -- Coding / Reasoning / Writing / Chat / Voice / Multilingual.")
+    [void]$sb.AppendLine("1. **RAM** $($script:EmDash) auto-detects system RAM, presets 4/8/16/32/64 GB, free input.")
+    [void]$sb.AppendLine("2. **Size** $($script:EmDash) Tiny <1, Small <3, Medium <6, Large <12, XLarge 12+ GB.")
+    [void]$sb.AppendLine("3. **Speed** $($script:EmDash) Instant <1, Fast <3, Moderate <8, Slow 8+ GB.")
+    [void]$sb.AppendLine("4. **Capability** $($script:EmDash) Coding / Reasoning / Writing / Chat / Voice / Multilingual.")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("After filtering, surviving models are re-indexed ``1..N`` so you can multi-select with ``1,3,5`` or ``1-4``.")
     [void]$sb.AppendLine("")
@@ -177,19 +182,19 @@ function Invoke-ModelsListRegen {
         [void]$sb.AppendLine("")
         foreach ($m in $datacenter) {
             $sizeFmt = "{0:N1}" -f ([double]$m.fileSizeGB)
-            [void]$sb.AppendLine("- ``$($m.id)`` -- $($m.displayName) -- **$sizeFmt GB file, $($m.ramRequiredGB) GB RAM**")
+            [void]$sb.AppendLine("- ``$($m.id)`` $($script:EmDash) $($m.displayName) $($script:EmDash) **$sizeFmt GB file, $($m.ramRequiredGB) GB RAM**")
         }
         [void]$sb.AppendLine("")
     }
 
     # -- See also -----------------------------------------------------------
     [void]$sb.AppendLine("## See also")
-    [void]$sb.AppendLine("- [``scripts/43-install-llama-cpp/readme.md``](readme.md) -- installer script docs")
-    [void]$sb.AppendLine("- [``scripts/models/``](../models/) -- unified backend orchestrator (llama.cpp + Ollama)")
-    [void]$sb.AppendLine("- [``scripts/42-install-ollama/readme.md``](../42-install-ollama/readme.md) -- Ollama daemon backend")
+    [void]$sb.AppendLine("- [``scripts/43-install-llama-cpp/readme.md``](readme.md) $($script:EmDash) installer script docs")
+    [void]$sb.AppendLine("- [``scripts/models/``](../models/) $($script:EmDash) unified backend orchestrator (llama.cpp + Ollama)")
+    [void]$sb.AppendLine("- [``scripts/42-install-ollama/readme.md``](../42-install-ollama/readme.md) $($script:EmDash) Ollama daemon backend")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("---")
-    [void]$sb.AppendLine("*Generated from ``models-catalog.json`` v$version -- $totalCount models, $familyCount families*")
+    [void]$sb.AppendLine("*Generated from ``models-catalog.json`` v$version $($script:EmDash) $totalCount models, $familyCount families*")
 
     # -- Atomic write -------------------------------------------------------
     $tempPath = "$OutputPath.tmp"
