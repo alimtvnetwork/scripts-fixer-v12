@@ -1,6 +1,6 @@
 # Project Plan -- Dev Tools Setup
 
-## Current Version: v0.92.0
+## Current Version: v0.93.0
 ## Last Updated: 2026-04-24
 
 ---
@@ -14,6 +14,12 @@
 - [x] **Win11 classic right-click menu** restore inline helper (`Restore-Win11ClassicContext`), wired into `profile minimal` (HKCU CLSID `{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32` empty default)
 - [x] Updated `spec/2025-batch/12-profiles.md` with new minimal step + per-profile install location matrix
 - [x] Saved memory file `mem://features/02-profile-install-locations` so future README/spec edits keep the C:\ vs E:\ matrix consistent
+
+### README profile totals follow-up (v0.93.0)
+- [x] Added explicit profile total summary table (`steps`, `C:\`, `E:\dev-tool`, user-profile writes, registry/system changes)
+- [x] Expanded `advance` / `small-dev` README sections to show exact totals instead of only extras
+- [x] Added dedicated animated demos for `profile base` and `profile cpp-dx`
+- [x] Tightened memory/spec rule so future profile docs always include a total summary, not just location rows
 
 ### 2025 Batch
 - [x] **Group A complete** -- scripts 47-51 (ubuntu-font, conemu+settings, whatsapp, onenote+tray+onedrive, lightshot+tweaks). v0.39.1.
