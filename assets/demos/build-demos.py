@@ -708,6 +708,56 @@ def demo_profile_dev_advance() -> None:
 # Re-bind `main` so the new demos are emitted (we kept the original above as
 # a stub to satisfy apply_patch context windows).
 
+# ---------------------------------------------------------------------------
+# Demo: install llama-cpp models  (4-filter picker -> aria2c download)
+# Showcases the 90-model catalog browser from Script 43.
+# ---------------------------------------------------------------------------
+
+def demo_models_picker() -> None:
+    lines: List[Line] = [
+        Line(prompt_segments(".\\run.ps1 -I 43 models"), delay=0.4, typed=True),
+
+        Line([("", TEXT_FG)], delay=3.6),
+        Line([("==> llama.cpp model picker  (90 GGUFs across 33 families)", ACCENT_HEADER)], delay=3.75),
+        Line([("    Filters: RAM -> Size -> Speed -> Capability", DIM_FG)], delay=3.95),
+        Line([("", TEXT_FG)], delay=4.15),
+
+        Line([("RAM filter      ", ACCENT_INFO), ("[1]4  [2]8  [3]16  ", TEXT_FG), ("[4]32", ACCENT_OK), ("  [5]64  >", DIM_FG)], delay=4.35),
+        Line([("Size filter     ", ACCENT_INFO), ("[1]Tiny [2]Small ", TEXT_FG), ("[3]Medium", ACCENT_OK), (" [4]Large [5]XLarge >", DIM_FG)], delay=4.7),
+        Line([("Speed filter    ", ACCENT_INFO), ("[1]Instant ", TEXT_FG), ("[2]Fast", ACCENT_OK), (" [3]Moderate [4]Slow >", DIM_FG)], delay=5.05),
+        Line([("Capability      ", ACCENT_INFO), ("[1]Coding", ACCENT_OK), (" [2]Reasoning [3]Writing [4]Chat >", DIM_FG)], delay=5.4),
+        Line([("", TEXT_FG)], delay=5.6),
+
+        Line([(" #  Model                          Params  Quant     Size   RAM  Caps", ACCENT_HEADER)], delay=5.75),
+        Line([(" 1  ", ACCENT_INFO), ("qwen2.5-coder-3b              ", TEXT_FG), ("3B      Q4_K_M    1.8GB  4GB  ", DIM_FG), ("Code+Multi", ACCENT_OK)], delay=5.95),
+        Line([(" 2  ", ACCENT_INFO), ("phi-4-mini-3.8b               ", TEXT_FG), ("3.8B    Q4_K_M    2.4GB  6GB  ", DIM_FG), ("Code+Reason", ACCENT_OK)], delay=6.10),
+        Line([(" 3  ", ACCENT_INFO), ("gemma-3-4b-it                 ", TEXT_FG), ("4B      Q4_K_M    2.6GB  6GB  ", DIM_FG), ("Multi+Chat", ACCENT_OK)], delay=6.25),
+        Line([(" 4  ", ACCENT_INFO), ("qwen3.5-4b-opus-distill       ", TEXT_FG), ("4B      Q4_K_M    2.7GB  5GB  ", DIM_FG), ("Code+Reason", ACCENT_OK)], delay=6.40),
+        Line([(" 5  ", ACCENT_INFO), ("mimo-v2-flash  [LB #1]        ", TEXT_FG), ("3B      Q4_K_M    4.5GB  8GB  ", DIM_FG), ("Code+Reason", ACCENT_OK)], delay=6.55),
+        Line([("...   ", DIM_FG), ("12 more models match filters", DIM_FG)], delay=6.70),
+        Line([("", TEXT_FG)], delay=6.85),
+
+        Line([("Select: ", ACCENT_INFO), ("1,3-4", TEXT_FG), ("    -> ", DIM_FG), ("3 models, 7.1 GB", ACCENT_WARN)], delay=7.05),
+        Line([("Disk space check: ", DIM_FG), ("OK", ACCENT_OK), (" (free 412 GB on E:\\)", DIM_FG)], delay=7.30),
+        Line([("", TEXT_FG)], delay=7.50),
+
+        Line([("[1/3] ", ACCENT_INFO), ("aria2c -> qwen2.5-coder-3b ........ ", TEXT_FG), ("OK", ACCENT_OK), ("  18MB/s", DIM_FG)], delay=7.70),
+        Line([("[2/3] ", ACCENT_INFO), ("aria2c -> gemma-3-4b-it ........... ", TEXT_FG), ("OK", ACCENT_OK), ("  21MB/s", DIM_FG)], delay=8.00),
+        Line([("[3/3] ", ACCENT_INFO), ("aria2c -> qwen3.5-4b-opus-distill . ", TEXT_FG), ("OK", ACCENT_OK), ("  19MB/s", DIM_FG)], delay=8.30),
+
+        Line([("", TEXT_FG)], delay=8.65),
+        Line([("3 models downloaded in ", DIM_FG), ("4m 18s", ACCENT_WARN), (" - ready in E:\\dev-tool\\llama-models.", DIM_FG)], delay=8.85),
+
+        Line(prompt_segments(""), delay=9.65, typed=False),
+    ]
+    build_svg(
+        title="run -I 43 models  -  pick from 90 GGUFs, aria2c download",
+        lines=lines,
+        loop_seconds=13.0,
+        out_path=OUT_DIR / "run-models-picker.svg",
+    )
+
+
 def main() -> None:  # noqa: F811 -- intentional override
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     demo_profile()
@@ -723,6 +773,7 @@ def main() -> None:  # noqa: F811 -- intentional override
     demo_os_clean_detailed()
     demo_install_comma()
     demo_classic_context()
+    demo_models_picker()
 
 
 if __name__ == "__main__":

@@ -42,6 +42,8 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $scriptDir "helpers\llama-cpp.ps1")
 . (Join-Path $scriptDir "helpers\model-picker.ps1")
 . (Join-Path $scriptDir "helpers\catalog-update.ps1")
+. (Join-Path $scriptDir "helpers\regen-models-list.ps1")
+. (Join-Path $scriptDir "helpers\sha256-fill.ps1")
 
 # -- Load config & log messages -----------------------------------------------
 $config       = Import-JsonConfig (Join-Path $scriptDir "config.json")
@@ -64,6 +66,48 @@ if ($isCheckUpdatesMode) {
             -FamilyFilter $Family -Apply:$Apply
     } catch {
         Write-Log "Catalog update check failed: $_" -Level "error"
+        Write-Log "Stack: $($_.ScriptStackTrace)" -Level "error"
+    } finally {
+        $hasAnyErrors = $script:_LogErrors.Count -gt 0
+        Save-LogFile -Status $(if ($hasAnyErrors) { "fail" } else { "ok" })
+    }
+    return
+}
+
+# -- Regenerate models-list.md (no admin required) ---------------------------
+$isRegenListMode = ($Command -ieq "regen-list") -or ($Command -ieq "--regen-list")
+if ($isRegenListMode) {
+    Write-Banner -Title $logMessages.scriptName
+    Initialize-Logging -ScriptName $logMessages.scriptName
+    try {
+        $listPath = Join-Path $scriptDir "models-list.md"
+        $isOk = Invoke-ModelsListRegen -CatalogPath $catalogPath -OutputPath $listPath
+        if (-not $isOk) {
+            Write-Log "models-list.md regeneration failed (failure: see preceding errors)" -Level "error"
+        }
+    } catch {
+        Write-Log "regen-list crashed: $_" -Level "error"
+        Write-Log "Stack: $($_.ScriptStackTrace)" -Level "error"
+    } finally {
+        $hasAnyErrors = $script:_LogErrors.Count -gt 0
+        Save-LogFile -Status $(if ($hasAnyErrors) { "fail" } else { "ok" })
+    }
+    return
+}
+
+# -- Fill sha256 fields (no admin required) ----------------------------------
+$isFillShaMode = ($Command -ieq "fill-sha256") -or ($Command -ieq "--fill-sha256")
+if ($isFillShaMode) {
+    Write-Banner -Title $logMessages.scriptName
+    Initialize-Logging -ScriptName $logMessages.scriptName
+    try {
+        $idsArg = if ($Path) { $Path } else { "" }
+        $isOk = Invoke-Sha256Fill -CatalogPath $catalogPath -Ids $idsArg
+        if (-not $isOk) {
+            Write-Log "sha256 fill failed (failure: see preceding errors)" -Level "error"
+        }
+    } catch {
+        Write-Log "fill-sha256 crashed: $_" -Level "error"
         Write-Log "Stack: $($_.ScriptStackTrace)" -Level "error"
     } finally {
         $hasAnyErrors = $script:_LogErrors.Count -gt 0
