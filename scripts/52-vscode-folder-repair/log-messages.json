@@ -104,6 +104,62 @@
       ".\\run.ps1 verify-handlers                            # standalone PASS/FAIL check (no writes, no refresh)",
       ".\\run.ps1 verify-handlers -Edition stable            # check only the stable edition",
       ".\\run.ps1 help"
-    ]
+    ],
+    "refresh": {
+      "title": "refresh -- lightweight Windows shell refresh after a context-menu repair",
+      "summary": "Tells Explorer + every top-level window to reload shell associations and settings WITHOUT killing explorer.exe. Use this right after 'repair' so right-click menus update immediately. Each step is independent and controlled by its own flag.",
+      "usage": ".\\run.ps1 refresh [--assoc-only | --broadcast-only | --both] [--restart] [--verify] [-Edition stable|insiders]",
+      "steps": [
+        {
+          "name": "1. SHChangeNotify(SHCNE_ASSOCCHANGED)",
+          "what": "Calls shell32!SHChangeNotify with event=0x08000000, flags=SHCNF_IDLIST. Tells the Windows shell to flush its cached file-type / progid / verb associations -- the cache that drives the right-click menu.",
+          "when": "Run this after ADDING, REMOVING or RE-LABELING any HKCR\\*\\shell\\..., HKCR\\Directory\\shell\\..., or HKCR\\Directory\\Background\\shell\\... entry. Without it the old menu can stay cached for hours.",
+          "enabledBy": "ON by default. Use '--assoc-only' to send ONLY this step. Use '--broadcast-only' to skip it.",
+          "sideEffects": "None. No process is killed, no window flicker."
+        },
+        {
+          "name": "2. WM_SETTINGCHANGE broadcast (lParam='Environment')",
+          "what": "Calls user32!SendMessageTimeout(HWND_BROADCAST=0xFFFF, WM_SETTINGCHANGE=0x001A, 0, 'Environment', SMTO_ABORTIFHUNG, 5000ms). Nudges every top-level window to re-read environment variables and shell settings.",
+          "when": "Useful when the repair also touched PATH, file associations, or per-user shell settings, or when third-party shell extensions cache state per-window.",
+          "enabledBy": "ON by default. Use '--broadcast-only' to send ONLY this step. Use '--assoc-only' to skip it.",
+          "sideEffects": "Hung apps are skipped after the 5s timeout (SMTO_ABORTIFHUNG). No flicker, no process kill."
+        },
+        {
+          "name": "3. Restart-Explorer (full kill + relaunch)  [opt-in fallback]",
+          "what": "Calls Get-Process explorer | Kill, waits restartExplorerWaitMs (default 800ms), then Start-Process explorer.exe. Equivalent to the legacy hard refresh.",
+          "when": "Use this only when steps 1+2 are not enough -- stuck menu cache on very old Windows 10 builds, or after a corrupted edit. Closes all open Explorer windows.",
+          "enabledBy": "OFF by default. Add '--restart' (alias '--full') to enable.",
+          "sideEffects": "Closes every open Explorer window and resets the taskbar (visible flicker)."
+        },
+        {
+          "name": "4. Post-refresh verification  [opt-in]",
+          "what": "After the refresh, runs 'verify-handlers' which queries each target key + its \\command (Default) value and prints PASS/FAIL per edition/target. Read-only.",
+          "when": "Use in CI / unattended runs to fail fast when the registry state did not match expectations.",
+          "enabledBy": "OFF by default. Add '--verify' to enable. Honors '-Edition' to scope the check.",
+          "sideEffects": "None. Exit code becomes non-zero if any in-scope handler is missing or invalid."
+        }
+      ],
+      "flags": [
+        { "flag": "--assoc-only",     "effect": "Send ONLY step 1 (SHChangeNotify). Skips step 2." },
+        { "flag": "--broadcast-only", "effect": "Send ONLY step 2 (WM_SETTINGCHANGE). Skips step 1." },
+        { "flag": "--both",           "effect": "Send steps 1 AND 2. This is the default; flag is accepted for clarity." },
+        { "flag": "--restart / --full", "effect": "ALSO run step 3 (kill + relaunch explorer.exe). Combines with any of the above." },
+        { "flag": "--verify",         "effect": "ALSO run step 4 (handler PASS/FAIL check) after the refresh." },
+        { "flag": "-Edition <name>",  "effect": "Scope step 4 to one edition: 'stable' or 'insiders'. No effect on steps 1-3." }
+      ],
+      "rules": [
+        "--assoc-only and --broadcast-only are mutually exclusive (the dispatcher exits 2 if both are passed).",
+        "At least one of --assoc / --broadcast / --restart must remain enabled, otherwise the refresh aborts with an error.",
+        "Exit code is 0 only when every enabled step succeeded AND (if --verify) every checked handler passed."
+      ],
+      "examples": [
+        ".\\run.ps1 refresh                                    # default: steps 1 + 2",
+        ".\\run.ps1 refresh --assoc-only                       # only SHChangeNotify",
+        ".\\run.ps1 refresh --broadcast-only                   # only WM_SETTINGCHANGE",
+        ".\\run.ps1 refresh --both --verify                    # steps 1 + 2, then PASS/FAIL check",
+        ".\\run.ps1 refresh --restart                          # steps 1 + 2 + full explorer restart",
+        ".\\run.ps1 refresh --restart --verify -Edition stable # nuke + verify only stable"
+      ]
+    }
   }
 }
