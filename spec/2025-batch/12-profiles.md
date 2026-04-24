@@ -9,7 +9,8 @@
 ## The 6 profiles
 
 ### 0. Minimal Bootstrap (`profile minimal`)
-For a quick fresh-Windows bootstrap -- nothing extra, just the absolute essentials.
+For a quick fresh-Windows bootstrap -- the absolute essentials plus the
+Windows 11 classic right-click menu restore.
 
 | Step | Action |
 |------|--------|
@@ -17,8 +18,11 @@ For a quick fresh-Windows bootstrap -- nothing extra, just the absolute essentia
 | 2 | Git (script 07) -- OS-dir |
 | 3 | `choco install 7zip.install -y` (OS-dir) |
 | 4 | `choco install googlechrome -y` (OS-dir) |
+| 5 | Inline `Restore-Win11ClassicContext` -- writes HKCU CLSID `{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32` (default = empty) on Win11 (build >= 22000); no-op on Win10 / Server. Idempotent. |
 
-Use case: brand-new Windows machine where you only need a browser, an archiver, git, and a package manager to bootstrap further work manually.
+Use case: brand-new Windows machine where you only need a browser, an
+archiver, git, and a package manager to bootstrap further work manually --
+plus a usable right-click menu on Win11.
 
 ### 1. Base Windows Setup (`profile base`)
 | Step | Action |
@@ -221,3 +225,33 @@ if ($Command -eq "profile") {
 
 - **GitHub Desktop CLI**: there is no supported way to programmatically add repos to GitHub Desktop. The git-compact step will create the GitHub dir and clone into it (if user provides repo URLs), then print "Open GitHub Desktop -> File -> Add Local Repository -> select <dir>". Acceptable per spec ("if there are repos, clear??" interpreted as "make it clear how to add them").
 - **SSH key generation prompt UX**: simple text prompt with default = `id_ed25519`, comment defaults to git userEmail. Existing key detected -> ask "use existing / overwrite / skip". Implementation detail, not spec-blocking.
+
+---
+
+## Per-profile install location matrix (added v0.92.0)
+
+The root README mirrors this table per profile. Keep them in sync. See
+`mem://features/02-profile-install-locations`.
+
+### Where things land
+
+| Profile | C:\Program Files\* | C:\Program Files (x86)\* | %LOCALAPPDATA%\* | %APPDATA%\* | %USERPROFILE%\* | E:\dev-tool\* | Registry / system |
+|---------|--------------------|--------------------------|------------------|-------------|-----------------|---------------|--------------------|
+| minimal     | git, 7zip, chrome | -- | -- | -- | -- | -- | HKCU CLSID `{86ca1aa0-...}` (Win11 classic ctx) |
+| base        | + vlc, winrar, npp, conemu | xmind | -- | npp + conemu settings | -- | -- | `powercfg /hibernate off` |
+| git-compact | git | -- | GitHubDesktop | -- | `.ssh\id_ed25519`, `.gitconfig`, `GitHub\` | -- | -- |
+| advance     | base + beyondcompare, obs | + wordweb-free | + WhatsApp, VS Code | + `Code\User` | inherits git-compact | -- | inherits |
+| cpp-dx      | -- | DirectX SDK; runtime DLLs in `C:\Windows\System32` | -- | -- | -- | -- | -- |
+| small-dev   | inherits advance | inherits | inherits | inherits | inherits | go, nodejs, python, pnpm | inherits |
+
+### Rule for new steps
+
+When adding a step to `scripts/profile/config.json`, update **all three**
+in the same commit:
+1. `scripts/profile/config.json`
+2. This spec (per-profile table + the matrix above)
+3. The matching profile section + global drive map in the root `readme.md`
+
+If the install location is non-obvious (Choco flag override, env var,
+per-user installer that ignores `Program Files`), add a "Why" note in the
+README's per-profile table.
