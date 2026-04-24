@@ -301,7 +301,7 @@ hibernation disabled to free `C:\hiberfil.sys`. Includes everything in
 
 **Full creator + developer setup.** `base` + `git-compact` + WordWeb +
 Beyond Compare + OBS (with synced settings) + WhatsApp Desktop + VS Code
-+ VS Code settings sync. About 25 tools end-to-end.
++ VS Code settings sync. **23 steps end-to-end.**
 
 **Copy-paste one-liner:**
 
@@ -335,8 +335,6 @@ Beyond Compare + OBS (with synced settings) + WhatsApp Desktop + VS Code
 | 20 | WhatsApp Desktop | script #49 | `%LOCALAPPDATA%\WhatsApp\` | C:\ |
 | 21 | Visual Studio Code | script #01 | `%LOCALAPPDATA%\Programs\Microsoft VS Code\` | C:\ |
 | 22 | VS Code settings sync | script #11 | `%APPDATA%\Code\User\` + extensions | C:\ |
-| 23 | Win11 classic right-click menu | inherited from `minimal`? | **Not included in `advance`** | — |
-
 > ✅ **Exact total:** `advance` currently applies **23 steps**, all on **C:\ / user profile paths**. It does **not** place anything in `E:\dev-tool\`.
 
 > ℹ️ **About the classic right-click fix:** that Win11 registry tweak is part of `profile minimal`, not `base` / `advance`. If you want it too, run `profile minimal` first or expose it as a standalone helper later.
@@ -366,6 +364,17 @@ all system-drive.
 | 1 | VC++ Redistributables (all years) | choco `vcredist-all` | `C:\Windows\System32\` (runtime DLLs) | C:\ |
 | 2 | DirectX runtime | choco `directx` | `C:\Windows\System32\` (DX DLLs) | C:\ |
 | 3 | DirectX SDK | choco `directx-sdk` | `C:\Program Files (x86)\Microsoft DirectX SDK\` | C:\ |
+
+**Total outcome after this profile finishes:**
+
+- **3 steps applied**
+- **All files land on C:\ / system runtime folders**
+- **0 tools on E:\dev-tool**
+- Best when you need native game/runtime prerequisites without the rest of the workstation stack
+
+<p align="center">
+  <img src="assets/demos/run-profile-cpp-dx.svg" alt="Demo: profile cpp-dx — VC++ and DirectX runtime profile" width="100%"/>
+</p>
 
 ---
 
