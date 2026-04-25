@@ -65,12 +65,17 @@ if ($isDisabled) {
 $cmdLower = $Command.ToLower()
 if ($cmdLower -eq 'check') {
     Write-Log $logMessages.messages.checkStart -Level "info"
+    # Reset MISS collector ONCE so both passes accumulate into a single
+    # consolidated action summary printed at the end.
+    Reset-Check10MissActions
     $checkA = Invoke-Script10MenuCheck -Config $config -EditionFilter $Edition
     $checkB = Invoke-Script10RepairInvariantCheck -Config $config -EditionFilter $Edition
     $totalMiss = $checkA.totalMiss + $checkB.totalMiss
     $totalPass = $checkA.totalPass + $checkB.totalPass
     Write-Log "" -Level "info"
     Write-Log ("Combined check totals: PASS=" + $totalPass + ", MISS=" + $totalMiss) -Level $(if ($totalMiss -eq 0) { 'success' } else { 'error' })
+    $oneShot = if ([string]::IsNullOrWhiteSpace($Edition)) { ".\run.ps1 repair" } else { ".\run.ps1 repair -Edition " + $Edition }
+    Write-Check10MissActionSummary -ScriptInvocationHint $oneShot
     if ($totalMiss -gt 0) { exit 1 } else { exit 0 }
 }
 
