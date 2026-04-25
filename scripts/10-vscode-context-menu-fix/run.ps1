@@ -13,6 +13,8 @@ param(
 
     [switch]$ExitCodeMap,
 
+    [switch]$SkipRollbackVerify,
+
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest = @(),
 
@@ -36,6 +38,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $scriptDir "helpers\audit-snapshot.ps1")
 . (Join-Path $scriptDir "helpers\repair.ps1")
 . (Join-Path $scriptDir "helpers\check.ps1")
+. (Join-Path $scriptDir "helpers\rollback-verify.ps1")
 
 # -- Load config & log messages -----------------------------------------------
 $config      = Import-JsonConfig (Join-Path $scriptDir "config.json")
