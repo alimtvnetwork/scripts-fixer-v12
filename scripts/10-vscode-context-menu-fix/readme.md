@@ -274,6 +274,64 @@ matched nothing, etc.). The harness prints a per-step `[PASS]`/`[FAIL]`
 line plus a `Failures:` block with the exact reg path of any miss so a
 CI log alone is enough to diagnose.
 
+## Interactive check prompts
+
+`check` is read-only by default. Add one of the following flags and the
+verb will pause AFTER printing the action summary and offer to run the
+repair commands directly. CI behaviour is preserved: prompts are
+suppressed when `-ExitCodeMap` is on, and when stdin is redirected the
+harness logs a one-line warning and skips the prompt loop instead of
+silently blocking.
+
+| Flag | Meaning |
+|------|---------|
+| `-Interactive`   | Single one-shot prompt for the consolidated repair (default mode). |
+| `-PromptEach`    | Prompt **per MISS block** with the smallest `repair -Only ...` command that fixes that one finding. |
+| `-PromptOneShot` | Force the one-shot prompt; combine with `-PromptEach` for both (per-MISS first, then a final one-shot for whatever was declined). |
+| `-AssumeYes`     | Skip every prompt and auto-confirm. The only safe way to combine prompts with `-ExitCodeMap` (CI). |
+| `-DryRun`        | Print every command that **would** run; never invoke `repair`. Pairs with any of the above. |
+
+Answer keys at each prompt:
+
+- `y` -- run this fix
+- `n` -- skip this one (default on bare ENTER)
+- `a` -- yes-to-all-remaining (acts as `-AssumeYes` from this point on)
+- `q` -- quit prompts (skip every remaining MISS without exiting `check`)
+
+Per-MISS commands are derived from the invariant code, so each `y`
+invokes the smallest possible repair:
+
+| MISS invariant code | Command offered |
+|---------------------|-----------------|
+| `INSTALL-STATE` (target=`directory`)  | `repair -Edition X -Only folder` |
+| `INSTALL-STATE` (target=`background`) | `repair -Edition X -Only background` |
+| `INSTALL-STATE` (target=`file`)       | `repair -Edition X -Only install` |
+| `I1-FILE-TARGET`                      | `repair -Edition X -Only i1` |
+| `I2-SUPPRESSION`                      | `repair -Edition X -Only i2` |
+| `I3-LEGACY-DUP`                       | `repair -Edition X -Only i3` |
+
+```powershell
+# Single confirm for the full one-shot repair:
+.\run.ps1 -I 10 check -Interactive
+
+# Walk through every MISS, choose surgically:
+.\run.ps1 -I 10 check -PromptEach
+
+# Per-MISS prompts AND a final fallback one-shot for whatever you skipped:
+.\run.ps1 -I 10 check -PromptEach -PromptOneShot
+
+# See what would run without writing anything:
+.\run.ps1 -I 10 check -PromptEach -DryRun
+
+# CI auto-fix (only honoured because -AssumeYes accompanies -ExitCodeMap):
+.\run.ps1 -I 10 check -ExitCodeMap -Interactive -AssumeYes
+```
+
+The interactive block runs **after** the action summary and **before**
+the exit-code dispatch, so the same exit-code semantics apply on the way
+out: `0` if every miss was resolved (or there were none), `1`/granular
+code otherwise -- the prompts only change what happens between the two.
+
 ## Verified rollback (`rollback` verb)
 
 `rollback` no longer prints a hint and shells out to `uninstall`. It now

@@ -58,7 +58,7 @@
       "uninstall": "[ADMIN] Uninstall completely, remove tracking, clean up.",
       "repair":    "[ADMIN] Make the menu appear on FOLDERS + folder background but NOT on files. Use -Only <selectors> to run a subset of phases (selectors: install, invariant, file-target/i1, suppression/i2, legacy/i3, folder/directory, background, all).",
       "rollback":  "[ADMIN] Verified rollback: snapshots current state, captures invariant baseline, runs surgical uninstall, then re-checks invariants and prints a RESOLVED/PERSISTED/REGRESSED report. Use -SkipRollbackVerify to skip the verify wrapper and behave like the legacy uninstall alias.",
-      "check":     "[no-admin] Quick read-only registry check. Reports PASS/MISS for install state AND repair invariants.",
+      "check":     "[no-admin] Quick read-only registry check. Reports PASS/MISS for install state AND repair invariants. Add -Interactive (one-shot prompt), -PromptEach (per-MISS prompt), -PromptOneShot (final consolidated prompt), -AssumeYes (auto-confirm), or -DryRun (preview only).",
       "smoke":     "[ADMIN] End-to-end smoke test: runs install then check (folder + file cases). Optional -IncludeFileTargetNegativeCase synthesises HKCR\\\\*\\\\shell\\\\<Name> and asserts check exits 20."
     },
     "examples": [
@@ -73,6 +73,11 @@
       ".\\run.ps1 repair -Only folder -Edition stable",
       ".\\run.ps1 check",
       ".\\run.ps1 check -ExitCodeMap",
+      ".\\run.ps1 check -Interactive",
+      ".\\run.ps1 check -PromptEach",
+      ".\\run.ps1 check -PromptEach -PromptOneShot",
+      ".\\run.ps1 check -PromptEach -DryRun",
+      ".\\run.ps1 check -Interactive -AssumeYes",
       ".\\run.ps1 rollback",
       ".\\run.ps1 rollback -SkipRollbackVerify",
       ".\\run.ps1 smoke",
