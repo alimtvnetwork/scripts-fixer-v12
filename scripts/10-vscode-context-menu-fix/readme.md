@@ -179,6 +179,50 @@ with any invariant miss collapses to **40**; otherwise two-or-more invariant
 categories collapse to **30**; otherwise the single offending invariant code
 (20/21/22) is returned.
 
+## Smoke test (`smoke` verb)
+
+End-to-end smoke harness that runs `install` then `check` back-to-back and
+asserts the registry ends up green for **both** the folder and file context
+menu cases. Lives at [`tests/smoke-install-check.ps1`](./tests/smoke-install-check.ps1)
+and is dispatched by the `smoke` verb on `run.ps1`.
+
+| Step | What it does | Pass criterion |
+|---|---|---|
+| 1 | `run.ps1 install` (one or all enabled editions) | `$LASTEXITCODE -eq 0` |
+| 2 | `run.ps1 check -ExitCodeMap`                    | `$LASTEXITCODE -eq 0` (folder+background present, file-target absent, no suppression, no legacy) |
+| 3 *(opt-in)* | `reg.exe add HKCR\*\shell\<Name>` then `check -ExitCodeMap`  | `$LASTEXITCODE -eq 20` (file-target present bucket) |
+| 4 *(opt-in)* | `run.ps1 repair -Edition <name>`                 | `$LASTEXITCODE -eq 0` |
+| 5 *(opt-in)* | `run.ps1 check -ExitCodeMap -Edition <name>`     | `$LASTEXITCODE -eq 0` (state restored) |
+
+Steps 3–5 only run when you pass `-IncludeFileTargetNegativeCase`. They
+verify the **negative path**: that `check` actually distinguishes between a
+green install and a deliberately-broken file-target invariant, which proves
+the `-ExitCodeMap` bucket scheme works against a real registry write rather
+than a mock.
+
+```powershell
+# Quick smoke (install + check, all editions):
+.\run.ps1 -I 10 smoke
+
+# Single edition + negative case (writes HKCR\*\shell\<Name> then cleans up):
+.\run.ps1 -I 10 smoke -Edition stable -IncludeFileTargetNegativeCase
+
+# CI / log-friendly:
+.\run.ps1 -I 10 smoke -NoColor
+
+# Preview the plan without touching the registry (no admin needed):
+.\run.ps1 -I 10 smoke -DryRun
+
+# Skip the install step (assume a previous run already installed):
+.\run.ps1 -I 10 smoke -SkipInstall
+```
+
+Smoke exit codes: `0` = all assertions passed, `1` = at least one failed,
+`2` = pre-flight failed (no admin, missing `run.ps1`, edition filter
+matched nothing, etc.). The harness prints a per-step `[PASS]`/`[FAIL]`
+line plus a `Failures:` block with the exact reg path of any miss so a
+CI log alone is enough to diagnose.
+
 ## File layout
 
 | File | Purpose |

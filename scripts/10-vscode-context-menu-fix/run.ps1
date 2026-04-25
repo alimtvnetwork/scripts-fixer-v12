@@ -13,6 +13,9 @@ param(
 
     [switch]$ExitCodeMap,
 
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Rest = @(),
+
     [switch]$Help
 )
 
@@ -110,6 +113,24 @@ if ($cmdLower -eq 'check') {
     Write-Log ("CI exit code (ExitCodeMap=on): " + $code) -Level "warn"
     Write-Log "  Legend: 10=install-state, 20=file-target, 21=suppression, 22=legacy, 30=multi-invariant, 40=mixed" -Level "info"
     exit $code
+}
+
+# -- Smoke verb -- runs install + check end-to-end and asserts exit codes ----
+# The smoke harness has its OWN admin check (and a -DryRun bypass), so we
+# dispatch to it BEFORE the global admin assertion below. Passes -Edition
+# and any unrecognised -<switch> args through via $Rest.
+if ($cmdLower -eq 'smoke') {
+    $smokeScript = Join-Path $scriptDir "tests\smoke-install-check.ps1"
+    $isSmokeMissing = -not (Test-Path -LiteralPath $smokeScript)
+    if ($isSmokeMissing) {
+        Write-Log ("Smoke harness not found at: " + $smokeScript + " (failure: cannot run smoke verb without tests/smoke-install-check.ps1)") -Level "error"
+        exit 2
+    }
+    $smokeArgs = @()
+    if (-not [string]::IsNullOrWhiteSpace($Edition)) { $smokeArgs += @('-Edition', $Edition) }
+    if ($Rest.Count -gt 0) { $smokeArgs += $Rest }
+    & $smokeScript @smokeArgs
+    exit $LASTEXITCODE
 }
 
 # -- Assert admin --------------------------------------------------------------
