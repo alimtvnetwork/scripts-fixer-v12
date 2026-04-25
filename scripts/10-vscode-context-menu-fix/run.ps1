@@ -13,6 +13,9 @@ param(
 
     [switch]$ExitCodeMap,
 
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Rest = @(),
+
     [switch]$Help
 )
 
