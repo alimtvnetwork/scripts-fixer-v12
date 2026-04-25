@@ -161,21 +161,43 @@ if ($cmdLower -eq 'repair') {
 if ($cmdLower -eq 'rollback') {
     $latestSnap = Get-LatestSnapshotPath -ScriptDir $scriptDir
     if ($latestSnap) {
-        Write-Host ""
-        Write-Host "  Pre-install snapshot available: $latestSnap" -ForegroundColor Cyan
-        Write-Host "  To restore the EXACT pre-install registry state:" -ForegroundColor Gray
-        Write-Host "      reg.exe import `"$latestSnap`"" -ForegroundColor DarkGray
-        Write-Host ""
+        Write-Log ("Most recent pre-install snapshot (manual import option): " + $latestSnap) -Level "info"
+        Write-Log ("  reg.exe import """ + $latestSnap + """") -Level "info"
     } else {
-        Write-Host ""
-        Write-Host "  No pre-install snapshot found under .audit\snapshots\." -ForegroundColor Yellow
-        Write-Host "  Proceeding with surgical removal of keys we created." -ForegroundColor Gray
-        Write-Host ""
+        Write-Log "No pre-install snapshot found under .audit\snapshots\ -- proceeding with surgical removal of keys we created." -Level "warn"
     }
+
+    if ($SkipRollbackVerify) {
+        Write-Log "Rollback verification SKIPPED (-SkipRollbackVerify). Running surgical uninstall only." -Level "warn"
+        Initialize-RegistryAudit -Action 'uninstall' -ScriptDir $scriptDir | Out-Null
+        Uninstall-VsCodeContextMenu -Config $config -LogMessages $logMessages
+        Write-Log ("Audit log: " + (Get-RegistryAuditPath)) -Level "info"
+        return
+    }
+
+    # ---- Phase 1: pre-rollback snapshot of CURRENT state -------------------
+    $preRollbackSnap = New-PreRollbackSnapshot -Config $config -ScriptDir $scriptDir
+    if ($preRollbackSnap) {
+        Write-Log ("Pre-rollback snapshot saved: " + $preRollbackSnap) -Level "info"
+        Write-Log ("  Manual undo of THIS rollback: reg.exe import """ + $preRollbackSnap + """") -Level "info"
+    } else {
+        Write-Log "Pre-rollback snapshot was NOT created (failure: see preceding warnings; rollback will continue but cannot be reverted via .reg import)" -Level "warn"
+    }
+
+    # ---- Phase 2: invariant baseline (read-only) ---------------------------
+    $beforeSnap = Invoke-RollbackInvariantBaseline -Config $config
+
+    # ---- Phase 3: actually roll back (surgical uninstall) ------------------
     Initialize-RegistryAudit -Action 'uninstall' -ScriptDir $scriptDir | Out-Null
     Uninstall-VsCodeContextMenu -Config $config -LogMessages $logMessages
     Write-Log ("Audit log: " + (Get-RegistryAuditPath)) -Level "info"
-    return
+
+    # ---- Phase 4: re-run the same invariants on post-rollback state -------
+    $afterSnap = Invoke-RollbackInvariantPost -Config $config
+
+    # ---- Phase 5: print verdict, set exit code ----------------------------
+    $report = Write-RollbackVerificationReport -Before $beforeSnap -After $afterSnap -SnapshotPath $preRollbackSnap
+    if ($report.verified) { exit 0 } else { exit 1 }
 }
 
 # -- Uninstall check -----------------------------------------------------------
