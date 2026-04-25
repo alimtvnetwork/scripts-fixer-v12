@@ -583,11 +583,15 @@ function Install-SelectedModels {
     $batchMaxConcurrent = 3
     $batchConnsPerServer = 8
     $batchSplits = 8
+    $isRequireChecksum = $false
     if ($null -ne $DownloadConfig) {
         if ($null -ne $DownloadConfig.parallelEnabled)      { $isParallelEnabled   = [bool]$DownloadConfig.parallelEnabled }
         if ($DownloadConfig.maxConcurrent)                  { $batchMaxConcurrent  = [int]$DownloadConfig.maxConcurrent }
         if ($DownloadConfig.connectionsPerServer)           { $batchConnsPerServer = [int]$DownloadConfig.connectionsPerServer }
         if ($DownloadConfig.splitsPerFile)                  { $batchSplits         = [int]$DownloadConfig.splitsPerFile }
+        if ($DownloadConfig.PSObject.Properties.Name -contains 'requireChecksum') {
+            $isRequireChecksum = [bool]$DownloadConfig.requireChecksum
+        }
     }
 
     # -- Preflight: verify aria2c availability + permissions --------------------
@@ -756,6 +760,22 @@ function Install-SelectedModels {
                 Write-Log "      Expected: $expectedHash" -Level "error"
                 Write-Log "      Actual:   $actualHash" -Level "error"
                 Write-FileError -FilePath $outputPath -Operation "checksum" -Reason "SHA256 mismatch (expected $expectedHash, got $actualHash)" -Module "Install-SelectedModels"
+                $isChecksumOk = $false
+            }
+        } else {
+            # Catalog entry has no sha256. Surface this loudly so it isn't a
+            # silent no-op. If the catalog also annotated a manualReason
+            # (e.g. "gated repo (HTTP 401)"), echo it to help the user.
+            $manualReason = ""
+            if ($model.PSObject.Properties.Name -contains 'manualReason') {
+                $manualReason = [string]$model.manualReason
+            }
+            $reasonSuffix = if ($manualReason) { " -- $manualReason" } else { "" }
+            Write-Log "    [NO-CHECKSUM] $($model.displayName) has no sha256 in catalog$reasonSuffix" -Level "warn"
+            Write-Log "    Run '.\run.ps1 -I 43 fill-sha256 -- -Ids $($model.id)' to attempt auto-fill, or populate manually in models-catalog.json." -Level "info"
+            if ($isRequireChecksum) {
+                Write-Log "    download.requireChecksum=true -- failing this model (failure path: $outputPath)" -Level "error"
+                Write-FileError -FilePath $outputPath -Operation "checksum" -Reason "no sha256 in catalog and download.requireChecksum=true" -Module "Install-SelectedModels"
                 $isChecksumOk = $false
             }
         }
