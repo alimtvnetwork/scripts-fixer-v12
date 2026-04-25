@@ -71,7 +71,8 @@
       "downloadUrl": "https://huggingface.co/Jackrong/Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled-GGUF/resolve/main/Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/Jackrong/Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled-GGUF",
       "index": 2,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "nemotron-8b-opus-distill",
@@ -133,7 +134,8 @@
       "downloadUrl": "https://huggingface.co/mradermacher/Sonnet-4.6-Distill-8B-GGUF/resolve/main/Sonnet-4.6-Distill-8B.Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/mradermacher/Sonnet-4.6-Distill-8B-GGUF",
       "index": 4,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "claude-4.7-opus-distill-8b",
@@ -164,7 +166,8 @@
       "downloadUrl": "https://huggingface.co/mradermacher/Claude-4.7-Opus-Distill-8B-GGUF/resolve/main/Claude-4.7-Opus-Distill-8B.Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/mradermacher/Claude-4.7-Opus-Distill-8B-GGUF",
       "index": 5,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "qwen3.5-9b-opus-distill",
@@ -195,7 +198,8 @@
       "downloadUrl": "https://huggingface.co/Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF/resolve/main/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/Jackrong/Qwen3.5-9B-Claude-4.6-Opus-Reasoning-Distilled-v2-GGUF",
       "index": 6,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "qwen3.5-9b",
@@ -319,7 +323,8 @@
       "downloadUrl": "https://huggingface.co/Qwen/Qwen2.6-Coder-14B-Instruct-GGUF/resolve/main/Qwen2.6-Coder-14B-Instruct-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/Qwen/Qwen2.6-Coder-14B-Instruct-GGUF",
       "index": 10,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "deepseek-r1-14b-distill",
@@ -505,7 +510,8 @@
       "downloadUrl": "https://huggingface.co/mistralai/Devstral-Small-2507-GGUF/resolve/main/Devstral-Small-2507-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/mistralai/Devstral-Small-2507-GGUF",
       "index": 16,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "qwen2.5-coder-14b-q8",
@@ -567,7 +573,8 @@
       "downloadUrl": "https://huggingface.co/Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF/resolve/main/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF",
       "index": 18,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "devstral-small-24b-q5",
@@ -598,7 +605,8 @@
       "downloadUrl": "https://huggingface.co/bartowski/Devstral-Small-2507-GGUF/resolve/main/Devstral-Small-2507-Q5_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/bartowski/Devstral-Small-2507-GGUF",
       "index": 19,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "qwen3.5-27b",
@@ -722,7 +730,8 @@
       "downloadUrl": "https://huggingface.co/Qwen/Qwen2.6-Coder-32B-Instruct-GGUF/resolve/main/Qwen2.6-Coder-32B-Instruct-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/Qwen/Qwen2.6-Coder-32B-Instruct-GGUF",
       "index": 23,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "exaone-4.0-32b",
@@ -784,7 +793,8 @@
       "downloadUrl": "https://huggingface.co/bartowski/Devstral-Small-2507-GGUF/resolve/main/Devstral-Small-2507-Q6_K.gguf",
       "huggingfacePage": "https://huggingface.co/bartowski/Devstral-Small-2507-GGUF",
       "index": 25,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "qwen3.5-27b-q5",
@@ -877,7 +887,8 @@
       "downloadUrl": "https://huggingface.co/Qwen/Qwen3-Coder-Next-GGUF/resolve/main/Qwen3-Coder-Next-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/Qwen/Qwen3-Coder-Next-GGUF",
       "index": 28,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "whisper-tiny",
@@ -1094,7 +1105,8 @@
       "downloadUrl": "https://huggingface.co/google/codegemma-2b-GGUF/resolve/main/codegemma-2b-Q8_0.gguf",
       "huggingfacePage": "https://huggingface.co/google/codegemma-2b-GGUF",
       "index": 35,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "stable-code-3b",
@@ -1498,7 +1510,8 @@
       "downloadUrl": "https://huggingface.co/ibm-granite/granite-8b-code-instruct-4k-GGUF/resolve/main/granite-8b-code-instruct-4k-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/ibm-granite/granite-8b-code-instruct-4k-GGUF",
       "index": 48,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "starcoder2-7b",
@@ -1591,7 +1604,8 @@
       "downloadUrl": "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-8B-GGUF/resolve/main/deepseek-r1-8b-q5.gguf",
       "huggingfacePage": "https://huggingface.co/bartowski/DeepSeek-R1-Distill-Qwen-8B-GGUF",
       "index": 51,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "deepseek-r1-8b-distill",
@@ -1684,7 +1698,8 @@
       "downloadUrl": "https://huggingface.co/DavidAU/Phi-3.5-Mini-Sonet-RP-V2-GGUF/resolve/main/Phi-3.5-Mini-Sonet-RP-V2.f16.gguf",
       "huggingfacePage": "https://huggingface.co/DavidAU/Phi-3.5-Mini-Sonet-RP-V2-GGUF",
       "index": 54,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "codellama-13b",
@@ -1777,7 +1792,8 @@
       "downloadUrl": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF/resolve/main/qwen2.5-14b-instruct-q4_k_m.gguf",
       "huggingfacePage": "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct-GGUF",
       "index": 57,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "starcoder2-15b",
@@ -1870,7 +1886,8 @@
       "downloadUrl": "https://huggingface.co/TheBloke/Codestral-22B-v0.1-GGUF/resolve/main/Codestral-22B-v0.1-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/TheBloke/Codestral-22B-v0.1-GGUF",
       "index": 60,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "gated repo (HTTP 401) -- needs HF auth token; populate sha256 manually after `huggingface-cli login`"
     },
     {
       "id": "mistral-small-3.1-24b",
@@ -2153,7 +2170,8 @@
       "downloadUrl": "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF/resolve/main/Qwen3.5-122B-A10B-Q4_K_M.gguf",
       "huggingfacePage": "https://huggingface.co/unsloth/Qwen3.5-122B-A10B-GGUF",
       "index": 69,
-      "sha256": ""
+      "sha256": "",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "gemma-3-1b-it",
@@ -2527,7 +2545,8 @@
       "leaderboardRank": 1,
       "index": 81,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "qwen3.6-27b",
@@ -2593,7 +2612,8 @@
       "leaderboardRank": 3,
       "index": 83,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "minimax-m2",
@@ -2626,7 +2646,8 @@
       "leaderboardRank": 5,
       "index": 84,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "minimax-m2.7",
@@ -2659,7 +2680,8 @@
       "leaderboardRank": 8,
       "index": 85,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "step-3.5-flash",
@@ -2692,7 +2714,8 @@
       "leaderboardRank": 9,
       "index": 86,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "nemotron-3-super-120b",
@@ -2725,7 +2748,8 @@
       "leaderboardRank": 12,
       "index": 87,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "glm-5.1",
@@ -2758,7 +2782,8 @@
       "leaderboardRank": 14,
       "index": 88,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "kimi-k2.6",
@@ -2791,7 +2816,8 @@
       "leaderboardRank": 15,
       "index": 89,
       "sha256": "",
-      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)"
+      "leaderboardSource": "OpenRouter LLM Leaderboard (Nov 2025)",
+      "manualReason": "URL not found (HTTP 404) -- catalog entry may be hallucinated or repo renamed; verify huggingfacePage and update downloadUrl"
     },
     {
       "id": "gpt-oss-120b",
