@@ -21,6 +21,7 @@
 #    .\run-tests.ps1 -OnlyCases 1,2        # subset of case numbers
 #    .\run-tests.ps1 -NoColor              # CI / log-friendly
 #    .\run-tests.ps1 -Verbose              # print every PASS line
+#    .\run-tests.ps1 -SkipRepairInvariants # ignore Cases 6/7/8 entirely
 #
 #  Exit codes:
 #    0 -- all green
@@ -32,7 +33,8 @@ param(
     [string]   $Edition      = "",                      # empty = use config.enabledEditions
     [string[]] $OnlyTargets  = @(),                     # subset of file/directory/background
     [int[]]    $OnlyCases    = @(),                     # subset of case numbers
-    [switch]   $NoColor
+    [switch]   $NoColor,
+    [switch]   $SkipRepairInvariants                    # opt out of Cases 6/7/8
 )
 
 Set-StrictMode -Version Latest
@@ -49,6 +51,33 @@ if ($isConfigMissing) {
     exit 2
 }
 $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+
+# ---- Repair-invariant config: read the same flag the `check` verb uses ----
+function Test-RepairInvariantsEnforcedHarness {
+    param($Cfg)
+    $hasRepair = $Cfg.PSObject.Properties.Name -contains 'repair'
+    if (-not $hasRepair) { return $true }
+    $hasFlag = $Cfg.repair.PSObject.Properties.Name -contains 'enforceInvariants'
+    if (-not $hasFlag) { return $true }
+    return [bool]$Cfg.repair.enforceInvariants
+}
+function Get-RepairLegacyNamesHarness {
+    param($Cfg)
+    $hasRepair = $Cfg.PSObject.Properties.Name -contains 'repair'
+    $hasList   = $hasRepair -and ($Cfg.repair.PSObject.Properties.Name -contains 'legacyNames')
+    if ($hasList) { return @($Cfg.repair.legacyNames) }
+    return @(
+        'VSCode2','VSCode3','VSCodeOld','VSCode_old',
+        'OpenWithCode','OpenWithVSCode','Open with Code','OpenCode',
+        'VSCodeInsiders2','VSCodeInsidersOld','OpenWithInsiders'
+    )
+}
+$script:RepairSuppressionValues = @(
+    'ProgrammaticAccessOnly','AppliesTo','NoWorkingDirectory',
+    'LegacyDisable','CommandFlags'
+)
+$invariantsEnforced = (Test-RepairInvariantsEnforcedHarness $config) -and (-not $SkipRepairInvariants)
+$legacyNamesList   = Get-RepairLegacyNamesHarness $config
 
 # ---- Decide which editions / targets to test -------------------------------
 $editionsToTest = if ([string]::IsNullOrWhiteSpace($Edition)) {
@@ -141,6 +170,7 @@ Write-C "================================================================" "Dark
 Write-C "  Editions tested : $($editionsToTest -join ', ')"
 Write-C "  Targets tested  : $($targetsToTest -join ', ')"
 Write-C "  Mode            : $(if ($isWrapperMode) { 'confirm-launch wrapper' } else { 'direct dispatch' })"
+Write-C "  Repair invariants : $(if ($invariantsEnforced) { 'ENFORCED (Cases 6/7/8)' } else { 'skipped' })"
 Write-C ""
 
 if ($editionsToTest.Count -eq 0) {
@@ -189,8 +219,16 @@ foreach ($editionName in $editionsToTest) {
         Write-C "--- Target: $target ---" "Magenta"
         Write-C "    Path: $regPath" "DarkGray"
 
+        # When repair invariants are enforced, the file-target key MUST be
+        # absent. Skip the install-style cases (1-5) for the file target so
+        # they don't fight Case 6. Cases 6/7/8 below take over.
+        $isFileUnderRepair = ($invariantsEnforced -and ($target -eq 'file'))
+        if ($isFileUnderRepair) {
+            Write-C "    (Cases 1-5 skipped for file target -- repair invariant requires it absent; see Case 6)" "DarkYellow"
+        }
+
         # ---- Case 1: leaf key exists ----
-        if (Should-Run 1) {
+        if ((Should-Run 1) -and (-not $isFileUnderRepair)) {
             Start-Case 1 "[$editionName/$target] Leaf key exists"
             $exists = Test-Path -LiteralPath $regPath
             Assert-True "Key exists at $regPath" $exists
@@ -201,7 +239,7 @@ foreach ($editionName in $editionsToTest) {
         }
 
         # ---- Case 2: leaf (Default) matches label ----
-        if (Should-Run 2) {
+        if ((Should-Run 2) -and (-not $isFileUnderRepair)) {
             Start-Case 2 "[$editionName/$target] Leaf (Default) value = configured label"
             $label = Get-DefaultValue $regPath
             Assert-True "Leaf has (Default) value" ($null -ne $label) "Path: $regPath"
@@ -212,7 +250,7 @@ foreach ($editionName in $editionsToTest) {
         }
 
         # ---- Case 3: command subkey + non-empty value ----
-        if (Should-Run 3) {
+        if ((Should-Run 3) -and (-not $isFileUnderRepair)) {
             Start-Case 3 "[$editionName/$target] command subkey exists with non-empty (Default)"
             $cmdExists = Test-Path -LiteralPath $cmdPath
             Assert-True "command subkey exists at $cmdPath" $cmdExists
@@ -224,7 +262,7 @@ foreach ($editionName in $editionsToTest) {
         }
 
         # ---- Case 4: command matches expected template ----
-        if (Should-Run 4) {
+        if ((Should-Run 4) -and (-not $isFileUnderRepair)) {
             Start-Case 4 "[$editionName/$target] command matches expected template ($(if ($isWrapperMode) {'wrapper'} else {'direct'}))"
             $cmdValue = Get-DefaultValue $cmdPath
             if ($null -eq $cmdValue) {
@@ -255,7 +293,7 @@ foreach ($editionName in $editionsToTest) {
         }
 
         # ---- Case 5: idempotency / no junk siblings sharing prefix ----
-        if (Should-Run 5) {
+        if ((Should-Run 5) -and (-not $isFileUnderRepair)) {
             Start-Case 5 "[$editionName/$target] Idempotency -- no doubled-up sibling keys"
             # Look at the parent and assert that no sibling key starts with the leaf name twice
             # (e.g. "VSCodeVSCode" or "VSCode_1") which would indicate a botched install.
@@ -271,6 +309,53 @@ foreach ($editionName in $editionsToTest) {
             } else {
                 Skip-Case "parent path $parent does not exist"
             }
+        }
+
+        # ===================================================================
+        #  Repair-invariant cases (6/7/8). Only run when enforced.
+        # ===================================================================
+        if (-not $invariantsEnforced) { continue }
+
+        # ---- Case 6: file-target key MUST be absent ----
+        if (($target -eq 'file') -and (Should-Run 6)) {
+            Start-Case 6 "[$editionName/$target] Repair invariant -- file-target key is ABSENT"
+            $stillThere = Test-Path -LiteralPath $regPath
+            Assert-True "File-target key is absent at $regPath" (-not $stillThere) `
+                "Run '.\run.ps1 -I 54 repair' to remove the file-target entry."
+        }
+
+        # ---- Case 7: directory + background carry NO suppression values ----
+        if (($target -in @('directory','background')) -and (Should-Run 7)) {
+            Start-Case 7 "[$editionName/$target] Repair invariant -- no suppression values present"
+            $foundSup = @()
+            $isPresent = Test-Path -LiteralPath $regPath
+            if ($isPresent) {
+                $prop = Get-ItemProperty -LiteralPath $regPath -ErrorAction SilentlyContinue
+                if ($null -ne $prop) {
+                    foreach ($v in $script:RepairSuppressionValues) {
+                        if ($prop.PSObject.Properties.Name -contains $v) { $foundSup += $v }
+                    }
+                }
+            }
+            $isClean = $foundSup.Count -eq 0
+            Assert-True "No suppression values on $regPath" $isClean `
+                "Found: $($foundSup -join ', ') -- run 'repair' to strip."
+        }
+
+        # ---- Case 8: no legacy duplicate sibling keys under the shell parent ----
+        if (Should-Run 8) {
+            Start-Case 8 "[$editionName/$target] Repair invariant -- no legacy duplicates under shell parent"
+            $parentForLegacy = Split-Path -Parent $regPath
+            $foundLegacy = @()
+            if (Test-Path -LiteralPath $parentForLegacy) {
+                foreach ($name in $legacyNamesList) {
+                    $candidate = Join-Path $parentForLegacy $name
+                    if (Test-Path -LiteralPath $candidate) { $foundLegacy += $name }
+                }
+            }
+            $isClean = $foundLegacy.Count -eq 0
+            Assert-True "No legacy duplicates under $parentForLegacy" $isClean `
+                "Found: $($foundLegacy -join ', ') -- run 'repair' to sweep."
         }
     }
 }

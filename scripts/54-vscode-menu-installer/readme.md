@@ -92,6 +92,28 @@ Every change is captured in the `.audit/` JSONL log AND in a pre-repair
 `.reg` snapshot under `.audit/snapshots/`, so you can manually
 `reg.exe import` to restore the prior state if needed.
 
+### Verifying the repair stuck (CI-friendly)
+
+The `check` command and the `verify` test harness both enforce the four
+repair invariants. Use them as a CI gate:
+
+```powershell
+.\run.ps1 -I 54 check               # quick read-only registry check
+.\run.ps1 -I 54 verify              # full test harness (Cases 1-8)
+```
+
+Invariants (each becomes one or more `[MISS]` line + non-zero exit if
+violated):
+
+| Case | Invariant |
+|---|---|
+| 6 | `HKCR\*\shell\<Name>` (file-target) is **absent** |
+| 7 | `directory` + `background` keys carry **no suppression values** (`ProgrammaticAccessOnly`, `AppliesTo`, `NoWorkingDirectory`, `LegacyDisable`, `CommandFlags`) |
+| 8 | No legacy duplicate child keys (allow-list in `config.repair.legacyNames`) under any of the three shell parents |
+
+Set `config.repair.enforceInvariants = false` to opt out (or pass
+`-SkipRepairInvariants` to the harness). Default is enforced.
+
 ## Audit log
 
 Every install and uninstall run writes a timestamped audit file to

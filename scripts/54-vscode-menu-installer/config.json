@@ -4,6 +4,8 @@
   "enabledEditions": ["stable", "insiders"],
   "repair": {
     "_comment": "Allow-list for the 'repair' verb. Repair only deletes named child keys that EXACTLY match one of these names under HKCR\\*\\shell, HKCR\\Directory\\shell, and HKCR\\Directory\\Background\\shell. Add/remove names here to tune cleanup -- never enumerates siblings outside this list.",
+    "_enforceComment": "When true (default), the 'check' command and the test harness (Cases 6/7/8) FAIL if the repair invariants are violated: file-target key still present, suppression values present on directory/background, or any legacy duplicate child key present. Set to false to opt out (e.g. on a machine where the file-target entry is intentionally kept).",
+    "enforceInvariants": true,
     "legacyNames": [
       "VSCode2", "VSCode3", "VSCodeOld", "VSCode_old",
       "OpenWithCode", "OpenWithVSCode", "Open with Code", "OpenCode",
