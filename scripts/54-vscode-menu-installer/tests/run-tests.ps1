@@ -27,6 +27,19 @@
 #    0 -- all green
 #    1 -- at least one assertion failed
 #    2 -- pre-flight failed (config missing, no enabled editions, etc.)
+#
+#  CI-friendly granular exit codes (only when -ExitCodeMap is passed):
+#    0  -- all green
+#    2  -- pre-flight failed
+#    10 -- install-state failures only (Cases 1-5)
+#    20 -- invariant: file-target key STILL PRESENT     (Case 6)
+#    21 -- invariant: suppression values PRESENT        (Case 7)
+#    22 -- invariant: legacy duplicates PRESENT         (Case 8)
+#    30 -- multiple invariant categories failed (any 2+ of 20/21/22)
+#    40 -- mix of install-state + invariant failures
+#
+#  Without -ExitCodeMap, the default 0/1/2 contract is preserved so existing
+#  CI does not break.
 # --------------------------------------------------------------------------
 [CmdletBinding()]
 param(
@@ -34,7 +47,8 @@ param(
     [string[]] $OnlyTargets  = @(),                     # subset of file/directory/background
     [int[]]    $OnlyCases    = @(),                     # subset of case numbers
     [switch]   $NoColor,
-    [switch]   $SkipRepairInvariants                    # opt out of Cases 6/7/8
+    [switch]   $SkipRepairInvariants,                   # opt out of Cases 6/7/8
+    [switch]   $ExitCodeMap                             # opt-in to granular exit codes
 )
 
 Set-StrictMode -Version Latest
