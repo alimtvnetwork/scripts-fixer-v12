@@ -114,6 +114,33 @@ violated):
 Set `config.repair.enforceInvariants = false` to opt out (or pass
 `-SkipRepairInvariants` to the harness). Default is enforced.
 
+#### Opt-out matrix: `config.repair.enforceInvariants` × `-SkipRepairInvariants`
+
+The two switches operate at different layers and **do not** override each
+other. Read them as: the config flag controls what `check` does, the
+harness flag controls what `verify` does.
+
+| Layer | Reads `config.repair.enforceInvariants`? | Reads `-SkipRepairInvariants`? | Behavior when invariant fails |
+|---|---|---|---|
+| `.\run.ps1 -I 54 check`  | **Yes** | No (switch is ignored)   | `true` → `[MISS]` + exit 1. `false` → `[MISS]` is downgraded to a warning, included in the PASS total, and the run still exits 0. |
+| `.\run.ps1 -I 54 verify` | **Yes** (Cases 6/7/8 read it internally) | **Yes** | If `-SkipRepairInvariants` is passed, Cases 6/7/8 are **not run at all** (skipped before the config flag is consulted). Otherwise the config flag decides PASS/FAIL exactly as `check` does. |
+| `repair` / `install` / `uninstall` / `rollback` | No | No | These verbs only *write* state; they never enforce invariants on themselves. Run `check` afterwards to verify. |
+
+Concrete combinations:
+
+| `enforceInvariants` | `-SkipRepairInvariants` | `check` exit | `verify` Cases 6/7/8 |
+|---|---|---|---|
+| `true`  (default)   | not passed (default)    | 1 if any invariant fails, 0 otherwise | run, fail the suite if any invariant fails |
+| `true`              | passed                  | 1 if any invariant fails, 0 otherwise | **not run**; suite pass/fail driven by Cases 1–5 only |
+| `false`             | not passed              | 0 always (invariant misses become warnings) | run, but each invariant miss is a **warning** that does not fail the case |
+| `false`             | passed                  | 0 always (invariant misses become warnings) | **not run** |
+
+When to flip the config flag to `false`: a machine where you *intentionally*
+keep the file-target entry (e.g. you actually want "Open with Code" on
+individual files). When to pass `-SkipRepairInvariants`: short-circuit a CI
+run after a known-clean install while the underlying registry hasn't been
+repaired yet.
+
 ## Audit log
 
 Every install and uninstall run writes a timestamped audit file to
