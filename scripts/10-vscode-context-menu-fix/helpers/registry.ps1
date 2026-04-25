@@ -335,13 +335,24 @@ function Uninstall-VsCodeContextMenu {
         $edition = $Config.editions.$editionName
         $isEditionValid = $null -ne $edition
         if ($isEditionValid) {
-            foreach ($regKey in @($edition.registryKeys.file, $edition.registryKeys.directory, $edition.registryKeys.background)) {
+            foreach ($regKey in @($edition.registryPaths.file, $edition.registryPaths.directory, $edition.registryPaths.background)) {
                 $hasKey = -not [string]::IsNullOrWhiteSpace($regKey)
                 if ($hasKey) {
                     $isPresent = Test-Path $regKey -ErrorAction SilentlyContinue
                     if ($isPresent) {
                         Remove-Item -Path $regKey -Recurse -Force -ErrorAction SilentlyContinue
                         Write-Log "Removed registry key: $regKey" -Level "success"
+                        if (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue) {
+                            $null = Write-RegistryAuditEvent -Operation "remove" `
+                                -Edition $editionName -Target "unknown" -RegPath $regKey `
+                                -Reason "removed by uninstall"
+                        }
+                    } else {
+                        if (Get-Command Write-RegistryAuditEvent -ErrorAction SilentlyContinue) {
+                            $null = Write-RegistryAuditEvent -Operation "skip-absent" `
+                                -Edition $editionName -Target "unknown" -RegPath $regKey `
+                                -Reason "key already absent"
+                        }
                     }
                 }
             }
