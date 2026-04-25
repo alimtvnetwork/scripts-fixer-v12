@@ -133,6 +133,52 @@ Script 54 *also* has `-SkipRepairInvariants` for its `verify` test harness;
 see [Script 54's readme](../54-vscode-menu-installer/readme.md#opt-out-matrix-configrepairenforceinvariants---skiprepairinvariants)
 for the full two-flag interaction matrix.
 
+#### CI-friendly granular exit codes (`-ExitCodeMap`)
+
+`check` accepts an opt-in `-ExitCodeMap` switch that maps specific failure
+types to distinct exit codes so CI can branch on the cause without parsing
+logs. **Default behavior is unchanged** (0 = green, 1 = any miss) so
+existing pipelines do not break.
+
+| Code | Meaning |
+|---|---|
+| **0**  | All green |
+| **10** | Only **install-state** failures (missing leaf, wrong `(Default)` label, missing `Icon`, broken `\command`, exe not on disk) |
+| **20** | Only invariant **#1**: file-target key (`HKCR\*\shell\<Name>`) is **STILL PRESENT** |
+| **21** | Only invariant **#2**: **suppression values** present on `directory` / `background` |
+| **22** | Only invariant **#3**: **legacy duplicate** child keys present |
+| **30** | **Multiple invariant categories** failed (any 2+ of 20/21/22) |
+| **40** | **Mixed**: install-state failures **and** invariant failures |
+| **1**  | Catch-all fallback (should not occur in practice) |
+
+Same code map as Script 54 — pipelines that gate both scripts can share one
+`case $?` block. Script 10 has no `verify` harness, so `-ExitCodeMap`
+applies only to the `check` verb here.
+
+Usage:
+
+```powershell
+.\run.ps1 -I 10 check -ExitCodeMap
+```
+
+Sample CI branching (Bash on a Windows runner):
+
+```bash
+pwsh -File ./run.ps1 -I 10 check -ExitCodeMap
+case $? in
+  0)              echo "OK" ;;
+  10)             echo "Install state broken -> run: .\run.ps1 -I 10 install"  ; exit 1 ;;
+  20|21|22|30)    echo "Repair invariant violated -> run: .\run.ps1 -I 10 repair" ; exit 1 ;;
+  40)             echo "Both install + invariants broken -> install then repair" ; exit 1 ;;
+  *)              echo "Unexpected: $?"                                          ; exit 1 ;;
+esac
+```
+
+Grouping rules are the same as Script 54: any install-state miss combined
+with any invariant miss collapses to **40**; otherwise two-or-more invariant
+categories collapse to **30**; otherwise the single offending invariant code
+(20/21/22) is returned.
+
 ## File layout
 
 | File | Purpose |
