@@ -223,6 +223,43 @@ matched nothing, etc.). The harness prints a per-step `[PASS]`/`[FAIL]`
 line plus a `Failures:` block with the exact reg path of any miss so a
 CI log alone is enough to diagnose.
 
+## Verified rollback (`rollback` verb)
+
+`rollback` no longer prints a hint and shells out to `uninstall`. It now
+wraps the surgical removal with a five-phase verification that proves the
+context-menu state was actually restored:
+
+| Phase | What it does | Mutates registry? |
+|-------|--------------|-------------------|
+| 1. Pre-rollback snapshot | Calls `New-PreRollbackSnapshot` -- runs the same `reg.exe export` as a pre-install snapshot, then renames the file with a `pre-rollback-` prefix under `.audit/snapshots/`. | No (read-only export) |
+| 2. Invariant baseline | Runs both check passes (`Invoke-Script10MenuCheck` + `Invoke-Script10RepairInvariantCheck`) and freezes the MISS action collector keyed by `(invariantCode, regPath)`. | No |
+| 3. Surgical uninstall | The pre-existing `Uninstall-VsCodeContextMenu` removes only the keys we created. | Yes |
+| 4. Post-rollback re-check | Re-runs the same two check passes against the now-mutated registry and freezes the action collector again. | No |
+| 5. Verification report | Diffs the BEFORE and AFTER frozen snapshots and prints a `RESOLVED` / `PERSISTED` / `REGRESSED` block, then exits `0` (verified) or `1` (not verified). | No |
+
+Verdict definitions:
+
+- **RESOLVED**  -- invariants present BEFORE that are now gone. Expected outcome.
+- **PERSISTED** -- invariants present BEFORE that are STILL present after rollback. The rollback failed to fix these; each line shows `[invariantCode] regPath` plus a `reg.exe query "<path>"` command for direct inspection.
+- **REGRESSED** -- invariants NOT present before that appeared AFTER rollback. Should never happen for a clean rollback; indicates the surgical uninstall introduced state.
+
+Exit codes:
+
+- `0` -- VERIFIED (PERSISTED and REGRESSED are both empty).
+- `1` -- NOT VERIFIED (one or both lists are non-empty).
+
+Opt-out:
+
+```powershell
+.\run.ps1 rollback                       # full verified rollback (default)
+.\run.ps1 rollback -SkipRollbackVerify   # legacy behaviour: surgical uninstall only, no snapshot/baseline/recheck
+```
+
+The pre-rollback snapshot is your undo button: if the verification surfaces
+something unexpected, restore the captured state with
+`reg.exe import "<path-printed-in-report>"` (the path is printed both at
+capture time and again in the verification block).
+
 ## File layout
 
 | File | Purpose |
