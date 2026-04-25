@@ -305,7 +305,11 @@ function Invoke-Script10Repair {
     }
 
     $legacyNames = Get-Repair10LegacyNames -Config $Config
-    Write-Log ("Repair scope: ensure folder+background, drop file-target, strip suppression values, sweep " + $legacyNames.Count + " legacy name(s) per edition.") -Level "info"
+    if ($isAll) {
+        Write-Log ("Repair scope: ensure folder+background, drop file-target, strip suppression values, sweep " + $legacyNames.Count + " legacy name(s) per edition.") -Level "info"
+    } else {
+        Write-Log ("Repair scope (filtered by -Only): only the phases above will run; " + $legacyNames.Count + " legacy name(s) loaded but only used if 'legacy/i3/invariant/all' is selected.") -Level "info"
+    }
 
     foreach ($edName in $editions) {
         $hasEd = $Config.editions.PSObject.Properties.Name -contains $edName
