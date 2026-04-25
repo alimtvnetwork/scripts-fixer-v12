@@ -81,6 +81,7 @@ switch ($Command.ToLower()) {
         $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
         . (Join-Path $sharedDir "logging.ps1")
         . (Join-Path $scriptDir "helpers\vscode-check.ps1")
+        . (Join-Path $scriptDir "helpers\vscode-repair-check.ps1")
 
         $configPath = Join-Path $scriptDir "config.json"
         $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -94,7 +95,18 @@ switch ($Command.ToLower()) {
 
         Write-Log $logMsgs.messages.checkStart -Level "info"
         $result = Invoke-VsCodeMenuCheck -Config $config -LogMsgs $logMsgs -EditionFilter $Edition
-        $hasMisses = $result.totalMiss -gt 0
+
+        # Repair invariants: file ABSENT, no suppression values, no legacy
+        # duplicates. Driven by config.repair.enforceInvariants (default true).
+        # Misses are added to the rollup so `check` exits 1 when the menu
+        # state diverges from what `repair` is supposed to guarantee.
+        $repairResult = Invoke-VsCodeRepairInvariantCheck -Config $config -EditionFilter $Edition
+
+        $totalMiss = $result.totalMiss + $repairResult.totalMiss
+        $totalPass = $result.totalPass + $repairResult.totalPass
+        Write-Log "" -Level "info"
+        Write-Log ("Combined check totals: PASS=" + $totalPass + ", MISS=" + $totalMiss) -Level $(if ($totalMiss -eq 0) { 'success' } else { 'error' })
+        $hasMisses = $totalMiss -gt 0
         if ($hasMisses) { exit 1 } else { exit 0 }
     }
     "verify" {
