@@ -32,9 +32,80 @@ $script:Check10SuppressionValues = @(
     'LegacyDisable','CommandFlags'
 )
 
+# Module-level MISS collector. Reset at the top of each top-level check call
+# so the run.ps1 wrapper can print one consolidated "what to do next" block.
+$script:Check10MissActions = @()
+
+function Reset-Check10MissActions { $script:Check10MissActions = @() }
+
+function Add-Check10MissAction {
+    param(
+        [Parameter(Mandatory)] [string] $Edition,
+        [Parameter(Mandatory)] [string] $Category, # install | invariant
+        [Parameter(Mandatory)] [string] $Target,   # file | directory | background | parent
+        [Parameter(Mandatory)] [string] $RegPath,  # HKCR\... (reg.exe-friendly, no Registry::)
+        [string[]] $Items   = @(),                 # value names / child names
+        [Parameter(Mandatory)] [string] $Reason,
+        [Parameter(Mandatory)] [string] $FixHint   # exact next command
+    )
+    $script:Check10MissActions += [pscustomobject]@{
+        edition  = $Edition
+        category = $Category
+        target   = $Target
+        regPath  = $RegPath
+        items    = @($Items)
+        reason   = $Reason
+        fixHint  = $FixHint
+    }
+}
+
+function Get-Check10MissActions { return ,@($script:Check10MissActions) }
+
+function Write-Check10MissActionSummary {
+    param([Parameter(Mandatory)][string]$ScriptInvocationHint)
+    $actions = $script:Check10MissActions
+    if ($actions.Count -eq 0) { return }
+
+    Write-Log "" -Level "info"
+    Write-Log "===============================  ACTION SUMMARY  ===============================" -Level "warn"
+    Write-Log ("  " + $actions.Count + " MISS finding(s) require attention. Each block below shows:") -Level "warn"
+    Write-Log "    - the EXACT registry path triggering the miss" -Level "warn"
+    Write-Log "    - the value or child names involved (if any)" -Level "warn"
+    Write-Log "    - the next command to run to fix it" -Level "warn"
+    Write-Log "================================================================================" -Level "warn"
+
+    $i = 0
+    foreach ($a in $actions) {
+        $i++
+        Write-Log "" -Level "info"
+        Write-Log ("  [" + $i + "/" + $actions.Count + "] edition=" + $a.edition + "  category=" + $a.category + "  target=" + $a.target) -Level "error"
+        Write-Log ("        Path  : " + $a.regPath) -Level "error"
+        if ($a.items.Count -gt 0) {
+            Write-Log ("        Items : " + ($a.items -join ', ')) -Level "error"
+            foreach ($it in $a.items) {
+                Write-Log ("                  - " + $it) -Level "error"
+            }
+        }
+        Write-Log ("        Why   : " + $a.reason) -Level "error"
+        Write-Log ("        Fix   : " + $a.fixHint) -Level "warn"
+    }
+
+    Write-Log "" -Level "info"
+    Write-Log "  One-shot fix for ALL of the above:" -Level "warn"
+    Write-Log ("      " + $ScriptInvocationHint) -Level "warn"
+    Write-Log "================================================================================" -Level "warn"
+}
+
 function Get-HkcrSubPath10 {
     param([string]$PsPath)
     return ($PsPath -replace '^Registry::HKEY_CLASSES_ROOT\\', '')
+}
+
+function ConvertTo-Check10RegExePath {
+    # Strip the PowerShell-only "Registry::" prefix so the path is something
+    # the user can paste straight into `reg.exe query <path>`.
+    param([string]$PsPath)
+    return ($PsPath -replace '^Registry::', '')
 }
 
 function Get-Check10MenuEntryStatus {
@@ -122,6 +193,11 @@ function Invoke-Script10MenuCheck {
         [string] $EditionFilter = ""
     )
 
+    # Note: caller is responsible for resetting the MISS collector ONCE at
+    # the top of the run if it wants a single combined summary across both
+    # check passes (run.ps1 does this). We do NOT reset here so that
+    # Invoke-Script10MenuCheck + Invoke-Script10RepairInvariantCheck can
+    # accumulate into the same list.
     $editionResults = @()
     $totalPass = 0
     $totalMiss = 0
@@ -154,11 +230,49 @@ function Invoke-Script10MenuCheck {
             $tag = if ($targetName -eq 'directory') { 'folder    ' }
                    elseif ($targetName -eq 'background') { 'background' }
                    else { 'file      ' }
-            $line = "  [{0}] {1}  {2}" -f $st.verdict, $tag, $regPath
+            $regExe = ConvertTo-Check10RegExePath $regPath
+            $line = "  [{0}] {1}  {2}" -f $st.verdict, $tag, $regExe
             $level = if ($st.verdict -eq 'PASS') { 'success' } else { 'error' }
             Write-Log $line -Level $level
-            if ($st.verdict -ne 'PASS' -and $st.reason) {
-                Write-Log ("           reason: " + $st.reason + " (failure path: " + $regPath + ")") -Level "error"
+            if ($st.verdict -ne 'PASS') {
+                # Build precise per-failure detail. We list every distinct
+                # cause as its own bullet so the user knows exactly what to
+                # fix without re-reading the upstream log.
+                $bullets = @()
+                $items   = @()
+                if (-not $st.keyExists) {
+                    $bullets += "registry key NOT FOUND: " + $regExe
+                    $items   += "<missing key>"
+                } else {
+                    if (-not $st.labelOk) {
+                        $bullets += "value '(Default)' = '" + $st.actualLabel + "' (expected '" + $ed.contextMenuLabel + "')"
+                        $items   += "(Default)"
+                    }
+                    if (-not $st.iconPresent) {
+                        $bullets += "value 'Icon' is missing or empty"
+                        $items   += "Icon"
+                    }
+                    if (-not $st.commandPresent) {
+                        $bullets += "subkey '\command' (Default) is missing or empty"
+                        $items   += "\command\(Default)"
+                    } elseif (-not $st.exeResolvable) {
+                        $exeShown = if ($st.exePath) { $st.exePath } else { '<unparseable>' }
+                        $bullets += "exe path NOT ON DISK: " + $exeShown
+                        $items   += "\command\(Default) -> exe"
+                    }
+                }
+                if ($bullets.Count -eq 0) { $bullets = @($st.reason) }
+
+                Write-Log ("           Path : " + $regExe) -Level "error"
+                foreach ($b in $bullets) {
+                    Write-Log ("           Why  : " + $b) -Level "error"
+                }
+                Write-Log ("           Fix  : .\run.ps1 repair -Edition " + $edName + "   (re-asserts label/Icon/command from config + resolves exe via installationType)") -Level "warn"
+
+                Add-Check10MissAction -Edition $edName -Category 'install' -Target $targetName `
+                    -RegPath $regExe -Items $items `
+                    -Reason ($bullets -join '; ') `
+                    -FixHint (".\run.ps1 repair -Edition " + $edName)
             }
             if ($st.verdict -eq 'PASS') { $totalPass++ } else { $totalMiss++ }
         }
@@ -250,15 +364,23 @@ function Invoke-Script10RepairInvariantCheck {
         $hasFile = $ed.registryPaths.PSObject.Properties.Name -contains 'file'
         if ($hasFile) {
             $fileReg = $ed.registryPaths.file
+            $fileRegExe = ConvertTo-Check10RegExePath $fileReg
             $sub = Get-HkcrSubPath10 $fileReg
             $key = $hkcr.OpenSubKey($sub)
             $isAbsent = $null -eq $key
             if (-not $isAbsent) { $key.Close() }
             if ($isAbsent) {
-                Write-Log ("  [PASS] file-target absent: " + $fileReg) -Level "success"
+                Write-Log ("  [PASS] file-target absent: " + $fileRegExe) -Level "success"
                 $passes++
             } else {
-                Write-Log ("  [MISS] file-target STILL PRESENT: " + $fileReg + " (failure: run 'repair' to remove)") -Level "error"
+                Write-Log  "  [MISS] file-target STILL PRESENT" -Level "error"
+                Write-Log ("           Path  : " + $fileRegExe) -Level "error"
+                Write-Log  "           Why   : right-clicking individual files shows the menu (should be folders only)" -Level "error"
+                Write-Log ("           Fix   : .\run.ps1 repair -Edition " + $edName) -Level "warn"
+                Add-Check10MissAction -Edition $edName -Category 'invariant' -Target 'file' `
+                    -RegPath $fileRegExe -Items @($fileRegExe) `
+                    -Reason "file-target key still present (menu appears on files)" `
+                    -FixHint (".\run.ps1 repair -Edition " + $edName)
                 $misses++
             }
         }
@@ -268,6 +390,7 @@ function Invoke-Script10RepairInvariantCheck {
             $hasKey = $ed.registryPaths.PSObject.Properties.Name -contains $keep
             if (-not $hasKey) { continue }
             $regPath = $ed.registryPaths.$keep
+            $regExe  = ConvertTo-Check10RegExePath $regPath
             $sub = Get-HkcrSubPath10 $regPath
             $key = $hkcr.OpenSubKey($sub)
             $found = @()
@@ -280,11 +403,21 @@ function Invoke-Script10RepairInvariantCheck {
             }
             $isClean = $found.Count -eq 0
             if ($isClean) {
-                Write-Log ("  [PASS] no suppression values on " + $keep + ": " + $regPath) -Level "success"
+                Write-Log ("  [PASS] no suppression values on " + $keep + ": " + $regExe) -Level "success"
                 $passes++
             } else {
-                $joined = ($found -join ', ')
-                Write-Log ("  [MISS] suppression values on " + $keep + " (" + $regPath + "): " + $joined + " (failure: run 'repair' to strip)") -Level "error"
+                Write-Log ("  [MISS] suppression values on " + $keep) -Level "error"
+                Write-Log ("           Path  : " + $regExe) -Level "error"
+                Write-Log  "           Values:" -Level "error"
+                foreach ($vName in $found) {
+                    Write-Log ("                    - " + $vName) -Level "error"
+                }
+                Write-Log  "           Why   : these value names hide the menu in Explorer" -Level "error"
+                Write-Log ("           Fix   : .\run.ps1 repair -Edition " + $edName + "   (strips listed values, keeps Default/Icon/command)") -Level "warn"
+                Add-Check10MissAction -Edition $edName -Category 'invariant' -Target $keep `
+                    -RegPath $regExe -Items $found `
+                    -Reason ("suppression values present on " + $keep + ": " + ($found -join ', ')) `
+                    -FixHint (".\run.ps1 repair -Edition " + $edName)
                 $misses++
             }
         }
@@ -295,9 +428,10 @@ function Invoke-Script10RepairInvariantCheck {
             $hasT = $ed.registryPaths.PSObject.Properties.Name -contains $t
             if (-not $hasT) { continue }
             $sub = Get-Check10ShellParentSub $ed.registryPaths.$t
-            $parentSubs[$sub] = $true
+            $parentSubs[$sub] = $t
         }
         foreach ($parentSub in $parentSubs.Keys) {
+            $assocTarget = $parentSubs[$parentSub]
             $parent = $hkcr.OpenSubKey($parentSub)
             $present = @()
             if ($null -ne $parent) {
@@ -309,12 +443,23 @@ function Invoke-Script10RepairInvariantCheck {
                 } finally { $parent.Close() }
             }
             $isClean = $present.Count -eq 0
+            $parentExe = "HKCR\" + $parentSub
             if ($isClean) {
-                Write-Log ("  [PASS] no legacy duplicates under HKCR\" + $parentSub) -Level "success"
+                Write-Log ("  [PASS] no legacy duplicates under " + $parentExe) -Level "success"
                 $passes++
             } else {
-                $joined = ($present -join ', ')
-                Write-Log ("  [MISS] legacy duplicates under HKCR\" + $parentSub + ": " + $joined + " (failure: run 'repair' to remove)") -Level "error"
+                Write-Log ("  [MISS] legacy duplicate child key(s) under " + $parentExe) -Level "error"
+                Write-Log ("           Path  : " + $parentExe) -Level "error"
+                Write-Log  "           Children:" -Level "error"
+                foreach ($cName in $present) {
+                    Write-Log ("                    - " + $parentExe + "\" + $cName) -Level "error"
+                }
+                Write-Log  "           Why   : duplicate menu entries from legacy installs / partial uninstalls" -Level "error"
+                Write-Log ("           Fix   : .\run.ps1 repair -Edition " + $edName + "   (sweeps allow-listed legacyNames only)") -Level "warn"
+                Add-Check10MissAction -Edition $edName -Category 'invariant' -Target ('legacy:' + $assocTarget) `
+                    -RegPath $parentExe -Items $present `
+                    -Reason ("legacy duplicate child keys under " + $parentExe + ": " + ($present -join ', ')) `
+                    -FixHint (".\run.ps1 repair -Edition " + $edName)
                 $misses++
             }
         }
