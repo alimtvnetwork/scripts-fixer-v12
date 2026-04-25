@@ -11,6 +11,8 @@ param(
 
     [string]$Edition,
 
+    [switch]$ExitCodeMap,
+
     [switch]$Help
 )
 
@@ -76,7 +78,38 @@ if ($cmdLower -eq 'check') {
     Write-Log ("Combined check totals: PASS=" + $totalPass + ", MISS=" + $totalMiss) -Level $(if ($totalMiss -eq 0) { 'success' } else { 'error' })
     $oneShot = if ([string]::IsNullOrWhiteSpace($Edition)) { ".\run.ps1 repair" } else { ".\run.ps1 repair -Edition " + $Edition }
     Write-Check10MissActionSummary -ScriptInvocationHint $oneShot
-    if ($totalMiss -gt 0) { exit 1 } else { exit 0 }
+
+    if ($totalMiss -le 0) { exit 0 }
+    if (-not $ExitCodeMap) { exit 1 }
+
+    # CI-friendly granular exit codes. Buckets:
+    #   10 = install-state, 20 = file-target, 21 = suppression,
+    #   22 = legacy, 30 = multi-invariant, 40 = mixed.
+    # Drives off the MISS action collector populated by both check passes.
+    $actions = Get-Check10MissActions
+    $hasInstall = @($actions | Where-Object { $_.category -eq 'install' }).Count -gt 0
+    $invariantBuckets = @()
+    foreach ($a in $actions) {
+        if ($a.category -ne 'invariant') { continue }
+        if ($a.target -eq 'file')                          { $invariantBuckets += 20 }
+        elseif ($a.target -in @('directory','background')) { $invariantBuckets += 21 }
+        elseif ($a.target -like 'legacy:*')                { $invariantBuckets += 22 }
+    }
+    $invariantBuckets = @($invariantBuckets | Sort-Object -Unique)
+    $hasInvariant     = $invariantBuckets.Count -gt 0
+    $isMixed          = $hasInstall -and $hasInvariant
+    $isMultiInvariant = (-not $hasInstall) -and ($invariantBuckets.Count -ge 2)
+
+    $code = 1
+    if ($isMixed)              { $code = 40 }
+    elseif ($isMultiInvariant) { $code = 30 }
+    elseif ($hasInvariant)     { $code = $invariantBuckets[0] }
+    elseif ($hasInstall)       { $code = 10 }
+
+    Write-Log "" -Level "info"
+    Write-Log ("CI exit code (ExitCodeMap=on): " + $code) -Level "warn"
+    Write-Log "  Legend: 10=install-state, 20=file-target, 21=suppression, 22=legacy, 30=multi-invariant, 40=mixed" -Level "info"
+    exit $code
 }
 
 # -- Assert admin --------------------------------------------------------------
