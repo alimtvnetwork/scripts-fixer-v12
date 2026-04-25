@@ -179,6 +179,57 @@ with any invariant miss collapses to **40**; otherwise two-or-more invariant
 categories collapse to **30**; otherwise the single offending invariant code
 (20/21/22) is returned.
 
+## Targeted repair (`repair -Only <selectors>`)
+
+By default `repair` runs all four phases (ensure folder+background, drop
+file-target, strip suppression values, sweep legacy duplicates). When
+`check` reports a miss in only one bucket, you can re-run a narrower
+repair with `-Only` and skip the rest:
+
+| Selector | Phases run |
+|---|---|
+| `install` | Ensure folder + background entries (re-asserts `(Default)` / `Icon` / `\command`). Targets every INSTALL-STATE miss reported by `check`. |
+| `invariant` | Drop file-target + strip suppression + sweep legacy duplicates. Targets every I1/I2/I3 miss. |
+| `file-target` (alias `i1`) | Phase 2 only. Deletes `HKCR\*\shell\<Name>`. |
+| `suppression` (alias `i2`) | Phase 3 only. Strips `ProgrammaticAccessOnly` / `AppliesTo` / `NoWorkingDirectory` / `LegacyDisable` / `CommandFlags` from directory + background. |
+| `legacy` (alias `i3`) | Phase 4 only. Sweeps allow-listed `legacyNames` under each shell parent. |
+| `folder` (alias `directory`) | Phases 1 + 3 limited to the **directory** target. |
+| `background` | Phases 1 + 3 limited to the **background** target. |
+| `all` *(default)* | Every phase, every target. |
+
+Selectors are case-insensitive. Pass multiple either as repeated values
+or comma-separated, and they are unioned:
+
+```powershell
+# Only fix invariant misses (don't re-write the folder/background entries):
+.\run.ps1 -I 10 repair -Only invariant
+
+# Strip suppression values AND sweep legacy duplicates, nothing else:
+.\run.ps1 -I 10 repair -Only suppression,legacy
+
+# Re-write only the FOLDER target for one edition (skips background entirely):
+.\run.ps1 -I 10 repair -Only folder -Edition stable
+
+# Drop the file-target only (use after `check` reported [I1-FILE-TARGET]):
+.\run.ps1 -I 10 repair -Only i1
+```
+
+Unknown selectors abort the run BEFORE any registry write and log the
+exact bad token, the file path that rejected it, and the full list of
+valid selectors -- so you never get a partial repair from a typo.
+
+Selector-to-`check`-bucket mapping for quick triage from a CI exit code
+(`check -ExitCodeMap`):
+
+| Exit code | Run this `repair -Only ...` |
+|---|---|
+| `10` (install-state) | `install` |
+| `20` (file-target)   | `i1` (or `file-target`) |
+| `21` (suppression)   | `i2` (or `suppression`) |
+| `22` (legacy)        | `i3` (or `legacy`) |
+| `30` (multi-invariant) | `invariant` |
+| `40` (mixed)         | `install,invariant` (or just omit `-Only` for full repair) |
+
 ## Smoke test (`smoke` verb)
 
 End-to-end smoke harness that runs `install` then `check` back-to-back and

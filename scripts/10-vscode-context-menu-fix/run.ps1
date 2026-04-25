@@ -15,6 +15,8 @@ param(
 
     [switch]$SkipRollbackVerify,
 
+    [string[]]$Only = @(),
+
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest = @(),
 
@@ -151,7 +153,7 @@ if ($cmdLower -eq 'repair') {
     $snap = New-PreInstallSnapshot -Config $config -ScriptDir $scriptDir
     if ($snap) { Write-Log ("Pre-repair snapshot saved: " + $snap + " (manual restore: reg.exe import `"<path>`")") -Level "info" }
     $stats = Invoke-Script10Repair -Config $config -LogMessages $logMessages -ScriptDir $scriptDir `
-        -InstallType $config.installationType -EditionFilter $Edition
+        -InstallType $config.installationType -EditionFilter $Edition -OnlySelectors $Only
     Write-Log ("Audit log: " + (Get-RegistryAuditPath)) -Level "info"
     if ($stats.errors -gt 0) { exit 1 } else { exit 0 }
     return

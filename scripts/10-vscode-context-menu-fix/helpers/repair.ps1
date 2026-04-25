@@ -208,6 +208,19 @@ function Invoke-Script10Repair {
     <#
     .SYNOPSIS
         Main repair entry point for Script 10. See module synopsis.
+    .PARAMETER OnlySelectors
+        Optional list of selectors that restricts repair to a subset of
+        phases / targets. Selectors are case-insensitive. Aliases:
+            install                       -> phase 1 (ensure folder+background)
+            invariant                     -> phases 2+3+4 (file-target, suppression, legacy)
+            file-target | i1              -> phase 2 only (drop HKCR\*\shell\<Name>)
+            suppression | i2              -> phase 3 only (strip suppression values)
+            legacy      | i3              -> phase 4 only (sweep legacy duplicates)
+            folder      | directory       -> phases 1+3 limited to directory target
+            background                    -> phases 1+3 limited to background target
+            all                           -> all phases (default if list is empty)
+        Multiple selectors are unioned. Unknown tokens cause a hard fail
+        BEFORE any registry write so the user never sees a partial run.
     #>
     [CmdletBinding()]
     param(
@@ -215,8 +228,64 @@ function Invoke-Script10Repair {
         [Parameter(Mandatory)] $LogMessages,
         [Parameter(Mandatory)] [string] $ScriptDir,
         [string] $InstallType   = "user",
-        [string] $EditionFilter = ""
+        [string] $EditionFilter = "",
+        [string[]] $OnlySelectors = @()
     )
+
+    # ---- Resolve selectors into a phase/target plan -----------------------
+    # Normalise + validate FIRST. CODE RED: any unknown selector aborts
+    # before we touch the registry, with the exact bad token in the log.
+    $known = @{
+        'all'         = 'all'
+        'install'     = 'install'
+        'invariant'   = 'invariant'
+        'file-target' = 'file-target'
+        'i1'          = 'file-target'
+        'suppression' = 'suppression'
+        'i2'          = 'suppression'
+        'legacy'      = 'legacy'
+        'i3'          = 'legacy'
+        'folder'      = 'directory'
+        'directory'   = 'directory'
+        'background'  = 'background'
+    }
+    $normalized = @()
+    $unknown    = @()
+    foreach ($raw in $OnlySelectors) {
+        if ([string]::IsNullOrWhiteSpace($raw)) { continue }
+        # Allow comma-separated tokens within a single string element
+        foreach ($tok in ($raw -split ',')) {
+            $t = $tok.Trim().ToLowerInvariant()
+            if ([string]::IsNullOrWhiteSpace($t)) { continue }
+            if ($known.ContainsKey($t)) { $normalized += $known[$t] }
+            else                        { $unknown    += $tok.Trim() }
+        }
+    }
+    $normalized = @($normalized | Sort-Object -Unique)
+    if ($unknown.Count -gt 0) {
+        Write-Log ("Unknown -Only selector(s): " + ($unknown -join ', ') + " (failure: valid selectors are " + (($known.Keys | Sort-Object) -join ', ') + "; aborting before any registry write to scripts/10-vscode-context-menu-fix/helpers/repair.ps1)") -Level "error"
+        return [pscustomobject]@{ ensuredFolders=0; ensuredBackgrounds=0; droppedFileTargets=0; suppressionStripped=0; legacyRemoved=0; legacyAbsent=0; editionsSkipped=0; errors=1; aborted=$true }
+    }
+    $isAll = ($normalized.Count -eq 0) -or ($normalized -contains 'all')
+
+    # Expand selectors -> per-phase booleans
+    $runEnsureDir = $isAll -or ($normalized -contains 'install') -or ($normalized -contains 'directory')
+    $runEnsureBg  = $isAll -or ($normalized -contains 'install') -or ($normalized -contains 'background')
+    $runDropFile  = $isAll -or ($normalized -contains 'invariant') -or ($normalized -contains 'file-target')
+    $runStripDir  = $isAll -or ($normalized -contains 'invariant') -or ($normalized -contains 'suppression') -or ($normalized -contains 'directory')
+    $runStripBg   = $isAll -or ($normalized -contains 'invariant') -or ($normalized -contains 'suppression') -or ($normalized -contains 'background')
+    $runLegacy    = $isAll -or ($normalized -contains 'invariant') -or ($normalized -contains 'legacy')
+
+    if (-not $isAll) {
+        $planParts = @()
+        if ($runEnsureDir) { $planParts += 'ensure[directory]' }
+        if ($runEnsureBg)  { $planParts += 'ensure[background]' }
+        if ($runDropFile)  { $planParts += 'drop[file-target]' }
+        if ($runStripDir)  { $planParts += 'strip[directory]' }
+        if ($runStripBg)   { $planParts += 'strip[background]' }
+        if ($runLegacy)    { $planParts += 'sweep[legacy]' }
+        Write-Log ("Repair -Only plan: selectors=" + ($normalized -join ',') + " => phases=" + ($planParts -join ', ')) -Level "warn"
+    }
 
     $stats = [ordered]@{
         ensuredFolders     = 0
@@ -236,7 +305,11 @@ function Invoke-Script10Repair {
     }
 
     $legacyNames = Get-Repair10LegacyNames -Config $Config
-    Write-Log ("Repair scope: ensure folder+background, drop file-target, strip suppression values, sweep " + $legacyNames.Count + " legacy name(s) per edition.") -Level "info"
+    if ($isAll) {
+        Write-Log ("Repair scope: ensure folder+background, drop file-target, strip suppression values, sweep " + $legacyNames.Count + " legacy name(s) per edition.") -Level "info"
+    } else {
+        Write-Log ("Repair scope (filtered by -Only): only the phases above will run; " + $legacyNames.Count + " legacy name(s) loaded but only used if 'legacy/i3/invariant/all' is selected.") -Level "info"
+    }
 
     foreach ($edName in $editions) {
         $hasEd = $Config.editions.PSObject.Properties.Name -contains $edName
@@ -262,11 +335,16 @@ function Invoke-Script10Repair {
         $label   = $ed.contextMenuLabel
         $iconVal = "`"$vsCodeExe`""
 
-        # 1. Ensure folder + background entries (idempotent)
-        $ensureMap = @(
-            @{ Step = "[repair] ensure FOLDER";            Target='directory';  Path=$ed.registryPaths.directory;  Cmd="`"$vsCodeExe`" `"%V`"" },
-            @{ Step = "[repair] ensure FOLDER BACKGROUND"; Target='background'; Path=$ed.registryPaths.background; Cmd="`"$vsCodeExe`" `"%V`"" }
-        )
+        # 1. Ensure folder + background entries (idempotent). Each row is
+        #    gated by the -Only plan so a user can re-write only the half
+        #    that's broken.
+        $ensureMap = @()
+        if ($runEnsureDir) {
+            $ensureMap += @{ Step = "[repair] ensure FOLDER";            Target='directory';  Path=$ed.registryPaths.directory;  Cmd="`"$vsCodeExe`" `"%V`"" }
+        }
+        if ($runEnsureBg) {
+            $ensureMap += @{ Step = "[repair] ensure FOLDER BACKGROUND"; Target='background'; Path=$ed.registryPaths.background; Cmd="`"$vsCodeExe`" `"%V`"" }
+        }
         foreach ($e in $ensureMap) {
             $ok = Register-ContextMenu `
                 -StepLabel $e.Step `
@@ -291,14 +369,17 @@ function Invoke-Script10Repair {
 
         # 2. Drop the file-target entry
         $hasFileTarget = $ed.registryPaths.PSObject.Properties.Name -contains 'file'
-        if ($hasFileTarget) {
+        if ($hasFileTarget -and $runDropFile) {
             $st = Remove-Repair10FileTarget -RegistryPath $ed.registryPaths.file -EditionName $edName
             if ($st -eq 'removed') { $stats.droppedFileTargets++ }
             elseif ($st -eq 'failed') { $stats.errors++ }
         }
 
         # 3. Strip suppression values from the surviving folder + background keys
-        foreach ($keepTarget in @('directory','background')) {
+        $stripTargets = @()
+        if ($runStripDir) { $stripTargets += 'directory'  }
+        if ($runStripBg)  { $stripTargets += 'background' }
+        foreach ($keepTarget in $stripTargets) {
             $hasKey = $ed.registryPaths.PSObject.Properties.Name -contains $keepTarget
             if (-not $hasKey) { continue }
             $regPath = $ed.registryPaths.$keepTarget
@@ -307,23 +388,25 @@ function Invoke-Script10Repair {
         }
 
         # 4. Legacy-name sweep under each of the three shell parents
-        $parents = @{}
-        foreach ($t in @('file','directory','background')) {
-            $hasT = $ed.registryPaths.PSObject.Properties.Name -contains $t
-            if (-not $hasT) { continue }
-            $parent = Get-Repair10ShellParent -RegistryPath $ed.registryPaths.$t
-            $parents[$parent] = $t
-        }
-        foreach ($parentExe in $parents.Keys) {
-            $assocTarget = $parents[$parentExe]
-            foreach ($child in $legacyNames) {
-                $st = Remove-Repair10LegacyChild `
-                    -ParentExePath $parentExe -ChildName $child `
-                    -EditionName $edName -TargetName $assocTarget
-                switch ($st) {
-                    'removed' { $stats.legacyRemoved++ }
-                    'absent'  { $stats.legacyAbsent++  }
-                    'failed'  { $stats.errors++        }
+        if ($runLegacy) {
+            $parents = @{}
+            foreach ($t in @('file','directory','background')) {
+                $hasT = $ed.registryPaths.PSObject.Properties.Name -contains $t
+                if (-not $hasT) { continue }
+                $parent = Get-Repair10ShellParent -RegistryPath $ed.registryPaths.$t
+                $parents[$parent] = $t
+            }
+            foreach ($parentExe in $parents.Keys) {
+                $assocTarget = $parents[$parentExe]
+                foreach ($child in $legacyNames) {
+                    $st = Remove-Repair10LegacyChild `
+                        -ParentExePath $parentExe -ChildName $child `
+                        -EditionName $edName -TargetName $assocTarget
+                    switch ($st) {
+                        'removed' { $stats.legacyRemoved++ }
+                        'absent'  { $stats.legacyAbsent++  }
+                        'failed'  { $stats.errors++        }
+                    }
                 }
             }
         }
