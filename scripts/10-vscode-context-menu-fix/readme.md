@@ -97,6 +97,42 @@ reg query "HKCR\Directory\shell\VSCode" /s
 
 Logs for every run are written under `logs/10-vscode-context-menu-fix/` with a timestamped filename and a `ok`/`fail` status suffix — attach the latest one when reporting issues.
 
+## Repair invariants & opt-out behavior
+
+The `check` verb verifies three repair invariants in addition to the
+install-state check:
+
+| # | Invariant |
+|---|---|
+| 1 | `HKCR\*\shell\<Name>` (file-target) is **absent** |
+| 2 | `directory` + `background` keys carry **no suppression values** (`ProgrammaticAccessOnly`, `AppliesTo`, `NoWorkingDirectory`, `LegacyDisable`, `CommandFlags`) |
+| 3 | No legacy duplicate child keys (allow-list in `config.repair.legacyNames`) under any of the three shell parents |
+
+#### Opt-out: `config.repair.enforceInvariants` (Script 10 has no `verify` harness)
+
+Script 10 exposes **only the config flag** — there is no `-SkipRepairInvariants` switch
+because there is no `verify` test harness here (that lives in Script 54). Behavior is:
+
+| `enforceInvariants` | What `.\run.ps1 -I 10 check` does on an invariant failure |
+|---|---|
+| `true` (default)   | Prints `[MISS]` with `Path` / `Items` / `Why` / `Fix` lines, includes the miss in the action summary, and exits **1**. |
+| `false`            | Prints the same diagnostic but **downgrades the miss to a warning**: it is added to the PASS total, no entry is added to the action summary for that invariant, and the run still exits **0**. The install-state check (Cases 1–3 of "is the entry registered?") is **always** enforced regardless of this flag. |
+
+| Verb | Reads `enforceInvariants`? | Notes |
+|---|---|---|
+| `check`                                | **Yes** | Only verb that consults the flag. |
+| `install` (default) / `uninstall` / `repair` / `rollback` | No | These verbs only *write* state; run `check` afterwards to verify. |
+
+When to flip the flag to `false`: a machine where you *intentionally* keep
+`HKCR\*\shell\<Name>` (i.e. you want the menu on individual files too).
+The install-state portion of `check` will still catch missing/broken entries,
+so you don't lose the rest of the safety net.
+
+The semantics match Script 54's `check`. The only difference is that
+Script 54 *also* has `-SkipRepairInvariants` for its `verify` test harness;
+see [Script 54's readme](../54-vscode-menu-installer/readme.md#opt-out-matrix-configrepairenforceinvariants---skiprepairinvariants)
+for the full two-flag interaction matrix.
+
 ## File layout
 
 | File | Purpose |
