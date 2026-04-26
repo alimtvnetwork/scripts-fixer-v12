@@ -277,6 +277,12 @@
       "folder": "68-user-mgmt",
       "phase": "13",
       "title": "Cross-OS user/group management (Linux useradd|macOS dscl; CLI + JSON object/array auto-detect; mirrors Windows 'os add-user')"
+    },
+    {
+      "id": "70",
+      "folder": "70-install-wordpress-ubuntu",
+      "phase": "14",
+      "title": "Ubuntu WordPress installer (Nginx + PHP-FPM + MySQL/MariaDB + latest WordPress; modular components with --interactive prompts)"
     }
   ]
 }
