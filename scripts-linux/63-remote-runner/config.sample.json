@@ -1,0 +1,41 @@
+{
+  "description": "Remote runner host inventory. Copy/rename to config.json then edit. NEVER COMMIT config.json -- it is auto-added to .gitignore and chmod 600.",
+  "defaults": {
+    "user": "ubuntu",
+    "port": 22,
+    "auth": "password",
+    "password": "",
+    "identity_file": "",
+    "sudo_password": "",
+    "strict_host_key_checking": false,
+    "connect_timeout": 8
+  },
+  "groups": {
+    "web":  ["web-1", "web-2"],
+    "db":   ["db-1"],
+    "all":  ["web-1", "web-2", "db-1"]
+  },
+  "hosts": [
+    {
+      "name": "web-1",
+      "host": "192.168.1.21",
+      "user": "ubuntu",
+      "auth": "password",
+      "password": "CHANGE_ME"
+    },
+    {
+      "name": "web-2",
+      "host": "192.168.1.22",
+      "user": "ubuntu",
+      "auth": "password",
+      "password": "CHANGE_ME"
+    },
+    {
+      "name": "db-1",
+      "host": "192.168.1.31",
+      "user": "ubuntu",
+      "auth": "key",
+      "identity_file": "~/.ssh/id_ed25519"
+    }
+  ]
+}

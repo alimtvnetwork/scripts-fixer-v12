@@ -1,0 +1,22 @@
+{
+  "description": "Log messages for 63-remote-runner",
+  "messages": {
+    "configMissing":      "[63] config.json missing -- copy config.sample.json -> config.json and edit",
+    "configChmod":        "[63] config.json permissions tightened to 600",
+    "gitignoreUpdated":   "[63] Added '63-remote-runner/config.json' to {gitignore} (security)",
+    "depsInstalling":     "[63] Installing required deps: {deps}",
+    "depsMissing":        "[63] Missing dep: {dep} (apt install {pkg})",
+    "targetResolved":     "[63] Target '{target}' resolved to {n} host(s): {hosts}",
+    "targetEmpty":        "[63] Target '{target}' resolved to 0 hosts -- nothing to do",
+    "hostUnknown":        "[63] Unknown host or group: '{name}'",
+    "hostStart":          "[63] [{host}] >>> {cmd}",
+    "hostOk":             "[63] [{host}] OK (exit=0, {dur}s)",
+    "hostFail":           "[63] [{host}] FAIL (exit={code}, {dur}s)",
+    "hostAuthFail":       "[63] [{host}] AUTH FAIL -- check user/password/identity_file",
+    "hostUnreachable":    "[63] [{host}] UNREACHABLE (timeout {sec}s) -- check IP/port/firewall",
+    "passwordPrompt":     "[63] No password set for {host} -- prompt user",
+    "summary":            "[63] Summary: {ok} ok, {fail} fail, {skipped} skipped (total {total})",
+    "sessionLog":         "[63] Session log: {path}",
+    "dryRun":             "[63] [DRY-RUN] would run on {host}: {cmd}"
+  }
+}
