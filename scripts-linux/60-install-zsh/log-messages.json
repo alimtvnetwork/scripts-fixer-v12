@@ -20,6 +20,10 @@
     "alreadyInstalled":    "[60] Already installed",
     "uninstallHint":       "[60] To remove cleanly, use script 62-install-zsh-clear (when available)",
     "chshSkipped":         "[60] chsh skipped (set_default_shell=false in config.json)",
-    "chshDone":            "[60] Default shell changed to {shell}"
+    "chshDone":            "[60] Default shell changed to {shell}",
+    "validateStart":       "[60] === zshrc validation report ({total} checks: {pass} PASS / {warn} WARN / {fail} FAIL) ===",
+    "validateRow":         "[60] [{sev}] {label} -- {detail}",
+    "validateOk":          "[60] zshrc validation OK ({pass} checks passed)",
+    "validateFail":        "[60] zshrc validation FAILED ({fail} hard errors). Run '60 repair' to redeploy."
   }
 }
