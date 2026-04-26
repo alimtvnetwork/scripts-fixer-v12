@@ -1,7 +1,7 @@
 # Project Plan -- Dev Tools Setup
 
-## Current Version: v0.93.0
-## Last Updated: 2026-04-24
+## Current Version: v0.94.0
+## Last Updated: 2026-04-26
 
 ---
 
@@ -24,7 +24,7 @@
 ### 2025 Batch
 - [x] **Group A complete** -- scripts 47-51 (ubuntu-font, conemu+settings, whatsapp, onenote+tray+onedrive, lightshot+tweaks). v0.39.1.
 - [x] **Group B complete** -- `os` dispatcher with `clean`, `hib-off`/`hib-on`, `flp`, `add-user`. Self-elevation + 15 keywords. v0.39.2.
-- [ ] **Group C** -- `git-tools` dispatcher: `gsa` (wildcard + `--scan`)
+- [x] **Group C complete** -- `git-tools` dispatcher: `gsa` (wildcard + `--scan` + `--list` + `--remove` + `--prune` + `--dry-run`), 4 helpers (safe-all, list-safe, remove-safe, prune-safe), root-dispatcher wiring at run.ps1:2183/2239, spec at `spec/2025-batch/05-git-safe-all.md`, config.json filled in. v0.94.0.
 - [x] **Group D complete** -- `profile` dispatcher + 6 declarative profiles (minimal, base, git-compact, advance, cpp-dx, small-dev) with recursive expansion + cycle detection + 5 step kinds (script/choco/subcommand/inline/profile). Extended `Resolve-InstallKeywords` to parse the `["dispatcher:action"]` array convention so `os:` and `profile:` keywords route end-to-end. 11 new profile-* keywords. Inline helpers: PSReadLine latest, SSH ed25519, default GitHub dir, default git config (LFS + safe.directory + gitlab rewrite). v0.39.4.
 - [ ] **Group E** -- polish: default git config update in `scripts/07-install-git/` (extract LFS/safe/url blocks now that `Apply-DefaultGitConfig` covers them), root dispatcher help text refresh for the new `os` / `profile` commands, bump to v0.40.0
 
