@@ -43,6 +43,11 @@ function Show-RouterHelp {
     Write-Host "    CurrentUser  -- writes to HKCU\Software\Classes (only this user)" -ForegroundColor Gray
     Write-Host "    AllUsers     -- writes to HKEY_CLASSES_ROOT (all users; needs admin)" -ForegroundColor Gray
     Write-Host ""
+    Write-Host "  Verbosity (-Verbosity flag, default Normal):" -ForegroundColor Yellow
+    Write-Host "    Quiet   -- only summary totals + failures (best for CI)" -ForegroundColor Gray
+    Write-Host "    Normal  -- full audit + verification report (default)"   -ForegroundColor Gray
+    Write-Host "    Debug   -- everything Normal shows + per-row probe diagnostics" -ForegroundColor Gray
+    Write-Host ""
     Write-Host "  Tip: launch an elevated PowerShell with:" -ForegroundColor Yellow
     Write-Host "    Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-Command','cd ""$((Split-Path -Parent (Split-Path -Parent $scriptDir)))""'" -ForegroundColor DarkGray
     Write-Host ""
