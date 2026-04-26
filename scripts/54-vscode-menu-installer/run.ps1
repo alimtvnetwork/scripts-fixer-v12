@@ -94,10 +94,20 @@ switch ($Command.ToLower()) {
         # Quick read-only registry verification for folder + background +
         # file context-menu entries. Independent of the heavier 'verify'
         # test harness -- safe to run without admin (read-only HKCR).
+        # Honors -Scope so the probe targets the EXACT hive that
+        # install/uninstall would have written to:
+        #   AllUsers    -> HKCR  (machine-wide, lives in HKLM\Software\Classes)
+        #   CurrentUser -> HKCU\Software\Classes
+        # When -Scope Auto (default) we mirror install's resolver: AllUsers
+        # if elevated, else CurrentUser. This makes 'check' an honest
+        # mirror of what the most recent install would have done on this
+        # box, instead of relying on the merged HKCR view that hides drift.
         $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
         . (Join-Path $sharedDir "logging.ps1")
         . (Join-Path $scriptDir "helpers\vscode-check.ps1")
         . (Join-Path $scriptDir "helpers\vscode-repair-check.ps1")
+        # vscode-install.ps1 brings Resolve-MenuScope + Convert-EditionPathsForScope.
+        . (Join-Path $scriptDir "helpers\vscode-install.ps1")
 
         $configPath = Join-Path $scriptDir "config.json"
         $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -109,14 +119,22 @@ switch ($Command.ToLower()) {
         $config  = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
         $logMsgs = Get-Content -LiteralPath $logPath    -Raw | ConvertFrom-Json
 
+        # Resolve scope (read-only: no admin gate; CurrentUser falls back
+        # automatically when -Scope Auto and we're not elevated).
+        $identity      = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal     = New-Object Security.Principal.WindowsPrincipal($identity)
+        $isAdmin       = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        $resolvedScope = Resolve-MenuScope -Requested $Scope -IsAdmin $isAdmin
+        Write-Log ("Resolved scope for check: requested='" + $Scope + "', resolved='" + $resolvedScope + "' (admin=" + $isAdmin + ")") -Level "info"
+
         Write-Log $logMsgs.messages.checkStart -Level "info"
-        $result = Invoke-VsCodeMenuCheck -Config $config -LogMsgs $logMsgs -EditionFilter $Edition
+        $result = Invoke-VsCodeMenuCheck -Config $config -LogMsgs $logMsgs -EditionFilter $Edition -Scope $resolvedScope
 
         # Repair invariants: file ABSENT, no suppression values, no legacy
         # duplicates. Driven by config.repair.enforceInvariants (default true).
         # Misses are added to the rollup so `check` exits 1 when the menu
         # state diverges from what `repair` is supposed to guarantee.
-        $repairResult = Invoke-VsCodeRepairInvariantCheck -Config $config -EditionFilter $Edition
+        $repairResult = Invoke-VsCodeRepairInvariantCheck -Config $config -EditionFilter $Edition -Scope $resolvedScope
 
         $totalMiss = $result.totalMiss + $repairResult.totalMiss
         $totalPass = $result.totalPass + $repairResult.totalPass

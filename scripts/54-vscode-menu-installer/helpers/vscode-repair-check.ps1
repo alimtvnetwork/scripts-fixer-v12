@@ -38,14 +38,42 @@ function Get-HkcrSubkeyPathRC {
     return ($PsPath -replace '^Registry::HKEY_CLASSES_ROOT\\', '')
 }
 
+function Get-HiveAndSubFromRegistryPathRC {
+    <#
+    .SYNOPSIS
+        Splits a "Registry::<HIVE>\sub\path" string into the .NET RegistryKey
+        root for that hive plus the relative sub-path. Mirrors the helper
+        in vscode-check.ps1 -- duplicated here so this read-only module
+        stays standalone (no dependency on the install helper being loaded
+        first).
+    #>
+    param([Parameter(Mandatory)] [string] $PsPath)
+
+    $clean = $PsPath -replace '^Registry::', ''
+    if ($clean -like 'HKEY_CLASSES_ROOT\*') {
+        return [pscustomobject]@{ Root=[Microsoft.Win32.Registry]::ClassesRoot;  Sub=($clean -replace '^HKEY_CLASSES_ROOT\\','');  Hive='HKCR' }
+    }
+    if ($clean -like 'HKEY_CURRENT_USER\*') {
+        return [pscustomobject]@{ Root=[Microsoft.Win32.Registry]::CurrentUser;  Sub=($clean -replace '^HKEY_CURRENT_USER\\','');  Hive='HKCU' }
+    }
+    if ($clean -like 'HKEY_LOCAL_MACHINE\*') {
+        return [pscustomobject]@{ Root=[Microsoft.Win32.Registry]::LocalMachine; Sub=($clean -replace '^HKEY_LOCAL_MACHINE\\',''); Hive='HKLM' }
+    }
+    Write-Log "Unrecognised registry hive in path: '$PsPath' (failure: cannot probe; expected HKCR / HKCU / HKLM prefix)" -Level "warn"
+    return $null
+}
+
 function Get-ShellParentSubkeyRC {
     <#
     .SYNOPSIS
         Maps "Registry::HKEY_CLASSES_ROOT\Directory\shell\VSCode" to
-        the HKCR-relative parent "Directory\shell".
+        the hive-relative parent "Directory\shell". Works for HKCU and
+        HKLM-rooted paths too -- only the leading hive prefix is stripped.
     #>
     param([string]$RegistryPath)
-    $sub = Get-HkcrSubkeyPathRC $RegistryPath
+    $info = Get-HiveAndSubFromRegistryPathRC -PsPath $RegistryPath
+    if ($null -eq $info) { return $RegistryPath }
+    $sub = $info.Sub
     $idx = $sub.LastIndexOf('\')
     if ($idx -lt 0) { return $sub }
     return $sub.Substring(0, $idx)
@@ -54,16 +82,17 @@ function Get-ShellParentSubkeyRC {
 function Test-FileTargetAbsent {
     <#
     .SYNOPSIS
-        Returns $true if the file-target key (HKCR\*\shell\<Name>) does NOT
+        Returns $true if the file-target key (HKCR / HKCU\Software\Classes
+        per resolved scope) does NOT
         exist for this edition. Per repair invariant: the menu must NOT
         appear when right-clicking individual files.
     #>
     param(
         [Parameter(Mandatory)] [string] $RegistryPath
     )
-    $sub  = Get-HkcrSubkeyPathRC $RegistryPath
-    $hkcr = [Microsoft.Win32.Registry]::ClassesRoot
-    $key  = $hkcr.OpenSubKey($sub)
+    $info = Get-HiveAndSubFromRegistryPathRC -PsPath $RegistryPath
+    if ($null -eq $info) { return $true }
+    $key  = $info.Root.OpenSubKey($info.Sub)
     $isAbsent = $null -eq $key
     if (-not $isAbsent) { $key.Close() }
     return $isAbsent
@@ -73,14 +102,16 @@ function Get-SuppressionValuesPresent {
     <#
     .SYNOPSIS
         Returns the list of suppression value names actually present on
-        the given key (empty array = clean). Read-only.
+        the given key (empty array = clean). Probes the EXACT hive named
+        in $RegistryPath -- works for HKCR (AllUsers) and HKCU\Software\
+        Classes (CurrentUser) alike.
     #>
     param(
         [Parameter(Mandatory)] [string] $RegistryPath
     )
-    $sub  = Get-HkcrSubkeyPathRC $RegistryPath
-    $hkcr = [Microsoft.Win32.Registry]::ClassesRoot
-    $key  = $hkcr.OpenSubKey($sub)
+    $info = Get-HiveAndSubFromRegistryPathRC -PsPath $RegistryPath
+    if ($null -eq $info) { return @() }
+    $key  = $info.Root.OpenSubKey($info.Sub)
     if ($null -eq $key) { return @() }
     $found = @()
     try {
@@ -99,14 +130,31 @@ function Get-LegacyChildrenPresent {
     .SYNOPSIS
         Returns the list of legacy/duplicate child key names that DO exist
         under the given shell parent. Strict allow-list: only checks names
-        from $LegacyNames (never enumerates).
+        from $LegacyNames (never enumerates). Probes the hive resolved from
+        $ParentRegistryPath so it works for both HKCR (AllUsers) and HKCU\
+        Software\Classes (CurrentUser).
     #>
     param(
-        [Parameter(Mandatory)] [string]   $ParentSub,    # HKCR-relative
+        # Either an HKCR-relative sub (legacy callers) or a full
+        # "Registry::<HIVE>\sub" path (preferred). When a sub-only string
+        # is given we fall back to HKCR for backward compatibility -- new
+        # callers should always pass the full path so the hive is explicit.
+        [Parameter(Mandatory)] [string]   $ParentSub,
         [Parameter(Mandatory)] [string[]] $LegacyNames
     )
-    $hkcr = [Microsoft.Win32.Registry]::ClassesRoot
-    $parent = $hkcr.OpenSubKey($ParentSub)
+    $root   = $null
+    $subPath = $null
+    if ($ParentSub -like 'Registry::*') {
+        $info = Get-HiveAndSubFromRegistryPathRC -PsPath $ParentSub
+        if ($null -eq $info) { return @() }
+        $root    = $info.Root
+        $subPath = $info.Sub
+    } else {
+        # Backward-compat: bare HKCR-relative sub.
+        $root    = [Microsoft.Win32.Registry]::ClassesRoot
+        $subPath = $ParentSub
+    }
+    $parent = $root.OpenSubKey($subPath)
     if ($null -eq $parent) { return @() }
     $present = @()
     try {
@@ -155,12 +203,21 @@ function Invoke-VsCodeRepairInvariantCheck {
     <#
     .SYNOPSIS
         Run all three repair invariants across every enabled edition.
+
+    .DESCRIPTION
+        When -Scope is supplied (CurrentUser | AllUsers), every config path
+        is first rewritten via Convert-EditionPathsForScope so each invariant
+        is probed in the EXACT hive that install / repair would have
+        targeted. Without this, a per-user repair could not be checked
+        independently of any AllUsers entries already present in HKLM.
     .OUTPUTS
         PSCustomObject with .editions[], .totalPass, .totalMiss, .enforced
     #>
     param(
         [Parameter(Mandatory)] $Config,
-        [string] $EditionFilter = ""
+        [string] $EditionFilter = "",
+        [ValidateSet('CurrentUser','AllUsers')]
+        [string] $Scope = $null
     )
 
     $enforced = Test-RepairInvariantsEnforced -Config $Config
@@ -169,6 +226,7 @@ function Invoke-VsCodeRepairInvariantCheck {
     if ($hasFilter) {
         $editions = $editions | Where-Object { $_ -ieq $EditionFilter }
     }
+    $hasScope = -not [string]::IsNullOrWhiteSpace($Scope)
 
     $legacyNames = Get-RepairLegacyNamesRC -Config $Config
     $editionResults = @()
@@ -189,6 +247,12 @@ function Invoke-VsCodeRepairInvariantCheck {
             continue
         }
         $ed = $Config.editions.$edName
+        # Per-scope rewrite. Convert-EditionPathsForScope is provided by
+        # vscode-install.ps1; we feature-test before calling so this module
+        # remains usable when only the read-only helpers are dot-sourced.
+        if ($hasScope -and (Get-Command Convert-EditionPathsForScope -ErrorAction SilentlyContinue)) {
+            $ed = Convert-EditionPathsForScope -EditionConfig $ed -Scope $Scope
+        }
         Write-Log ("Repair-invariant check for edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
 
         $perEditionMisses = 0
@@ -235,21 +299,37 @@ function Invoke-VsCodeRepairInvariantCheck {
         foreach ($t in @('file','directory','background')) {
             $hasT = $ed.registryPaths.PSObject.Properties.Name -contains $t
             if (-not $hasT) { continue }
-            $sub = Get-ShellParentSubkeyRC $ed.registryPaths.$t
-            $parentSubs[$sub] = $true
+            # Build the hive-prefixed parent path so Get-LegacyChildrenPresent
+            # probes the right hive (HKCR vs HKCU\Software\Classes). Falling
+            # back to bare HKCR-relative subs would silently re-introduce the
+            # cross-hive bug we're fixing here.
+            $info = Get-HiveAndSubFromRegistryPathRC -PsPath $ed.registryPaths.$t
+            if ($null -eq $info) { continue }
+            $parentSub = Get-ShellParentSubkeyRC $ed.registryPaths.$t
+            $parentFull = "Registry::" + (
+                switch ($info.Hive) {
+                    'HKCR' { 'HKEY_CLASSES_ROOT' }
+                    'HKCU' { 'HKEY_CURRENT_USER' }
+                    'HKLM' { 'HKEY_LOCAL_MACHINE' }
+                }
+            ) + "\$parentSub"
+            $parentSubs[$parentFull] = $info.Hive
         }
-        foreach ($parentSub in $parentSubs.Keys) {
-            $present = Get-LegacyChildrenPresent -ParentSub $parentSub -LegacyNames $legacyNames
+        foreach ($parentFull in $parentSubs.Keys) {
+            $hive = $parentSubs[$parentFull]
+            $present = Get-LegacyChildrenPresent -ParentSub $parentFull -LegacyNames $legacyNames
+            # Pretty parent label: drop the "Registry::HKEY_*\" prefix.
+            $prettyParent = "$hive\" + ($parentFull -replace '^Registry::HKEY_[A-Z_]+\\','')
             $isClean = $present.Count -eq 0
             if ($isClean) {
-                Write-Log ("  [PASS] no legacy duplicates under HKCR\" + $parentSub) -Level "success"
+                Write-Log ("  [PASS] no legacy duplicates under " + $prettyParent) -Level "success"
                 $perEditionPasses++
-                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$true; parent="HKCR\$parentSub" }
+                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$true; parent=$prettyParent }
             } else {
                 $joined = ($present -join ', ')
-                Write-Log ("  [MISS] legacy duplicates under HKCR\" + $parentSub + ": " + $joined + " (failure: run 'repair' to remove)") -Level "error"
+                Write-Log ("  [MISS] legacy duplicates under " + $prettyParent + ": " + $joined + " (failure: run 'repair' to remove)") -Level "error"
                 $perEditionMisses++
-                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$false; parent="HKCR\$parentSub"; reason="legacy children present: $joined" }
+                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$false; parent=$prettyParent; reason="legacy children present: $joined" }
             }
         }
 

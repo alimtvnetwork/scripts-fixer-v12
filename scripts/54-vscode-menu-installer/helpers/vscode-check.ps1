@@ -28,10 +28,64 @@ function Get-HkcrSubkeyPathLocal {
     return ($PsPath -replace '^Registry::HKEY_CLASSES_ROOT\\', '')
 }
 
+function Get-HiveAndSubFromRegistryPath {
+    <#
+    .SYNOPSIS
+        Splits a "Registry::<HIVE>\sub\path" string into the .NET RegistryKey
+        root for that hive plus the relative sub-path.
+
+    .DESCRIPTION
+        Needed because the per-user vs per-machine implementation rewrites
+        the original HKCR-based config paths to either:
+          Registry::HKEY_CLASSES_ROOT\...                (AllUsers, machine-wide)
+          Registry::HKEY_CURRENT_USER\Software\Classes\... (CurrentUser only)
+        and the existing reader hard-coded [Microsoft.Win32.Registry]::ClassesRoot,
+        which means a CurrentUser-only entry could only be observed via the
+        merged HKCR view -- the check verb couldn't tell which hive it lived in.
+        This helper returns the right RegistryKey root for either case so we
+        can probe the exact hive the install/uninstall path targeted.
+    #>
+    param([Parameter(Mandatory)] [string] $PsPath)
+
+    $clean = $PsPath -replace '^Registry::', ''
+    if ($clean -like 'HKEY_CLASSES_ROOT\*') {
+        return [pscustomobject]@{
+            Root  = [Microsoft.Win32.Registry]::ClassesRoot
+            Sub   = ($clean -replace '^HKEY_CLASSES_ROOT\\', '')
+            Hive  = 'HKCR'
+        }
+    }
+    if ($clean -like 'HKEY_CURRENT_USER\*') {
+        return [pscustomobject]@{
+            Root  = [Microsoft.Win32.Registry]::CurrentUser
+            Sub   = ($clean -replace '^HKEY_CURRENT_USER\\', '')
+            Hive  = 'HKCU'
+        }
+    }
+    if ($clean -like 'HKEY_LOCAL_MACHINE\*') {
+        return [pscustomobject]@{
+            Root  = [Microsoft.Win32.Registry]::LocalMachine
+            Sub   = ($clean -replace '^HKEY_LOCAL_MACHINE\\', '')
+            Hive  = 'HKLM'
+        }
+    }
+    # Unknown hive: surface the exact failing path so the operator can act.
+    Write-Log "Unrecognised registry hive in path: '$PsPath' (failure: cannot probe; expected HKCR / HKCU / HKLM prefix)" -Level "warn"
+    return $null
+}
+
 function Get-VsCodeMenuEntryStatus {
     <#
     .SYNOPSIS
         Inspect a single context-menu key and return a status hashtable.
+
+    .NOTES
+        Probes the EXACT hive named in $RegistryPath. When the caller has
+        passed the path through Convert-EditionPathsForScope (or supplied
+        an HKCU path directly) we read that specific hive instead of the
+        merged HKCR view -- so we can confirm "this entry is in HKCU"
+        vs "this entry is in HKLM" rather than the ambiguous "it shows up
+        in HKCR somehow".
     #>
     param(
         [Parameter(Mandatory)] [string] $TargetName,
@@ -42,6 +96,7 @@ function Get-VsCodeMenuEntryStatus {
     $status = [ordered]@{
         target          = $TargetName
         registryPath    = $RegistryPath
+        hive            = $null
         keyExists       = $false
         labelOk         = $false
         actualLabel     = $null
@@ -54,13 +109,19 @@ function Get-VsCodeMenuEntryStatus {
         reason          = $null
     }
 
-    $sub  = Get-HkcrSubkeyPathLocal $RegistryPath
-    $hkcr = [Microsoft.Win32.Registry]::ClassesRoot
+    $hiveInfo = Get-HiveAndSubFromRegistryPath -PsPath $RegistryPath
+    if ($null -eq $hiveInfo) {
+        $status.reason = "unrecognised hive in registry path: $RegistryPath"
+        return [pscustomobject]$status
+    }
+    $sub          = $hiveInfo.Sub
+    $root         = $hiveInfo.Root
+    $status.hive  = $hiveInfo.Hive
 
-    $key = $hkcr.OpenSubKey($sub)
+    $key = $root.OpenSubKey($sub)
     $isKeyMissing = $null -eq $key
     if ($isKeyMissing) {
-        $status.reason = "registry key not found: $RegistryPath"
+        $status.reason = "registry key not found in $($hiveInfo.Hive): $RegistryPath"
         return [pscustomobject]$status
     }
     $status.keyExists = $true
@@ -74,10 +135,10 @@ function Get-VsCodeMenuEntryStatus {
         $key.Close()
     }
 
-    $cmdKey = $hkcr.OpenSubKey("$sub\command")
+    $cmdKey = $root.OpenSubKey("$sub\command")
     $isCmdMissing = $null -eq $cmdKey
     if ($isCmdMissing) {
-        $status.reason = "missing \\command subkey under: $RegistryPath"
+        $status.reason = "missing \\command subkey in $($hiveInfo.Hive) under: $RegistryPath"
         return [pscustomobject]$status
     }
     try {
@@ -122,18 +183,41 @@ function Invoke-VsCodeMenuCheck {
     <#
     .SYNOPSIS
         Run quick verification across every enabled edition + target.
+
+    .DESCRIPTION
+        When -Scope is supplied (CurrentUser | AllUsers), every config path
+        is first rewritten via Convert-EditionPathsForScope so the probe
+        targets the EXACT hive that install/uninstall would have used:
+
+          AllUsers    -> Registry::HKEY_CLASSES_ROOT\...
+                         (machine-wide; physically lives in HKLM\Software\Classes)
+          CurrentUser -> Registry::HKEY_CURRENT_USER\Software\Classes\...
+                         (this user only; never observed in HKLM)
+
+        Without this rewrite, a per-user install would still appear to
+        "pass" via the merged HKCR view, masking drift between hives.
     .OUTPUTS
         PSCustomObject with .editions[], .totalPass, .totalMiss
     #>
     param(
         [Parameter(Mandatory)] $Config,
         [Parameter(Mandatory)] $LogMsgs,
-        [string] $EditionFilter = ""
+        [string] $EditionFilter = "",
+        [ValidateSet('CurrentUser','AllUsers')]
+        [string] $Scope = $null
     )
 
     $editionResults = @()
     $totalPass = 0
     $totalMiss = 0
+    $hasScope  = -not [string]::IsNullOrWhiteSpace($Scope)
+    if ($hasScope) {
+        Write-Log ("Check scope: '" + $Scope + "' -- probing " +
+            $(if ($Scope -eq 'AllUsers') { 'HKEY_CLASSES_ROOT (machine-wide)' }
+              else                       { 'HKCU\Software\Classes (per-user)' })) -Level "info"
+    } else {
+        Write-Log "Check scope: not supplied -- probing original config paths (HKCR merged view)." -Level "info"
+    }
 
     $editions = @($Config.enabledEditions)
     $hasFilter = -not [string]::IsNullOrWhiteSpace($EditionFilter)
@@ -148,6 +232,13 @@ function Invoke-VsCodeMenuCheck {
             continue
         }
         $ed = $Config.editions.$edName
+        # When the caller supplied a scope, rewrite every registryPaths.<target>
+        # so subsequent probes hit the right hive. Convert-EditionPathsForScope
+        # is a no-op for AllUsers (returns input unchanged) so this is safe to
+        # run unconditionally when $hasScope.
+        if ($hasScope -and (Get-Command Convert-EditionPathsForScope -ErrorAction SilentlyContinue)) {
+            $ed = Convert-EditionPathsForScope -EditionConfig $ed -Scope $Scope
+        }
 
         Write-Log "" -Level "info"
         Write-Log ("Checking edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
