@@ -1,5 +1,5 @@
 {
-  "version": "0.122.0",
+  "version": "0.123.0",
   "description": "Linux installer registry. Mirrors Windows numbering. Windows-only scripts intentionally absent.",
   "scripts": [
     {
@@ -247,6 +247,12 @@
       "folder": "63-remote-runner",
       "phase": "12",
       "title": "Remote runner (multi-host SSH executor, password+key, groups, parallel)"
+    },
+    {
+      "id": "64",
+      "folder": "64-startup-add",
+      "phase": "12",
+      "title": "Cross-OS startup-add (apps + env vars; autostart|systemd-user|launchagent|shell-rc)"
     }
   ]
 }
