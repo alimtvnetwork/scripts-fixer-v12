@@ -37,6 +37,9 @@ Subverbs:
                                             four leaves in correct order with
                                             a shared summary. See:
                                               bash run.sh bootstrap --help
+  verify          [verify.sh flags]         READ-ONLY pass/fail check of the
+                                            current user/group state. See:
+                                              bash run.sh verify --help
 
 Common flags:
   --dry-run       print what would happen, change nothing
@@ -71,6 +74,8 @@ case "$SUBVERB" in
     exec bash "$SCRIPT_DIR/add-group-from-json.sh" "$@" ;;
   bootstrap|orchestrate|all)
     exec bash "$SCRIPT_DIR/orchestrate.sh" "$@" ;;
+  verify|check|verify-state)
+    exec bash "$SCRIPT_DIR/verify.sh" "$@" ;;
   *)
     log_err "unknown subverb: '$SUBVERB' (failure: see --help for the list)"
     usage
