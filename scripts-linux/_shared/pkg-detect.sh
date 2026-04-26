@@ -73,7 +73,7 @@ resolve_install_method() {
   local has_apt has_snap has_tarball
   has_apt=$(jq -r '.install.apt // empty | if type=="array" then .[0] else . end' "$config" 2>/dev/null)
   has_snap=$(jq -r '.install.snap // empty' "$config" 2>/dev/null)
-  has_tarball=$(jq -r '.install.tarball.url // .install.tarball // empty' "$config" 2>/dev/null)
+  has_tarball=$(jq -r '.install.tarball // empty | if type=="object" then (.url // empty) else . end' "$config" 2>/dev/null)
 
   if [ -n "$has_apt" ]     && is_apt_available  && is_debian_family; then echo "apt";     return 0; fi
   if [ -n "$has_snap" ]    && is_snap_available;                     then echo "snap";    return 0; fi
