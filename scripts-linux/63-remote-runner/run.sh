@@ -2,7 +2,15 @@
 # 63-remote-runner
 # Run a command on one host, a group, or every host defined in config.json.
 # Defaults to PASSWORD auth via sshpass; supports key auth and interactive
-# password prompts. Logs each session to .logs/63/<TS>-<target>.log.
+# password prompts. Each invocation writes a structured run directory:
+#   .logs/63/<TIMESTAMP>-<target>/
+#     ├── command.txt              exact command run
+#     ├── session.log              combined chronological log
+#     ├── manifest.json            machine-readable summary
+#     └── hosts/
+#         ├── <name>.log           raw stdout+stderr per host
+#         └── <name>.meta.json     {host, exit, duration, ts_start, ts_end, status}
+# A 'latest' symlink in .logs/63/ always points to the newest run.
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -13,7 +21,7 @@ export SCRIPT_ID="63"
 
 CONFIG="$SCRIPT_DIR/config.json"
 SAMPLE="$SCRIPT_DIR/config.sample.json"
-SESSION_DIR="$ROOT/.logs/63"
+LOGS_ROOT="$ROOT/.logs/63"
 GITIGNORE_LINE="scripts-linux/63-remote-runner/config.json"
 
 # ---------- bootstrap ----------
