@@ -244,20 +244,30 @@ run_on_host() {
 # ---------- verbs ----------
 verb_run() {
   local target="" cmd="" dry=0 parallel=1
+  # Two-pass parser: flags can appear anywhere (before target, after --, etc.).
+  # Pass 1: collect flags and split positionals at the `--` separator.
+  local -a before_dd=() after_dd=()
+  local seen_dd=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --dry-run)   dry=1; shift ;;
       --parallel)  parallel="${2:-1}"; shift 2 ;;
-      --)          shift; cmd="$*"; break ;;
       -h|--help)   verb_help; return 0 ;;
+      --)          seen_dd=1; shift ;;
       *)
-        if [ -z "$target" ]; then target="$1"; shift
-        elif [ -z "$cmd" ]; then cmd="$1"; shift
-        else cmd="$cmd $1"; shift
-        fi
+        if [ "$seen_dd" = "1" ]; then after_dd+=("$1"); else before_dd+=("$1"); fi
+        shift
         ;;
     esac
   done
+  # Pass 2: target = first positional before `--`; command = everything after `--`
+  # (or, if no `--`, every positional after the target).
+  if [ "${#before_dd[@]}" -ge 1 ]; then target="${before_dd[0]}"; fi
+  if [ "$seen_dd" = "1" ]; then
+    cmd="${after_dd[*]}"
+  elif [ "${#before_dd[@]}" -ge 2 ]; then
+    cmd="${before_dd[*]:1}"
+  fi
 
   [ -n "$target" ] || { log_err "[63] missing <target>";   verb_help; return 2; }
   [ -n "$cmd"    ] || { log_err "[63] missing <command>";  verb_help; return 2; }
