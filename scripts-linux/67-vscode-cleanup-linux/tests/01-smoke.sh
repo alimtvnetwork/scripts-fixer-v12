@@ -118,7 +118,20 @@ else
   grep -q '"tarball"'                "$manifest"; _assert "manifest mentions tarball"     $?
   grep -q '"user-config"'            "$manifest"; _assert "manifest mentions user-config" $?
   grep -q '"method":"tarball"'       "$manifest"; _assert "manifest has tarball rows"     $?
+
+  # Verification block must be present in the manifest and must say PASS.
+  grep -q '"verification"'           "$manifest"; _assert "manifest contains verification block"          $?
+  grep -q '"fail":0'                 "$manifest"; _assert "manifest reports verification fail=0"           $?
+  grep -q '"result":"pass"'          "$manifest"; _assert "manifest contains at least one verify pass row" $?
 fi
+
+# Verify report must have been printed to the apply run output.
+grep -q "verify phase (re-probing every targeted item)" "$SANDBOX/apply.out"; _assert "apply printed verify phase header" $?
+grep -Eq "VERIFICATION VERDICT: .+ PASS"                "$SANDBOX/apply.out"; _assert "apply printed PASS verdict"        $?
+
+# verify.tsv is written next to the manifest.
+verify_tsv="$(dirname "$manifest")/verify.tsv"
+[ -s "$verify_tsv" ]; _assert "verify.tsv written and non-empty ($verify_tsv)" $?
 
 echo "--- apply, no-yes, no-tty (must abort) ---"
 # Re-stage a single user-config dir so the abort run has something to plan.

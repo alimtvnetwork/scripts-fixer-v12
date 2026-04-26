@@ -16,6 +16,7 @@ export SCRIPT_ID="67"
 . "$ROOT/_shared/file-error.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/confirm.sh"
+. "$ROOT/_shared/verify.sh"
 . "$SCRIPT_DIR/helpers/detect.sh"
 . "$SCRIPT_DIR/helpers/remove.sh"
 
@@ -25,6 +26,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="$LOGS_ROOT/$TS"
 ROWS_TSV="$RUN_DIR/rows.tsv"
 PLAN_TSV="$RUN_DIR/plan.tsv"
+VERIFY_TSV="$RUN_DIR/verify.tsv"
 export ROWS_TSV
 
 # --------------------------------------------------------------------- args
@@ -365,6 +367,26 @@ printf '  %s\n' "$(printf '%.0s-' {1..95})"
 printf '  TOTALS: removed=%d  would-remove=%d  missing=%d  skipped=%d  failed=%d\n\n' \
   "$REMOVED" "$WOULD" "$MISSING" "$SKIPPED" "$FAILED"
 
+# --------------------------------------------------------------------- verify
+# Independent post-cleanup verification. Re-probes every removed/would target
+# (file, dir, shim, package, snap) and emits a pass/fail report. This is a
+# second-source check -- if a deletion succeeded but the OS left an entry
+# behind (postrm script, wrong path, sudo missing on a rm-shim) we surface
+# it here as FAIL instead of declaring a successful run.
+_mode_for_verify=""
+if   [ "$APPLY_ABORTED" = "1" ]; then _mode_for_verify="aborted"
+elif [ "$DRY_RUN" -eq 1 ];        then _mode_for_verify="dry-run"
+else                                   _mode_for_verify="apply"
+fi
+VERIFY_PASSES=0; VERIFY_FAILS=0; VERIFY_SKIPS=0
+if [ "$APPLY_ABORTED" = "1" ]; then
+  log_info "===== verify phase skipped (run aborted at confirmation prompt) ====="
+else
+  log_info "===== verify phase (re-probing every targeted item) ====="
+  verify_run    "$ROWS_TSV" "$VERIFY_TSV" "$_mode_for_verify"
+  verify_render "$VERIFY_TSV" "vscode-cleanup-linux verification report"
+fi
+
 # --------------------------------------------------------------------- manifest
 _mode_label() {
   if [ "$APPLY_ABORTED" = "1" ]; then echo "aborted"
@@ -392,7 +414,21 @@ manifest="$RUN_DIR/manifest.json"
     printf '{"status":"%s","method":"%s","kind":"%s","target":"%s","detail":"%s"}' \
       "$s" "$id" "$kind" "$t_esc" "$d_esc"
   done < "$ROWS_TSV"
-  printf ']}\n'
+  printf '],"verification":{"totals":{"pass":%d,"fail":%d,"skipped":%d},"rows":[' \
+    "${VERIFY_PASSES:-0}" "${VERIFY_FAILS:-0}" "${VERIFY_SKIPS:-0}"
+  first=1
+  if [ -f "$VERIFY_TSV" ]; then
+    while IFS=$'\t' read -r vr vb vk vt vd; do
+      [ -z "$vr" ] && continue
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      vt_esc=$(printf '%s' "$vt" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      vd_esc=$(printf '%s' "$vd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      printf '{"result":"%s","method":"%s","kind":"%s","target":"%s","detail":"%s"}' \
+        "$vr" "$vb" "$vk" "$vt_esc" "$vd_esc"
+    done < "$VERIFY_TSV"
+  fi
+  printf ']}}\n'
 } > "$manifest" 2>/dev/null \
   || log_file_error "$manifest" "manifest write failed"
 
@@ -404,6 +440,13 @@ fi
 if [ "$FAILED" -gt 0 ]; then
   log_warn "Completed with $FAILED failure(s). See manifest for details."
   exit 1
+fi
+# Verification failures take priority over a clean apply phase: even if the
+# remove helpers all returned 0, an independent re-probe found targets still
+# present, so the cleanup is NOT actually complete.
+if [ "${VERIFY_FAILS:-0}" -gt 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+  log_warn "Apply finished, but post-cleanup verification reported ${VERIFY_FAILS} target(s) still present. See verify report above and verify.tsv: $VERIFY_TSV"
+  exit 3
 fi
 log_ok "Done."
 exit 0
