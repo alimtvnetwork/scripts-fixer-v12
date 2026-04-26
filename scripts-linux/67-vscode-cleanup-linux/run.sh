@@ -355,7 +355,7 @@ while IFS=$'\t' read -r s _; do
   esac
 done < "$ROWS_TSV"
 
-printf '\n  ===== summary (%s, scope=%s) =====\n' "$([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply)" "$RESOLVED_SCOPE"
+printf '\n  ===== summary (%s, scope=%s) =====\n' "$(_mode_label)" "$RESOLVED_SCOPE"
 printf '  %-9s  %-12s  %-12s  %s\n' "STATUS" "METHOD" "KIND" "TARGET"
 printf '  %s\n' "$(printf '%.0s-' {1..95})"
 while IFS=$'\t' read -r s id kind target detail; do
