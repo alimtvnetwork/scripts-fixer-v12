@@ -1,0 +1,16 @@
+dry-run	caches-user	User caches	A	0	0	0
+skip	logs-journal	systemd journal vacuum (>7d)	D	0	0	0
+dry-run	logs-rotated	Rotated system logs (.gz/.1/.old)	D	0	0	0
+dry-run	logs-system	System crash + diagnostic dumps	D	0	0	0
+dry-run	logs-user	User log files	D	0	0	0
+skip	pkg-apt	apt package cache	C	0	0	0
+skip	pkg-brew	Homebrew cache	C	0	0	0
+dry-run	pkg-bun	bun cache	C	0	0	0
+skip	pkg-dnf	dnf package cache	C	0	0	0
+dry-run	pkg-npm	npm cache	C	0	0	0
+skip	pkg-pacman	pacman package cache	C	0	0	0
+dry-run	pkg-pip	pip cache	C	0	0	0
+skip	pkg-pnpm	pnpm store	C	0	0	0
+skip	pkg-yarn	yarn cache	C	0	0	0
+dry-run	temp-user	User temp directory	A	0	0	0
+dry-run	trash	Trash / Recycle bin	B	0	0	0
