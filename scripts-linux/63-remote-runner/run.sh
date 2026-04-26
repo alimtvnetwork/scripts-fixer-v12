@@ -439,7 +439,7 @@ verb_run() {
   local n; n=$(printf '%s\n' "$hosts" | wc -l)
   log_info "[63] Target '$target' resolved to $n host(s): $(echo "$hosts" | tr '\n' ' ')"
 
-  init_session_log "$target" "$cmd"
+  init_run_dir "$target" "$cmd"
 
   local ok=0 fail=0 skip=0
   # Parallel mode is intentionally simple: background jobs + wait + per-host exit code via files.
@@ -470,6 +470,13 @@ verb_run() {
 
   local total=$((ok + fail + skip))
   log_info "[63] Summary: $ok ok, $fail fail, $skip skipped (total $total)"
+  __write_run_manifest "$ok" "$fail" "$total"
+  if [ -n "$RUN_DIR" ]; then
+    log_info "[63] Manifest: $RUN_DIR/manifest.json"
+    log_info "[63] Per-host: $RUN_HOSTS_DIR/<name>.log"
+    log_info "[63] Latest:   $LOGS_ROOT/latest -> $(basename "$RUN_DIR")"
+  fi
+  __apply_retention
   [ "$fail" = "0" ]
 }
 
