@@ -98,6 +98,17 @@ while [ $# -gt 0 ]; do
         VERB="usr-passthrough"; USR_SUB="cli";  shift; USR_REST=("$@"); break ;;
     add-users-from-json|users-from-json|add-user-from-json|user-from-json)
         VERB="usr-passthrough"; USR_SUB="json"; shift; USR_REST=("$@"); break ;;
+    # ---- top-level shortcut: one-page cheat-sheet for the DIRECT CLI ----
+    # surface of script 68 (no JSON required). Read-only, no side effects.
+    #   ./run.sh useradm-help        -> users + groups + examples
+    #   ./run.sh user-help           -> users only
+    #   ./run.sh group-help          -> groups only
+    useradm-help|usermgmt-help)
+        VERB="useradm-help"; USERADM_SUB="all";   shift; break ;;
+    user-help|users-help)
+        VERB="useradm-help"; USERADM_SUB="user";  shift; break ;;
+    group-help|groups-help)
+        VERB="useradm-help"; USERADM_SUB="group"; shift; break ;;
     *)
         # `./run.sh install wordpress [args]` lands here AFTER install was consumed.
         # Re-route it through the wp passthrough so the user-friendly form works.
