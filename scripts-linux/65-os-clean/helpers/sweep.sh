@@ -6,6 +6,30 @@
 #     LockedDetails:[{Path,Reason}], Status, Notes:[] }
 #
 # CODE RED: every file/dir failure goes through log_file_error <path> <why>.
+#
+# Per-target emission (used by plan-then-confirm + final verify):
+#   When the env var SW_TARGETS_TSV is set to a writable file path, every
+#   sweep_* primitive ALSO appends one row per concrete target to that file
+#   in the schema:
+#     <status>\t<kind>\t<target>\t<bytes>\t<detail>
+#   where:
+#     status  = removed | would | missing | failed | skipped
+#     kind    = rm-file | rm-dir | apt-update | brew-cleanup | journal | <cmd>
+#     target  = absolute path OR "cmd:<argv0> <args>"
+#     bytes   = best-effort bytes attributable to this target
+#     detail  = short human reason (e.g. "preserved-by-caller", lock reason)
+#   The plan/verify stages in run.sh consume this TSV; older callers that
+#   don't set SW_TARGETS_TSV continue to work unchanged (counter-only mode).
+
+# Helper: append one row to the per-target TSV, if enabled.
+# Args: <status> <kind> <target> <bytes> [<detail>]
+_sw_emit_target() {
+  [ -n "${SW_TARGETS_TSV:-}" ] || return 0
+  local status="$1" kind="$2" target="$3" bytes="${4:-0}" detail="${5:-}"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$status" "$kind" "$target" "$bytes" "$detail" \
+    >> "$SW_TARGETS_TSV" \
+    || log_file_error "$SW_TARGETS_TSV" "failed to append target row (kind=$kind target=$target)"
+}
 
 # ---------- byte counting -------------------------------------------------
 # Total bytes for a single path (file or dir). Returns 0 if path is missing
