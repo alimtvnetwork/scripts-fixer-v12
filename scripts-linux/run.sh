@@ -63,6 +63,8 @@ while [ $# -gt 0 ]; do
         VERB="vsclin-passthrough"; VSCLIN_SUB="run";    shift; VSCLIN_REST=("$@"); break ;;
     vscode-clean-linux-detect|vscode-linux-clean-detect)
         VERB="vsclin-passthrough"; VSCLIN_SUB="detect"; shift; VSCLIN_REST=("$@"); break ;;
+    vscode-clean-linux-resolve|vscode-linux-clean-resolve|vscode-resolve-linux|vscode-linux-resolve)
+        VERB="vsclin-passthrough"; VSCLIN_SUB="resolve"; shift; VSCLIN_REST=("$@"); break ;;
     vscode-clean-linux-list|vscode-linux-clean-list)
         VERB="vsclin-passthrough"; VSCLIN_SUB="list";   shift; VSCLIN_REST=("$@"); break ;;
     vscode-clean-linux-help|vscode-linux-clean-help)
@@ -143,7 +145,7 @@ macOS VS Code menu cleanup (script 66 shortcuts; macOS only):
 
 Linux VS Code uninstaller (script 67 shortcuts; Linux only):
   vscode-clean-linux           Detect install method (apt|snap|deb|tarball|
-                               user-config) and remove ONLY the matching
+                               binary|user-config) and remove ONLY the matching
                                packages, files, and configuration.
       --dry-run                Preview every targeted package/path
       --scope user|system      Default 'auto': system if root, else user
@@ -151,6 +153,10 @@ Linux VS Code uninstaller (script 67 shortcuts; Linux only):
       --skip-detect            Run --only methods without re-probing
   vscode-clean-linux-detect    Detect-only: print which install methods are
                                present, no changes
+  vscode-resolve-linux         Detect-only, print SINGLE classification line:
+                                 method=<apt|snap|deb|tarball|binary|user-config|none>
+                                 edition=<stable|insiders|both>  detail='...'
+                               Exit codes: 0=single method, 1=multiple, 2=none.
   vscode-clean-linux-list      Print catalog of methods + probes + steps
 
 Ubuntu WordPress installer (script 70 shortcuts; Ubuntu/Debian only):

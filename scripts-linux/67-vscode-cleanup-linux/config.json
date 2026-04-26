@@ -1,5 +1,5 @@
 {
-  "_comment": "Allow-list for the Linux/Ubuntu VS Code cleanup. The script first DETECTS which install methods are present on this machine (apt | snap | deb | tarball | user-config), then removes ONLY the matching artifacts. Nothing outside this file is ever touched (CODE RED safety: surgical, never enumerative). Add or remove entries here to tune scope.",
+  "_comment": "Allow-list for the Linux/Ubuntu VS Code cleanup. The script first DETECTS which install methods are present on this machine (apt | snap | deb | tarball | binary | user-config), then removes ONLY the matching artifacts. Nothing outside this file is ever touched (CODE RED safety: surgical, never enumerative). Add or remove entries here to tune scope.",
   "enabled": true,
   "_safetyComment": "Apply by default. Pass --dry-run to preview every targeted package/path before any deletion. A manifest is written either way under .logs/67/<TS>/manifest.json mirroring scripts 65 & 66.",
   "_scopeComment": "Default scope when --scope is omitted. 'auto' = system if running as root, else user. 'user' limits removal to ~/.config, ~/.vscode, ~/.vscode-server, and per-user shims. 'system' adds apt/snap/dpkg removal + /usr/bin shims + /etc/apt sources (needs sudo).",
@@ -41,6 +41,16 @@
         { "kind": "dir-exists", "path": "/opt/visual-studio-code" },
         { "kind": "dir-exists", "path": "$HOME/VSCode-linux-x64" },
         { "kind": "dir-exists", "path": "$HOME/.local/share/code" }
+      ]
+    },
+    "binary": {
+      "label": "raw binary / shim with no package owner",
+      "_comment": "Hits when 'code' (or 'code-insiders') is on PATH but NOT owned by dpkg, NOT a snap, AND not in any of the known tarball roots. This is the 'someone copied the binary into /usr/local/bin' or 'curl|sh installer dropped a shim' case. Probes are evaluated AFTER apt/snap/deb/tarball so the resolver can pick the most specific method when several match.",
+      "probes": [
+        { "kind": "cmd-no-pkg-owner",   "pkg": "code",          "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] },
+        { "kind": "cmd-no-pkg-owner",   "pkg": "code-insiders", "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] },
+        { "kind": "symlink-into-roots", "pkg": "code",          "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] },
+        { "kind": "symlink-into-roots", "pkg": "code-insiders", "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] }
       ]
     },
     "user-config": {
@@ -97,6 +107,20 @@
         { "kind": "rm-file",   "path": "/usr/share/applications/code-insiders.desktop", "requiresSudo": true },
         { "kind": "rm-file",   "path": "$HOME/.local/share/applications/code.desktop"                       },
         { "kind": "rm-file",   "path": "$HOME/.local/share/applications/code-insiders.desktop"              }
+      ]
+    },
+    "binary": {
+      "scope": "mixed",
+      "_comment": "Removes ONLY the unowned shim/binary itself + per-user desktop entry. Never recurses into a directory the user might still need. Tarball roots are intentionally NOT touched here (the 'tarball' method owns those).",
+      "steps": [
+        { "kind": "rm-shim",   "path": "/usr/local/bin/code",                              "requiresSudo": true },
+        { "kind": "rm-shim",   "path": "/usr/local/bin/code-insiders",                     "requiresSudo": true },
+        { "kind": "rm-shim",   "path": "/usr/bin/code",                                    "requiresSudo": true },
+        { "kind": "rm-shim",   "path": "/usr/bin/code-insiders",                           "requiresSudo": true },
+        { "kind": "rm-shim",   "path": "$HOME/.local/bin/code"                                                  },
+        { "kind": "rm-shim",   "path": "$HOME/.local/bin/code-insiders"                                         },
+        { "kind": "rm-file",   "path": "$HOME/.local/share/applications/code.desktop"                           },
+        { "kind": "rm-file",   "path": "$HOME/.local/share/applications/code-insiders.desktop"                  }
       ]
     },
     "user-config": {

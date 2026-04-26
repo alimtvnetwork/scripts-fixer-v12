@@ -1,0 +1,1 @@
+binary	cmd-no-pkg-owner	cmd=code path=/tmp/fakebin/code real=/tmp/fakebin/code (no dpkg owner, not a snap, not in tarball roots)

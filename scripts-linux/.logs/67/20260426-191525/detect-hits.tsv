@@ -1,0 +1,3 @@
+binary	cmd-no-pkg-owner	cmd=code path=/tmp/fakebin/code real=/tmp/fake-tarball-root/bin/code (no dpkg owner, not a snap, not in tarball roots)
+binary	symlink-into-roots	cmd=code symlink=/tmp/fakebin/code -> target=/tmp/fake-tarball-root/bin/code root=/tmp/fake-tarball-root
+tarball	dir-exists	dir=/tmp/fake-tarball-root size=512

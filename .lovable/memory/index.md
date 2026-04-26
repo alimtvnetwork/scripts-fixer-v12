@@ -21,6 +21,7 @@ CODE RED: Every file/path error MUST log exact file path + failure reason. Use W
 - [Questionnaire](mem://features/questionnaire) — Questionnaire system for script 12
 - [Resolved folder](mem://features/resolved-folder) — .resolved/ runtime state persistence
 - [Shared helpers](mem://features/shared-helpers) — Shared PowerShell helper modules
+- [Script 67 binary detector + resolve](mem://features/12-script-67-binary-detector-resolver) — Adds 'binary' install method, two new probe kinds (cmd-no-pkg-owner, symlink-into-roots), and a `resolve` verb that prints single classification line with structured exit code
 - [Script 70 WordPress Ubuntu](mem://features/11-script-70-wordpress-ubuntu) — Modular Ubuntu LEMP+WordPress installer with --interactive prompts and root run.sh `wp`/`install wordpress`/`install wp-only` shortcuts
 - [Script 54 verbosity switch](mem://features/09-script-54-verbosity-switch) — -Verbosity Quiet|Normal|Debug for verification + audit reports; failures never suppressed
 - [os clean-vscode-mac](mem://features/10-os-clean-vscode-mac) — bash macOS cleanup of VS Code Services / code CLI / LaunchServices / login items, plan-then-prompt + audit JSONL
