@@ -600,18 +600,122 @@ for entry in "${plan_login_arr[@]}"; do
 done
 
 # ---- summary ---------------------------------------------------------------
+# ---- post-cleanup verification --------------------------------------------
+# Re-runs the SAME planners against the live system and reports anything
+# the cleanup left behind. Surfaces are checked only when they were
+# enabled for this run -- we never assert on a surface the operator
+# excluded via --services / --code-cli / etc.
+#
+# Special case: launchservices. `lsregister -u` unregisters UTI/handler
+# claims but leaves Code.app on disk -- the planner would still re-find
+# the bundle. Verification therefore queries `lsregister -dump` for the
+# bundle id and reports it as "remaining" only if it still appears in
+# the LaunchServices database. If `lsregister` is unavailable, we fall
+# back to a clear UNKNOWN line (never silent).
+
+declare -a remaining_services_arr=() remaining_codecli_arr=() remaining_lsreg_arr=() remaining_login_arr=()
+remaining_total=0
+verify_unknown=0   # incremented when a check could not be performed
+
+if [[ $do_services -eq 1 ]]; then
+    mapfile -t remaining_services_arr < <(plan_services)
+fi
+if [[ $do_code_cli -eq 1 ]]; then
+    mapfile -t remaining_codecli_arr < <(plan_code_cli)
+fi
+if [[ $do_loginitems -eq 1 ]]; then
+    mapfile -t remaining_login_arr < <(plan_loginitems)
+fi
+if [[ $do_launchservices -eq 1 ]]; then
+    # For each bundle that was in the original plan, query the
+    # LaunchServices database to confirm its registrations are gone.
+    lsreg_v="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+    if [[ -x "$lsreg_v" ]]; then
+        # `lsregister -dump` is slow; cache once.
+        ls_dump="$("$lsreg_v" -dump 2>/dev/null || true)"
+        for entry in "${plan_lsreg_arr[@]}"; do
+            [[ -z "$entry" ]] && continue
+            bundle="${entry#lsregister -u :: }"
+            # Pull the bundle id from Info.plist (already verified earlier).
+            id="$(_pb 'Print :CFBundleIdentifier' "${bundle}/Contents/Info.plist")"
+            if [[ -z "$id" ]]; then
+                log_warn "Verify launchservices: cannot read CFBundleIdentifier for ${bundle} (failure: PlistBuddy returned empty)"
+                verify_unknown=$(( verify_unknown + 1 ))
+                remaining_lsreg_arr+=("UNKNOWN :: ${bundle}")
+                continue
+            fi
+            # Match `bundle id: <id>` AND `path: <bundle>` in the dump.
+            if printf '%s' "$ls_dump" | grep -F -q "bundle id:        ${id}" 2>/dev/null \
+               || printf '%s' "$ls_dump" | grep -F -q "${bundle}" 2>/dev/null; then
+                remaining_lsreg_arr+=("${id} still registered :: ${bundle}")
+            fi
+        done
+    else
+        log_warn "Verify launchservices: lsregister not executable at ${lsreg_v} (failure: cannot query LaunchServices DB; cannot confirm unregistration)"
+        verify_unknown=$(( verify_unknown + 1 ))
+    fi
+fi
+
+remaining_total=$(( ${#remaining_services_arr[@]} + ${#remaining_codecli_arr[@]} + ${#remaining_lsreg_arr[@]} + ${#remaining_login_arr[@]} ))
+
+echo ""
+echo "============================================================"
+echo " macOS VS Code integration cleanup -- VERIFY"
+echo "============================================================"
+printf "  remaining : %d entry(ies) on enabled surfaces\n" "$remaining_total"
+printf "  unknown   : %d check(s) could not be performed\n"  "$verify_unknown"
+echo "------------------------------------------------------------"
+
+_print_verify_group() {
+    local title="$1"; shift
+    local enabled="$1"; shift
+    local -a items=("$@")
+    if [[ "$enabled" -eq 0 ]]; then
+        printf "  %-16s : (skipped -- surface not selected)\n" "$title"
+        return
+    fi
+    if [[ ${#items[@]} -eq 0 || ( ${#items[@]} -eq 1 && -z "${items[0]}" ) ]]; then
+        printf "  %-16s : OK (none remaining)\n" "$title"
+    else
+        printf "  %-16s : %d remaining\n" "$title" "${#items[@]}"
+        for it in "${items[@]}"; do
+            [[ -z "$it" ]] && continue
+            printf "      ! %s\n" "$it"
+            audit_event "remaining" "${title,,}" "$it" "post-cleanup re-check found this entry"
+        done
+    fi
+}
+
+_print_verify_group "Services"          "$do_services"       "${remaining_services_arr[@]}"
+_print_verify_group "code CLI symlink"  "$do_code_cli"       "${remaining_codecli_arr[@]}"
+_print_verify_group "LaunchServices"    "$do_launchservices" "${remaining_lsreg_arr[@]}"
+_print_verify_group "Login items"       "$do_loginitems"     "${remaining_login_arr[@]}"
+echo "============================================================"
+
+audit_event "verify-end" "all" "" "remaining=${remaining_total} unknown=${verify_unknown}"
+
 echo ""
 echo "============================================================"
 echo " macOS VS Code integration cleanup -- SUMMARY"
 echo "============================================================"
 printf "  removed : %d\n" "$removed_count"
 printf "  failed  : %d\n" "$fail_count"
+printf "  remaining (post-cleanup verify) : %d\n" "$remaining_total"
+printf "  verify-unknown                  : %d\n" "$verify_unknown"
 printf "  audit   : %s\n" "${audit_path:-<disabled>}"
 echo "============================================================"
 audit_event "session-end" "all" "" "removed=${removed_count} failed=${fail_count}"
 
-if [[ $fail_count -gt 0 ]]; then
+if [[ $fail_count -gt 0 ]] || [[ $remaining_total -gt 0 ]]; then
+    if [[ $remaining_total -gt 0 ]]; then
+        log_warn "Post-cleanup verification found ${remaining_total} remaining entry(ies). See VERIFY block above + audit log for exact paths."
+    fi
+    if [[ $fail_count -gt 0 ]]; then
     log_warn "Completed with ${fail_count} failure(s). Review the audit log above for exact paths + reasons."
+    fi
     exit 3
+fi
+if [[ $verify_unknown -gt 0 ]]; then
+    log_warn "Post-cleanup verification completed with ${verify_unknown} check(s) marked UNKNOWN. Cleanup itself succeeded -- but at least one surface could not be re-checked. See VERIFY block above."
 fi
 exit 0
