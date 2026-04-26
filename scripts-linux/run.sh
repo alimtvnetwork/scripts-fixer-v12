@@ -42,6 +42,8 @@ while [ $# -gt 0 ]; do
         VERB="startup-passthrough"; STARTUP_SUB="app";    shift; STARTUP_REST=("$@"); break ;;
     startup-env)
         VERB="startup-passthrough"; STARTUP_SUB="env";    shift; STARTUP_REST=("$@"); break ;;
+    startup-prune|startup-purge)
+        VERB="startup-passthrough"; STARTUP_SUB="prune";  shift; STARTUP_REST=("$@"); break ;;
     *) log_warn "Unknown arg: $1"; shift ;;
   esac
 done
@@ -71,6 +73,9 @@ Cross-OS startup management (script 64 shortcuts):
       --all                    Remove from every method that holds it
   startup-add <path> [...]     Register an app to run at login
   startup-env  KEY=VALUE       Persist an env var
+  startup-prune                Idempotent sweep: remove ALL tool-tagged entries
+      --dry-run                Preview only, no changes
+      --yes                    Skip the interactive confirmation prompt
 
 Flags:
   -I <id>              Restrict to a single script id
