@@ -339,6 +339,30 @@ case "${VERB:-help}" in
       bash "$ROOT/70-install-wordpress-ubuntu/run.sh" "$WP_SUB" "${_wp_filtered[@]}"
     fi
     ;;
+  grp-passthrough)
+    # Filter empties (some bash versions add a stray "" when "$@" was empty
+    # at capture time -- same dance as vsclin/wp passthroughs above).
+    _grp_filtered=()
+    for _a in "${GRP_REST[@]:-}"; do [ -n "$_a" ] && _grp_filtered+=("$_a"); done
+    case "$GRP_SUB" in
+      cli)
+        if [ "${#_grp_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/add-group.sh" "${_grp_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/add-group.sh"
+        fi
+        ;;
+      json)
+        if [ "${#_grp_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/add-group-from-json.sh" "${_grp_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/add-group-from-json.sh"
+        fi
+        ;;
+      *)
+        log_err "internal: unknown grp sub '$GRP_SUB'"; exit 64 ;;
+    esac
+    ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then
       run_one "$ONLY_ID" "$VERB"
