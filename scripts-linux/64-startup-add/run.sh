@@ -62,9 +62,78 @@ main() {
   esac
 }
 
-# cmd_app + cmd_env still stubbed (waiting for Step 12 wiring); list + remove are live.
-cmd_app()    { log_warn "[64] cmd_app wiring lands in Step 12 -- helpers ready (write_autostart_desktop / write_launchagent_plist / etc.)"; return 0; }
-cmd_env()    { log_warn "[64] cmd_env wiring lands in Step 12 -- helpers ready (write_shell_rc_env / write_launchctl_env)";                return 0; }
+# ---- helpers for cmd_app / cmd_env ----
+
+_pick_default_method_app() {
+  # Use detect_default_app_method if available; else hard-code by OS.
+  if declare -f detect_default_app_method >/dev/null 2>&1; then
+    detect_default_app_method
+    return $?
+  fi
+  case "$(uname -s)" in
+    Darwin) echo "launchagent" ;;
+    *)      [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && echo "autostart" || echo "systemd-user" ;;
+  esac
+}
+
+_dispatch_app_method() {
+  local method="$1" name="$2" path="$3" args="$4"
+  case "$method" in
+    autostart)    write_autostart_desktop "$name" "$path" "$args" ;;
+    systemd-user) write_systemd_user_unit "$name" "$path" "$args" ;;
+    shell-rc)     append_shell_rc_app     "$name" "$path" "$args" ;;
+    launchagent)  write_launchagent_plist "$name" "$path" "$args" ;;
+    login-item)   add_login_item          "$name" "$path" "false" ;;
+    *) log_file_error "(method=$method)" "unsupported app method"; return 1 ;;
+  esac
+}
+
+_dispatch_env_method() {
+  local method="$1" key="$2" value="$3"
+  case "$method" in
+    shell-rc)  write_shell_rc_env  "$key" "$value" ;;
+    launchctl) write_launchctl_env "$key" "$value" ;;
+    *) log_file_error "(method=$method)" "unsupported env method"; return 1 ;;
+  esac
+}
+
+cmd_app() {
+  local path="" name="" method="" args=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --method) method="${2:-}"; shift 2 ;;
+      --name)   name="${2:-}";   shift 2 ;;
+      --args)   args="${2:-}";   shift 2 ;;
+      -h|--help) usage; return 0 ;;
+      *) [ -z "$path" ] && path="$1" || log_warn "[64] ignoring extra arg: $1"; shift ;;
+    esac
+  done
+  if [ -z "$path" ]; then
+    log_warn "[64] app: <path> required"; usage; return 1
+  fi
+  [ -z "$name" ]   && name="$(basename "$path" | sed 's/\.[^.]*$//')"
+  [ -z "$method" ] && method="$(_pick_default_method_app)"
+  log_info "[64] app add: name=$name method=$method path=$path args='$args'"
+  _dispatch_app_method "$method" "$name" "$path" "$args"
+}
+
+cmd_env() {
+  local kv="" method="shell-rc" scope="user"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --method) method="${2:-shell-rc}"; shift 2 ;;
+      --scope)  scope="${2:-user}";      shift 2 ;;
+      -h|--help) usage; return 0 ;;
+      *) [ -z "$kv" ] && kv="$1" || log_warn "[64] ignoring extra arg: $1"; shift ;;
+    esac
+  done
+  if [ -z "$kv" ] || ! printf '%s' "$kv" | grep -q '='; then
+    log_warn "[64] env: KEY=VALUE required"; usage; return 1
+  fi
+  local key="${kv%%=*}" value="${kv#*=}"
+  log_info "[64] env add: key=$key method=$method scope=$scope"
+  _dispatch_env_method "$method" "$key" "$value"
+}
 
 cmd_list() {
   if ! declare -f list_startup_entries >/dev/null 2>&1; then
