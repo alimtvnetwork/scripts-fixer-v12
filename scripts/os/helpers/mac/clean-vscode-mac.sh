@@ -156,6 +156,158 @@ audit_event() {
 is_root=0
 [[ "$(id -u)" == "0" ]] && is_root=1
 
+# ---- ownership detection (verify-before-plan) ------------------------------
+# A candidate is only added to the plan if a positive VS Code-ownership
+# signal is found. Rejections are NEVER silent -- they log a [DEBUG] line
+# (visible with --debug) AND a [WARN] line (always visible) when a
+# user-provided/heuristic match was rejected, so the operator knows why
+# something they expected to see is missing from the plan.
+#
+# Signals (any one is sufficient):
+#   * .workflow bundle:    Contents/Info.plist -> CFBundleIdentifier contains
+#                          "VSCode" / "vscode" / "microsoft.code"
+#                          OR document.wflow references "Visual Studio Code.app"
+#   * code CLI symlink:    readlink -f resolves to a path INSIDE a real
+#                          Code.app bundle (Contents/Resources/app/bin/code)
+#                          OR the symlink is broken AND the basename is "code"
+#                          AND the previous link target string mentioned VS Code
+#   * Code.app bundle:     Info.plist CFBundleIdentifier == "com.microsoft.VSCode"
+#                          (or *.VSCodeInsiders / *.VSCodeExploration)
+#   * LaunchAgents .plist: Label or ProgramArguments[0] / Program references
+#                          "com.microsoft.VSCode" OR a path containing
+#                          "Visual Studio Code.app"
+#   * Login item:          Path contains "Visual Studio Code.app"
+#                          (already filtered upstream by AppleScript query)
+#
+# CODE RED: every rejection log includes the EXACT path AND the reason.
+
+_pb() {
+    # PlistBuddy wrapper -- echoes value or empty; never aborts the script.
+    /usr/libexec/PlistBuddy -c "$1" "$2" 2>/dev/null || true
+}
+
+_is_vscode_bundle_id() {
+    # Returns 0 if the given CFBundleIdentifier string is VS Code-owned.
+    local id="${1:-}"
+    [[ -z "$id" ]] && return 1
+    case "$id" in
+        com.microsoft.VSCode|com.microsoft.VSCodeInsiders|com.microsoft.VSCodeExploration) return 0 ;;
+        *vscode*|*VSCode*|*microsoft.code*) return 0 ;;
+    esac
+    return 1
+}
+
+verify_workflow() {
+    # verify_workflow <abs path to .workflow bundle>
+    local wf="$1"
+    if [[ ! -d "$wf" ]]; then
+        log_warn "Verification skipped: path is not a directory -> ${wf} (failure: -d test failed)"
+        return 1
+    fi
+    local info="${wf}/Contents/Info.plist"
+    if [[ -f "$info" ]]; then
+        local id; id="$(_pb 'Print :CFBundleIdentifier' "$info")"
+        if _is_vscode_bundle_id "$id"; then
+            log_debug "verify ok [services] ${wf} (bundle id: ${id})"
+            return 0
+        fi
+        # Fallback: scan the .wflow document for an explicit Code.app reference.
+        local doc="${wf}/Contents/document.wflow"
+        if [[ -f "$doc" ]] && grep -qE 'Visual Studio Code\.app|com\.microsoft\.VSCode' "$doc" 2>/dev/null; then
+            log_debug "verify ok [services] ${wf} (document.wflow references VS Code)"
+            return 0
+        fi
+        log_warn "Skip ${wf} (failure: not VS Code-owned -- CFBundleIdentifier='${id:-<missing>}', no Code.app reference in document.wflow)"
+        return 1
+    fi
+    # No Info.plist at all -> fall back to filename heuristic but log loudly.
+    log_warn "Skip ${wf} (failure: missing Contents/Info.plist -- cannot verify ownership; will not delete on filename match alone)"
+    return 1
+}
+
+verify_code_cli() {
+    # verify_code_cli <abs path to candidate symlink/file>
+    local c="$1"
+    if [[ ! -L "$c" && ! -f "$c" ]]; then return 1; fi
+    if [[ -L "$c" ]]; then
+        # Resolve full chain. readlink -f is GNU-only; macOS readlink lacks -f
+        # but `python3 -c 'os.path.realpath'` is always present on macOS 10.15+.
+        local resolved=""
+        if resolved="$(/usr/bin/python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$c" 2>/dev/null)"; then
+            :
+        else
+            resolved="$(readlink "$c" 2>/dev/null || true)"
+        fi
+        if [[ -z "$resolved" ]]; then
+            log_warn "Skip ${c} (failure: cannot resolve symlink target)"
+            return 1
+        fi
+        # Canonical install path inside the bundle.
+        if [[ "$resolved" == *"/Visual Studio Code.app/Contents/Resources/app/bin/code"* ]] \
+           || [[ "$resolved" == *"/Code.app/Contents/Resources/app/bin/code"* ]] \
+           || [[ "$resolved" == *"VSCode"*"/bin/code"* ]]; then
+            log_debug "verify ok [code-cli] ${c} -> ${resolved}"
+            return 0
+        fi
+        # Broken link (target does not exist) -- only accept if the dangling
+        # path STILL points at a Code.app location, otherwise we refuse.
+        if [[ ! -e "$resolved" ]]; then
+            if [[ "$resolved" == *"Visual Studio Code.app"* ]] || [[ "$resolved" == *"VSCode"* ]]; then
+                log_debug "verify ok [code-cli] ${c} (broken link, but target string references VS Code: ${resolved})"
+                return 0
+            fi
+            log_warn "Skip ${c} (failure: broken symlink to non-VSCode target -> ${resolved})"
+            return 1
+        fi
+        log_warn "Skip ${c} (failure: resolves to non-VSCode binary -> ${resolved})"
+        return 1
+    fi
+    # Regular file (not a symlink) at /usr/local/bin/code etc. -- could be a
+    # custom user script. Refuse unless its first 4KB explicitly mentions VS Code.
+    if head -c 4096 "$c" 2>/dev/null | grep -qE 'Visual Studio Code|com\.microsoft\.VSCode|VSCODE_'; then
+        log_debug "verify ok [code-cli] ${c} (regular file with VS Code marker)"
+        return 0
+    fi
+    log_warn "Skip ${c} (failure: regular file with no VS Code markers in first 4KB -- refusing to delete)"
+    return 1
+}
+
+verify_code_app() {
+    # verify_code_app <abs path to .app bundle>
+    local app="$1"
+    [[ -d "$app" ]] || return 1
+    local info="${app}/Contents/Info.plist"
+    if [[ ! -f "$info" ]]; then
+        log_warn "Skip ${app} (failure: missing Contents/Info.plist -- cannot verify bundle identity)"
+        return 1
+    fi
+    local id; id="$(_pb 'Print :CFBundleIdentifier' "$info")"
+    if _is_vscode_bundle_id "$id"; then
+        log_debug "verify ok [launchservices] ${app} (bundle id: ${id})"
+        return 0
+    fi
+    log_warn "Skip ${app} (failure: bundle id '${id:-<missing>}' is not com.microsoft.VSCode*)"
+    return 1
+}
+
+verify_launch_agent() {
+    # verify_launch_agent <abs path to .plist>
+    local p="$1"
+    [[ -f "$p" ]] || return 1
+    local label prog args0
+    label="$(_pb 'Print :Label'              "$p")"
+    prog="$(_pb  'Print :Program'            "$p")"
+    args0="$(_pb 'Print :ProgramArguments:0' "$p")"
+    if _is_vscode_bundle_id "$label" \
+       || [[ "$prog"  == *"Visual Studio Code.app"* ]] || [[ "$prog"  == *"VSCode"* ]] \
+       || [[ "$args0" == *"Visual Studio Code.app"* ]] || [[ "$args0" == *"VSCode"* ]]; then
+        log_debug "verify ok [loginitems] ${p} (label='${label}' program='${prog:-$args0}')"
+        return 0
+    fi
+    log_warn "Skip ${p} (failure: plist not VS Code-owned -- Label='${label:-<missing>}' Program='${prog:-<missing>}' ProgramArguments[0]='${args0:-<missing>}')"
+    return 1
+}
+
 # ---- planners (build the list of targets that WOULD be removed) -----------
 # Each planner echoes one absolute target per line on stdout. Stderr is
 # reserved for warnings (e.g. unreadable directory). No side effects.
@@ -166,11 +318,15 @@ plan_services() {
     if [[ -d "$d" ]]; then
         # Match common VS Code Service names. Use -iname so case differences
         # in user-installed workflows still match.
-        find "$d" -maxdepth 1 -type d \( \
+        local cand
+        while IFS= read -r cand; do
+            [[ -z "$cand" ]] && continue
+            verify_workflow "$cand" && echo "$cand"
+        done < <(find "$d" -maxdepth 1 -type d \( \
               -iname '*VSCode*.workflow' \
            -o -iname '*Visual Studio Code*.workflow' \
            -o -iname '*Open*Code*.workflow' \
-        \) 2>/dev/null
+        \) 2>/dev/null)
     else
         log_debug "Skip services plan: directory missing -> $d"
     fi
@@ -178,11 +334,15 @@ plan_services() {
     if [[ $is_root -eq 1 ]]; then
         local md="/Library/Services"
         if [[ -d "$md" && -w "$md" ]]; then
-            find "$md" -maxdepth 1 -type d \( \
+            local mcand
+            while IFS= read -r mcand; do
+                [[ -z "$mcand" ]] && continue
+                verify_workflow "$mcand" && echo "$mcand"
+            done < <(find "$md" -maxdepth 1 -type d \( \
                   -iname '*VSCode*.workflow' \
                -o -iname '*Visual Studio Code*.workflow' \
                -o -iname '*Open*Code*.workflow' \
-            \) 2>/dev/null
+            \) 2>/dev/null)
         fi
     fi
 }
@@ -196,40 +356,29 @@ plan_code_cli() {
     )
     for c in "${candidates[@]}"; do
         if [[ -L "$c" || -f "$c" ]]; then
-            # Only include when its target points back at a Code.app bundle
-            # OR when we cannot resolve (broken link -> still ours to clean).
-            local target=""
-            if [[ -L "$c" ]]; then
-                target="$(readlink "$c" 2>/dev/null || true)"
-            fi
-            if [[ -z "$target" ]] \
-               || [[ "$target" == *"Visual Studio Code.app"* ]] \
-               || [[ "$target" == *"VSCode"* ]]; then
-                echo "$c"
-            else
-                log_debug "Skip code-cli candidate $c -> not a VS Code symlink (points at: $target)"
-            fi
+            verify_code_cli "$c" && echo "$c"
         fi
     done
 }
 
 plan_launchservices() {
-    # We don't enumerate; lsregister -u just unregisters the bundle's
-    # UTI claims. The "plan" line is the bundle ID we'd unregister.
-    # Detect Code.app paths so we report what `lsregister -u` will hit.
+    # Detect real Code.app bundles whose CFBundleIdentifier proves they are
+    # Microsoft VS Code (NOT just any folder named "Visual Studio Code.app").
     local apps=(
         "/Applications/Visual Studio Code.app"
         "${HOME}/Applications/Visual Studio Code.app"
+        "/Applications/Visual Studio Code - Insiders.app"
+        "${HOME}/Applications/Visual Studio Code - Insiders.app"
     )
     local found=0
     for a in "${apps[@]}"; do
-        if [[ -d "$a" ]]; then
+        if [[ -d "$a" ]] && verify_code_app "$a"; then
             echo "lsregister -u :: $a"
             found=1
         fi
     done
     if [[ $found -eq 0 ]]; then
-        log_debug "Skip launchservices plan: no Code.app bundle found in standard locations"
+        log_debug "Skip launchservices plan: no verified Code.app bundle found in standard locations"
     fi
 }
 
@@ -237,12 +386,18 @@ plan_loginitems() {
     # 1) LaunchAgents plists referencing VS Code
     local d="${HOME}/Library/LaunchAgents"
     if [[ -d "$d" ]]; then
-        find "$d" -maxdepth 1 -type f -iname '*vscode*.plist' 2>/dev/null
-        find "$d" -maxdepth 1 -type f -iname '*visual*studio*code*.plist' 2>/dev/null
+        local p
+        while IFS= read -r p; do
+            [[ -z "$p" ]] && continue
+            verify_launch_agent "$p" && echo "$p"
+        done < <(find "$d" -maxdepth 1 -type f \( -iname '*vscode*.plist' -o -iname '*visual*studio*code*.plist' \) 2>/dev/null)
     fi
     if [[ $is_root -eq 1 && -d /Library/LaunchAgents && -w /Library/LaunchAgents ]]; then
-        find /Library/LaunchAgents -maxdepth 1 -type f -iname '*vscode*.plist' 2>/dev/null
-        find /Library/LaunchAgents -maxdepth 1 -type f -iname '*visual*studio*code*.plist' 2>/dev/null
+        local mp
+        while IFS= read -r mp; do
+            [[ -z "$mp" ]] && continue
+            verify_launch_agent "$mp" && echo "$mp"
+        done < <(find /Library/LaunchAgents -maxdepth 1 -type f \( -iname '*vscode*.plist' -o -iname '*visual*studio*code*.plist' \) 2>/dev/null)
     fi
     # 2) System Events login items pointing at Code.app
     if command -v osascript >/dev/null 2>&1; then
@@ -254,8 +409,10 @@ plan_loginitems() {
             for it in "${arr[@]}"; do
                 # Trim whitespace
                 it="${it#"${it%%[![:space:]]*}"}"; it="${it%"${it##*[![:space:]]}"}"
-                if [[ "$it" == *"Visual Studio Code.app"* ]]; then
+                if [[ "$it" == *"Visual Studio Code.app"* ]] || [[ "$it" == *"Visual Studio Code - Insiders.app"* ]]; then
                     echo "loginitem :: $it"
+                elif [[ -n "$it" ]]; then
+                    log_debug "Skip login item: ${it} (failure: path does not contain Visual Studio Code.app)"
                 fi
             done
         fi
