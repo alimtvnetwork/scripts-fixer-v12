@@ -1,0 +1,16 @@
+{
+  "description": "Log messages for 47-install-ubuntu-font",
+  "messages": {
+    "start":           "[47] Starting Ubuntu font family installer",
+    "resolved":        "[47] Resolution method: {method}",
+    "alreadyInstalled":"[47] Already installed",
+    "installingApt":   "[47] Installing via apt: {pkg}",
+    "installingSnap":  "[47] Installing via snap: {pkg}",
+    "installSuccess":  "[47] Installed successfully",
+    "installFailed":   "[47] Install failed: {err}",
+    "verifyOk":        "[47] Verify OK: {detail}",
+    "verifyFail":      "[47] Verify FAILED",
+    "uninstalling":    "[47] Uninstalling",
+    "noMethod":        "[47] No supported install method"
+  }
+}

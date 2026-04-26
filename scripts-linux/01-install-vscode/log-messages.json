@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 01-install-vscode",
+  "messages": {
+    "start":           "[01] Starting VS Code installer",
+    "addingMsRepo":    "[01] Adding Microsoft apt repo + key",
+    "msKeyFetchFail":  "[01] Failed to fetch Microsoft GPG key",
+    "msRepoAdded":     "[01] Microsoft repo added",
+    "installingApt":   "[01] Installing 'code' via apt",
+    "installingSnap":  "[01] Installing 'code' via snap classic",
+    "alreadyInstalled":"[01] VS Code already installed",
+    "verifyOk":        "[01] code detected: {detail}",
+    "verifyFail":      "[01] code not on PATH",
+    "noMethod":        "[01] No supported install method"
+  }
+}

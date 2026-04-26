@@ -1,0 +1,16 @@
+{
+  "description": "Log messages for 32-install-dbeaver",
+  "messages": {
+    "start":           "[32] Starting DBeaver Community installer",
+    "resolved":        "[32] Resolution method: {method}",
+    "alreadyInstalled":"[32] Already installed",
+    "installingApt":   "[32] Installing via apt: {pkg}",
+    "installingSnap":  "[32] Installing via snap: {pkg}",
+    "installSuccess":  "[32] Installed successfully",
+    "installFailed":   "[32] Install failed: {err}",
+    "verifyOk":        "[32] Verify OK: {detail}",
+    "verifyFail":      "[32] Verify FAILED",
+    "uninstalling":    "[32] Uninstalling",
+    "noMethod":        "[32] No supported install method"
+  }
+}

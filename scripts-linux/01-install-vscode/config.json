@@ -1,0 +1,1 @@
+{ "install": { "snap": "code", "msRepo": true }, "snapClassic": true, "notes": "Microsoft apt repo OR snap classic" }

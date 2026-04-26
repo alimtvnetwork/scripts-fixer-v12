@@ -1,0 +1,16 @@
+{
+  "description": "Log messages for 36-install-obs",
+  "messages": {
+    "start":           "[36] Starting OBS Studio installer",
+    "resolved":        "[36] Resolution method: {method}",
+    "alreadyInstalled":"[36] Already installed",
+    "installingApt":   "[36] Installing via apt: {pkg}",
+    "installingSnap":  "[36] Installing via snap: {pkg}",
+    "installSuccess":  "[36] Installed successfully",
+    "installFailed":   "[36] Install failed: {err}",
+    "verifyOk":        "[36] Verify OK: {detail}",
+    "verifyFail":      "[36] Verify FAILED",
+    "uninstalling":    "[36] Uninstalling",
+    "noMethod":        "[36] No supported install method"
+  }
+}
