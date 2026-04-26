@@ -201,6 +201,78 @@ cd scripts\01-vscode-context-menu-fix
 .\run.ps1
 ```
 
+## Check, Repair, and Invariants
+
+### Invariant checks
+
+The `check` verb verifies three repair invariants in addition to the install-state checks:
+
+| # | Invariant |
+|---|-----------|
+| 1 | No `file-target` child key under `HKCR\*\shell` |
+| 2 | No suppression values (`LegacyDisable`, `Extended`, `HideBasedOnVelocityId`) on any of the three shell parents |
+| 3 | No legacy duplicate child keys (allow-list in `config.repair.legacyNames`) under any of the three shell parents |
+
+### Opt-out: `config.repair.enforceInvariants`
+
+`config.json` contains `repair.enforceInvariants` (default `true`). When `true`, the `check` verb **fails** on invariant violations (exit code 1). When `false`, violations are **downgraded to warnings** and the run exits 0.
+
+The install-state checks ("is the entry registered?") are **always** enforced regardless of this flag.
+
+### Decision tree: are invariants enforced or skipped?
+
+```
+         Start: .\run.ps1 -I 10 check
+                    │
+                    ▼
+    ┌───────────────────────────────┐
+    │ config.repair.enforceInvariants │
+    │           exists?               │
+    └───────────────┬───────────────┘
+                    │
+        ┌───────────┴───────────┐
+        │                       │
+        ▼ No                   ▼ Yes
+   ┌─────────┐         ┌─────────────┐
+   │ Default │         │ Read value  │
+   │  true   │         └──────┬──────┘
+   └────┬────┘                │
+        │           ┌─────────┴─────────┐
+        │           │                   │
+        └──────────►▼ true            ▼ false
+              ┌─────────────┐    ┌─────────────┐
+              │  ENFORCED   │    │   SKIPPED   │
+              │  [MISS] → 1 │    │ [WARN] → 0  │
+              │  Repair     │    │ Report only │
+              │  suggested  │    │ No repair   │
+              │  in summary │    │  suggested  │
+              └─────────────┘    └─────────────┘
+```
+
+**Key rule:** Script 10 has **only** `config.repair.enforceInvariants`. There is no `-SkipRepairInvariants` switch (that lives in Script 54's `verify` harness). The tree above is the complete picture for Script 10.
+
+| Verb | Reads `enforceInvariants`? | Notes |
+|---|---|---|
+| `check`                                | **Yes** | Only verb that consults the flag. |
+| `install`, `repair`, `rollback`, `verify` | **No**  | These verbs always act; they do not read the flag. |
+
+### Repair verb and `-Only` selectors
+
+The `repair` verb supports targeted fixes via the `-Only` parameter:
+
+```powershell
+# Fix only invariant I2 (suppression values)
+.\run.ps1 -I 10 repair -Only i2
+
+# Fix only folder-target and background-target install issues
+.\run.ps1 -I 10 repair -Only folder,background
+
+# Fix only legacy duplicate keys
+.\run.ps1 -I 10 repair -Only legacy
+```
+
+See `log-messages.json` for the full selector mapping.
+
 ## Naming Conventions
 
 | Rule | Example |
