@@ -147,7 +147,7 @@ fi
 
 # Verify report must have been printed to the apply run output.
 grep -q "verify phase (re-probing every targeted item)" "$SANDBOX/apply.out"; _assert "apply printed verify phase header" $?
-grep -q "VERIFICATION VERDICT: . PASS"                  "$SANDBOX/apply.out"; _assert "apply printed PASS verdict"        $?
+grep -Eq "VERIFICATION VERDICT: .+ PASS"                "$SANDBOX/apply.out"; _assert "apply printed PASS verdict"        $?
 
 # verify.tsv is written next to the manifest.
 verify_tsv="$(dirname "$manifest")/verify.tsv"
