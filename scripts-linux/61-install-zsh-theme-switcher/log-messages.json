@@ -1,0 +1,19 @@
+{
+  "description": "Log messages for 61-install-zsh-theme-switcher",
+  "messages": {
+    "start":             "[61] Starting ZSH theme switcher installer",
+    "wired":             "[61] Wired '{fn}' shell function into {file}",
+    "alreadyWired":      "[61] Shell function '{fn}' already present in {file}",
+    "missingZshrc":      "[61] ~/.zshrc not found -- nothing to wire (run 60-install-zsh first)",
+    "missingOmz":        "[61] Oh-My-Zsh not detected at ~/.oh-my-zsh -- theme switching may not take effect",
+    "switching":         "[61] Switching ZSH_THEME to '{theme}' in {file}",
+    "switched":          "[61] ZSH_THEME set to '{theme}'. Run 'exec zsh' or 'source ~/.zshrc' to apply.",
+    "themeUnknown":      "[61] Theme '{theme}' is not in the configured list (use --force to bypass)",
+    "themeNotFound":     "[61] Theme '{theme}' not found in {dir}",
+    "promptAborted":     "[61] Theme selection aborted by user",
+    "verifyOk":          "[61] Verify OK ({fn} present + ZSH_THEME set)",
+    "verifyFail":        "[61] Verify FAILED ({reason})",
+    "alreadyInstalled":  "[61] Already wired",
+    "uninstall":         "[61] Removing wiring block from ~/.zshrc"
+  }
+}

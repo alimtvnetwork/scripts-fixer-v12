@@ -1,0 +1,20 @@
+{
+  "description": "ZSH theme switcher with interactive prompt and CLI flag support.",
+  "default_theme": "agnoster",
+  "themes": [
+    "agnoster", "robbyrussell", "af-magic", "afowler", "alanpeabody",
+    "amuse", "apple", "arrow", "avit", "awesomepanda",
+    "bira", "blinks", "bureau", "candy", "clean",
+    "cloud", "crcandy", "cypher", "dallas", "dpoggi",
+    "dst", "fino", "fino-time", "fishy", "fox",
+    "frisk", "frontcube", "funky", "gnzh", "godzilla",
+    "half-life", "intheloop", "itchy",
+    "powerlevel10k/powerlevel10k"
+  ],
+  "custom_themes": [],
+  "interactive_by_default": true,
+  "wire_into_zshrc": true,
+  "shell_function_name": "zsh-theme",
+  "marker_begin": "# >>> lovable zsh-theme switcher >>>",
+  "marker_end":   "# <<< lovable zsh-theme switcher <<<"
+}

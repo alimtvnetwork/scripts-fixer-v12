@@ -1,5 +1,5 @@
 {
-  "version": "0.114.0",
+  "version": "0.115.0",
   "description": "Linux installer registry. Mirrors Windows numbering. Windows-only scripts intentionally absent.",
   "scripts": [
     {
@@ -223,6 +223,12 @@
       "folder": "55-install-jenkins",
       "phase": "08",
       "title": "Jenkins (apt)"
+    },
+    {
+      "id": "61",
+      "folder": "61-install-zsh-theme-switcher",
+      "phase": "10",
+      "title": "ZSH theme switcher (interactive + flag, wires zsh-theme into ~/.zshrc)"
     }
   ]
 }
