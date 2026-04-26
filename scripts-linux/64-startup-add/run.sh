@@ -280,21 +280,6 @@ cmd_remove() {
       return 1 ;;
   esac
 
-  # Method alias map: user types `shell-rc`, enumerators emit `shell-rc-app`
-  # for app blocks and `shell-rc-env` for env blocks. Treat `shell-rc` as
-  # "either of those". `ALL`/empty means "no filter".
-  _method_matches() {
-    local want="$1" got="$2"
-    [ -z "$want" ] && return 0
-    [ "$want" = "ALL" ] && return 0
-    [ "$want" = "$got" ] && return 0
-    if [ "$want" = "shell-rc" ]; then
-      [ "$got" = "shell-rc-app" ] && return 0
-      [ "$got" = "shell-rc-env" ] && return 0
-    fi
-    return 1
-  }
-
   local rc=0 hits=0
   while IFS=$'\t' read -r m n _p _scope; do
     [ -z "${m:-}" ] && continue
@@ -316,6 +301,22 @@ cmd_remove() {
 }
 
 # ---- Interactive picker for cmd_remove --------------------------------------
+# Method alias map: user types `shell-rc`, enumerators emit `shell-rc-app`
+# for app blocks and `shell-rc-env` for env blocks. Treat `shell-rc` as
+# "either of those". `ALL`/empty means "no filter". Defined at file scope
+# so both cmd_remove and _cmd_remove_interactive can call it.
+_method_matches() {
+  local want="$1" got="$2"
+  [ -z "$want" ] && return 0
+  [ "$want" = "ALL" ] && return 0
+  [ "$want" = "$got" ] && return 0
+  if [ "$want" = "shell-rc" ]; then
+    [ "$got" = "shell-rc-app" ] && return 0
+    [ "$got" = "shell-rc-env" ] && return 0
+  fi
+  return 1
+}
+
 # Renders a numbered table of all tagged entries (filtered by --method when
 # provided), reads a selection like "1,3-5" or "all" from /dev/tty, confirms,
 # then removes each chosen entry via remove_startup_entry.
