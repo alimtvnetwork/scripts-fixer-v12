@@ -84,6 +84,15 @@ Cross-OS startup management (script 64 shortcuts):
       --dry-run                Preview only, no changes
       --yes                    Skip the interactive confirmation prompt
 
+Cross-OS cleanup (script 65 shortcuts):
+  os-clean                     Sweep temp/caches/trash/pkg-caches/logs (apply mode)
+      --dry-run                Preview only, no deletions
+      --only A,B,C             Limit to comma-separated category ids
+      --exclude A,B,C          Skip these categories
+      --yes                    Pre-approve destructive (trash, logs-system)
+      --json                   Emit machine-readable summary on stdout
+  os-clean-list                Print all defined cleanup categories
+
 Flags:
   -I <id>              Restrict to a single script id
   --parallel <N>       Run N installs in parallel (install verb only)
