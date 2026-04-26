@@ -183,6 +183,19 @@ Ubuntu WordPress installer (script 70 shortcuts; Ubuntu/Debian only):
   install wp-only              Only the WordPress component (assumes prereqs)
   uninstall wordpress          Remove WordPress + nginx vhost (keeps PHP / MySQL)
 
+Group management (script 68 shortcuts; Linux + macOS):
+  add-group <name> [opts]      Create one local group via direct CLI args
+      --gid N                  Pin numeric GID (auto-assigned if omitted)
+      --system                 System group (Linux only; ignored on macOS)
+      --dry-run                Print what would happen, change nothing
+      Aliases: group-add
+  add-groups-from-json <file>  Bulk-create groups from a JSON file. Accepts:
+                                 single object  : { "name": "devs", "gid": 2000 }
+                                 array          : [ { ... }, { ... } ]
+                                 wrapped object : { "groups": [ ... ] }
+      --dry-run                Preview every record, change nothing
+      Aliases: groups-from-json, add-group-from-json
+
 Flags:
   -I <id>              Restrict to a single script id
   --parallel <N>       Run N installs in parallel (install verb only)
