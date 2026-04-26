@@ -112,9 +112,25 @@ list_startup_entries() {
 # remove_startup_entry <method> <name>
 remove_startup_entry() {
   local method="$1" name="$2"
+
+  # Defense in depth: refuse names that contain path-traversal or directory
+  # separators. Tag-based enumerate would never produce them, but a hostile
+  # caller could try `remove ../firefox --method autostart` to delete a
+  # foreign file. The tag prefix is appended below so absolute paths get
+  # neutered too, but reject early for clearer error.
+  case "$name" in
+    */*|*..*|"")
+      log_file_error "(name=$name)" "name contains path separators or is empty -- refusing"
+      return 1 ;;
+  esac
+
   case "$method" in
     autostart)
       local f="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/${STARTUP_TAG_PREFIX}-${name}.desktop"
+      # Re-validate that what we're about to rm has the tool tag prefix.
+      case "$(basename "$f")" in "${STARTUP_TAG_PREFIX}-"*) ;;
+        *) log_file_error "$f" "basename missing required '${STARTUP_TAG_PREFIX}-' prefix -- refusing"; return 1 ;;
+      esac
       if [ ! -f "$f" ]; then log_warn "[64] autostart entry not found: $f"; return 0; fi
       rm -f "$f" || { log_file_error "$f" "rm failed"; return 1; }
       log_ok "[64] removed autostart: $f"
@@ -122,6 +138,9 @@ remove_startup_entry() {
     systemd-user)
       local tagged="${STARTUP_TAG_PREFIX}-${name}.service"
       local f="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/${tagged}"
+      case "$tagged" in "${STARTUP_TAG_PREFIX}-"*) ;;
+        *) log_file_error "$f" "basename missing required '${STARTUP_TAG_PREFIX}-' prefix -- refusing"; return 1 ;;
+      esac
       if command -v systemctl >/dev/null 2>&1; then
         systemctl --user disable "$tagged" >/dev/null 2>&1 || true
         systemctl --user stop    "$tagged" >/dev/null 2>&1 || true
@@ -153,6 +172,9 @@ remove_startup_entry() {
     launchagent)
       local label="com.${STARTUP_TAG_PREFIX}.${name}"
       local f="$HOME/Library/LaunchAgents/${label}.plist"
+      case "$label" in "com.${STARTUP_TAG_PREFIX}."*) ;;
+        *) log_file_error "$f" "label missing required 'com.${STARTUP_TAG_PREFIX}.' prefix -- refusing"; return 1 ;;
+      esac
       if command -v launchctl >/dev/null 2>&1 && [ -f "$f" ]; then
         launchctl bootout "gui/$(id -u)" "$f" >/dev/null 2>&1 || true
       fi
