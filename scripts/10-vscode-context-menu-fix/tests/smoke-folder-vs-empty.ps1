@@ -193,9 +193,9 @@ if (-not $SkipMutate) {
     $verb = if ($RepairOnly) { 'repair' } else { 'install' }
     Write-C ""
     Write-C "Step 1 : $verb" "Cyan"
-    $args = @($verb)
-    if ($hasFilter) { $args += @('-Edition', $Edition) }
-    $rc = Invoke-Run -Arguments $args -Label ("run.ps1 " + ($args -join ' '))
+    $verbArgs = @($verb)
+    if ($hasFilter) { $verbArgs += @('-Edition', $Edition) }
+    $rc = Invoke-Run -Arguments $verbArgs -Label ("run.ps1 " + ($verbArgs -join ' '))
     Assert-True "$verb verb exits 0" ($rc -eq 0) `
         ("$verb exited $rc (failure: see logs/10-vscode-context-menu-fix/<latest>.log; cannot proceed to folder/empty assertions if $verb itself failed)")
     if ($rc -ne 0) {
