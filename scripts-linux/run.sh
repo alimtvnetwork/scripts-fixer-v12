@@ -258,6 +258,16 @@ User management (script 68 shortcuts; Linux + macOS):
                                (no JSON required). Filtered variants:
                                  user-help    users only
                                  group-help   groups only
+  useradm-bootstrap [opts]     Parse-only orchestrator (script 68). Runs
+                               groups first, then users, in the correct
+                               order with a single shared summary log.
+                               Inputs (any combination):
+                                 --spec FILE         unified spec
+                                 --groups-json FILE  groups-only JSON
+                                 --users-json  FILE  users-only JSON
+                                 --group  "n:flags"  inline group (repeat)
+                                 --user   "n:flags"  inline user  (repeat)
+                                 --dry-run           preview, change nothing
 
 Flags:
   -I <id>              Restrict to a single script id
@@ -466,6 +476,17 @@ case "${VERB:-help}" in
     # One-page cheat-sheet for the direct-CLI surface of script 68.
     # Pure stdout dump -- no helpers loaded, no root required.
     bash "$ROOT/68-user-mgmt/cli-cheatsheet.sh" "${USERADM_SUB:-all}"
+    ;;
+  useradm-bootstrap)
+    # Thin parse-only orchestrator: forwards every flag to orchestrate.sh
+    # which then dispatches the four leaves in the correct order.
+    _boot_filtered=()
+    for _a in "${USERADM_BOOT_REST[@]:-}"; do [ -n "$_a" ] && _boot_filtered+=("$_a"); done
+    if [ "${#_boot_filtered[@]}" -gt 0 ]; then
+      bash "$ROOT/68-user-mgmt/orchestrate.sh" "${_boot_filtered[@]}"
+    else
+      bash "$ROOT/68-user-mgmt/orchestrate.sh"
+    fi
     ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then
