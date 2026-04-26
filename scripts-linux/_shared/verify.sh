@@ -104,7 +104,6 @@ verify_probe_target() {
     fi
     printf 'no login item with this name'
     return 0
-    ;
   fi
 
   # LaunchServices URL handlers: re-dump and grep for the bundle/path.
