@@ -9,7 +9,7 @@
 #  Version check: -Version (shows current and latest, no install)
 # --------------------------------------------------------------------------
 & {
-    param([switch]$NoUpgrade, [switch]$Version)
+    param([switch]$NoUpgrade, [switch]$Version, [switch]$Help, [switch]$DryRun)
 
     $ErrorActionPreference = "Stop"
 
@@ -34,10 +34,52 @@
     Write-Host "  Scripts Fixer -- Bootstrap Installer (v$current)" -ForegroundColor Cyan
     Write-Host ""
 
+    # ----- Help mode -------------------------------------------------------
+    if ($Help) {
+        Write-Host "  Usage: install.ps1 [-Version] [-Help] [-NoUpgrade] [-DryRun]" -ForegroundColor White
+        Write-Host ""
+        Write-Host "  Flags:" -ForegroundColor White
+        Write-Host "    -Version     Print bootstrap repo version + payload semver, then exit." -ForegroundColor DarkGray
+        Write-Host "                 Also probes for newer scripts-fixer-vN repos and reports" -ForegroundColor DarkGray
+        Write-Host "                 the highest one available without redirecting." -ForegroundColor DarkGray
+        Write-Host "    -Help        Show this help and exit." -ForegroundColor DarkGray
+        Write-Host "    -NoUpgrade   Skip auto-discovery; install from the current repo." -ForegroundColor DarkGray
+        Write-Host "    -DryRun      Print every step but mutate nothing." -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host "  Env:" -ForegroundColor White
+        Write-Host "    `$env:SCRIPTS_FIXER_NO_UPGRADE = '1'   Same as -NoUpgrade" -ForegroundColor DarkGray
+        Write-Host "    `$env:SCRIPTS_FIXER_PROBE_MAX  = N     How many vN+k to probe (default 30, max 100)" -ForegroundColor DarkGray
+        Write-Host "    `$env:SCRIPTS_FIXER_REDIRECTED = '1'   Internal loop guard, set after one redirect" -ForegroundColor DarkGray
+        Write-Host ""
+        return
+    }
+
+    # ----- Helper: fetch payload semver from a repo's scripts/version.json -
+    # Best-effort: returns "(unknown)" on any failure (network, missing file,
+    # malformed JSON). Never throws -- version reporting must not crash.
+    function Get-PayloadSemver {
+        param([string]$RepoName)
+        $url = "https://raw.githubusercontent.com/$owner/$RepoName/main/scripts/version.json"
+        try {
+            $raw = (Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop).Content
+            if ([string]::IsNullOrWhiteSpace($raw)) { return "(unknown)" }
+            $obj = $raw | ConvertFrom-Json -ErrorAction Stop
+            $hasVersion = $null -ne $obj.PSObject.Properties['version']
+            if ($hasVersion -and -not [string]::IsNullOrWhiteSpace($obj.version)) {
+                return [string]$obj.version
+            }
+            return "(unknown)"
+        } catch {
+            return "(unknown)"
+        }
+    }
+
     # ----- Version check mode (discover + report, no clone) ----------------
     if ($Version) {
         $rangeEnd = $current + $probeMax
-        Write-Host "  [VERSION] Bootstrap v$current" -ForegroundColor Cyan
+        $currentSemver = Get-PayloadSemver -RepoName "$baseName-v$current"
+        Write-Host "  [VERSION] Bootstrap repo : $baseName-v$current" -ForegroundColor Cyan
+        Write-Host "  [VERSION] Payload semver : $currentSemver" -ForegroundColor Cyan
         Write-Host "  [SCAN] Probing v$($current + 1)..v$rangeEnd for newer releases (parallel)..." -ForegroundColor Yellow
 
         $hasThreadJob = $null -ne (Get-Command Start-ThreadJob -ErrorAction SilentlyContinue)
@@ -76,13 +118,15 @@
         if ($found.Count -gt 0) {
             $latest = ($found | Measure-Object -Maximum).Maximum
             if ($latest -gt $current) {
-                Write-Host "  [FOUND] Newer version available: v$latest" -ForegroundColor Green
+                $latestSemver = Get-PayloadSemver -RepoName "$baseName-v$latest"
+                Write-Host "  [FOUND]    Newer repo     : $baseName-v$latest" -ForegroundColor Green
+                Write-Host "  [FOUND]    Newer semver   : $latestSemver" -ForegroundColor Green
                 Write-Host "  [RESOLVED] Would redirect to $baseName-v$latest" -ForegroundColor Cyan
             } else {
-                Write-Host "  [OK] You're on the latest (v$current)" -ForegroundColor Green
+                Write-Host "  [OK] You're on the latest ($baseName-v$current, semver $currentSemver)" -ForegroundColor Green
             }
         } else {
-            Write-Host "  [OK] You're on the latest (v$current)" -ForegroundColor Green
+            Write-Host "  [OK] You're on the latest ($baseName-v$current, semver $currentSemver)" -ForegroundColor Green
         }
         Write-Host ""
         Write-Host "  (Use without -Version flag to actually install)" -ForegroundColor DarkGray
