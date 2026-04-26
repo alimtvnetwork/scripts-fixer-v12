@@ -1,0 +1,11 @@
+{
+  "install": {
+    "apt": "kubectl kubeadm kubelet"
+  },
+  "thirdPartyRepo": {
+    "keyUrl": "https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key",
+    "keyring": "/usr/share/keyrings/kubernetes-apt-keyring.gpg",
+    "repoListPath": "/etc/apt/sources.list.d/46-install-kubernetes.list",
+    "repoLine": "deb [signed-by=/usr/share/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /"
+  }
+}

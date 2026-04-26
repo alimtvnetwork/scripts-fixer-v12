@@ -1,0 +1,11 @@
+{
+  "install": {
+    "apt": "jenkins"
+  },
+  "thirdPartyRepo": {
+    "keyUrl": "https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key",
+    "keyring": "/usr/share/keyrings/jenkins-keyring.gpg",
+    "repoListPath": "/etc/apt/sources.list.d/55-install-jenkins.list",
+    "repoLine": "deb [signed-by=/usr/share/keyrings/jenkins-keyring.gpg] https://pkg.jenkins.io/debian-stable binary/"
+  }
+}

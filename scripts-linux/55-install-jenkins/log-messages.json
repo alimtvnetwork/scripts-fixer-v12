@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 55-install-jenkins",
+  "messages": {
+    "start":           "[55] Starting Jenkins LTS installer",
+    "alreadyInstalled":"[55] Already installed",
+    "addingKey":       "[55] Fetching GPG key from {url}",
+    "writingRepo":     "[55] Writing apt repo: {path}",
+    "installing":      "[55] Installing via apt: {pkg}",
+    "installSuccess":  "[55] Installed",
+    "installFailed":   "[55] Install failed: {err}",
+    "verifyOk":        "[55] Verify OK",
+    "verifyFail":      "[55] Verify FAILED",
+    "noMethod":        "[55] apt + curl required"
+  }
+}
