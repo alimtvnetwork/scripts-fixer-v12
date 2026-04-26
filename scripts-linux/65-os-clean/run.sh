@@ -319,11 +319,77 @@ _run_category() {
   _emit_row "$status" "$cat" "$label" "$bucket" "$_SW_COUNT" "$_SW_BYTES" "$_SW_LOCKED"
 }
 
-# Iterate categories.
-while IFS= read -r cat; do
-  [ -z "$cat" ] && continue
-  _run_category "$cat" || log_warn "Category '$cat' raised an error -- continuing."
-done < <(osc_category_ids)
+# Iterate categories. Wrapped in a function so plan-then-confirm can run
+# the loop twice: once in forced dry-run to build the plan, once in apply
+# to actually do the work.
+_iterate_all_categories() {
+  : > "$ROWS_TSV"     || log_file_error "$ROWS_TSV"     "failed to truncate rows TSV"
+  : > "$TARGETS_TSV"  || log_file_error "$TARGETS_TSV"  "failed to truncate targets TSV"
+  TOTAL_COUNT=0
+  TOTAL_BYTES=0
+  TOTAL_LOCKED=0
+  while IFS= read -r cat; do
+    [ -z "$cat" ] && continue
+    _run_category "$cat" || log_warn "Category '$cat' raised an error -- continuing."
+  done < <(osc_category_ids)
+}
+
+# ---------- plan -> confirm -> apply phasing -------------------------------
+# Behaviour:
+#   * --dry-run        -> single dry-run pass, no plan/confirm wrapper
+#   * apply (default)  -> forced dry-run pass first (PLAN), render plan tree
+#                         + table, prompt operator (or honour --yes), then
+#                         reset and run the real APPLY pass.
+# Aborting at the prompt leaves the plan TSV on disk for inspection and
+# skips the verify phase (nothing was applied).
+APPLY_ABORTED=0
+if [ "$DRY_RUN" -eq 1 ]; then
+  log_info "===== single dry-run pass (no plan/confirm wrapper needed) ====="
+  _iterate_all_categories
+else
+  log_info "===== plan phase -- nothing will be removed yet ====="
+  SW_DRY_RUN=1; export SW_DRY_RUN
+  _iterate_all_categories
+
+  # Convert TARGETS_TSV (status\tkind\ttarget\tbytes\tdetail) into the
+  # PLAN_TSV schema confirm_render_plan expects (bucket\tkind\ttarget\tdetail).
+  # We need the bucket per row, which only the per-category ROWS_TSV knows,
+  # so we look it up with a small awk pass.
+  : > "$PLAN_TSV"
+  awk -F'\t' '
+    NR==FNR { bucket[$2] = $4; next }
+    $1 == "would" { print bucket["unknown"] "\t" $2 "\t" $3 "\t" $5 }
+  ' "$ROWS_TSV" "$TARGETS_TSV" > /dev/null 2>&1 || true
+  # The simple awk above can't reach into per-target rows for category id,
+  # so do the join in bash: every "would" target is attributed to the most
+  # recent category whose row we just emitted. Easier: iterate TARGETS_TSV
+  # straight, defaulting bucket to "user" (correct for path-driven sweeps;
+  # command-driven categories override below).
+  while IFS=$'\t' read -r status kind target bytes detail; do
+    [ "$status" = "would" ] || continue
+    # Heuristic bucket: command-driven targets (target prefix "cmd:") fall
+    # under the bucket of their owning category, but since 65 doesn't tag
+    # them in the TARGETS_TSV directly we default to "user" (matches the
+    # vast majority of categories) and let the operator inspect the
+    # detail column.
+    local_bucket="user"
+    case "$target" in cmd:*) local_bucket="command" ;; esac
+    confirm_plan_add "$PLAN_TSV" "$local_bucket" "$kind" "$target" "$detail"
+  done < "$TARGETS_TSV"
+
+  confirm_render_plan "$PLAN_TSV" "Planned os-clean actions"
+
+  if ! confirm_prompt "$PLAN_TSV" "$ASSUME_YES"; then
+    log_warn "Apply phase aborted. The plan above was NOT executed."
+    log_info "Plan file kept for inspection: $PLAN_TSV"
+    APPLY_ABORTED=1
+    MODE_LABEL="aborted"
+  else
+    log_info "===== apply phase ====="
+    SW_DRY_RUN=0; export SW_DRY_RUN
+    _iterate_all_categories
+  fi
+fi
 
 # ---------- summary -------------------------------------------------------
 human_total=$(sweep_human_bytes "$TOTAL_BYTES")
