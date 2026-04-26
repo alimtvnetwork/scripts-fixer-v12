@@ -219,6 +219,15 @@ for m in "${ALL_METHODS[@]}"; do
   while [ "$i" -lt "$N" ]; do
     kind=$(_jq -r ".detectors.\"$m\".probes[$i].kind")
     arg=$(_jq  -r ".detectors.\"$m\".probes[$i].pkg // .detectors.\"$m\".probes[$i].path // empty")
+    # Some probe kinds (cmd-no-pkg-owner, symlink-into-roots) need a list of
+    # tarball roots so they don't double-classify a tarball install as 'binary'.
+    # We pass them via env var DETECT_PROBE_ROOTS as colon-separated paths.
+    roots_csv=$(_jq -r ".detectors.\"$m\".probes[$i].roots // [] | join(\":\")")
+    if [ -n "$roots_csv" ]; then
+      export DETECT_PROBE_ROOTS="$roots_csv"
+    else
+      unset DETECT_PROBE_ROOTS
+    fi
     if line=$(detect_run_probe "$m" "$kind" "$arg"); then
       printf '%s\n' "$line" >> "$DETECT_HITS_TSV"
       detail=$(printf '%s' "$line" | awk -F'\t' '{print $3}')
