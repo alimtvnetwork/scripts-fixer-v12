@@ -40,7 +40,7 @@ printf '%s' "$POLLUTED" > "$TMP/A/home/.zshrc"
 put_backup A 20260101-120000 "$PRISTINE"
 out=$(run62 A install); ec=$?
 [ $ec -eq 0 ] && ok "exit 0" || bad "expected 0, got $ec"
-cmp -s "$TMP/A/home/.zshrc" <(printf "%s" "$PRISTINE") && ok "zshrc matches pristine backup" || bad "zshrc != pristine"
+h1=$(sha256sum < "$TMP/A/home/.zshrc" | awk "{print \$1}"); h2=$(printf "%s" "$PRISTINE" | sha256sum | awk "{print \$1}"); [ "$h1" = "$h2" ] && ok "zshrc matches pristine backup" || bad "zshrc != pristine (h1=$h1 h2=$h2)"
 ls "$TMP/A/home/.zsh-backups/" | grep -q '^pre-clear-' && ok "pre-clear safety backup created" || bad "no pre-clear backup"
 [ -d "$TMP/A/home/.oh-my-zsh" ] && ok "~/.oh-my-zsh untouched (safe mode)" || bad "~/.oh-my-zsh removed in safe mode"
 
