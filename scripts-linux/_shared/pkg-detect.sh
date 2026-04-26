@@ -80,3 +80,23 @@ resolve_install_method() {
   if [ -n "$has_tarball" ] && has_curl;                              then echo "tarball"; return 0; fi
   echo "none"
 }
+
+# Public: check if a command/binary is on PATH.
+# Differs from is_apt_pkg_installed (dpkg-based) -- this is portable to any OS
+# and works for tools installed outside apt (snap, brew, tarballs, npm, etc.).
+# Usage:  if is_command_available helm; then ...; fi
+is_command_available() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+# Backward-compat alias for k8s-training scripts (logs while checking).
+# Usage:  is_package_installed helm
+is_package_installed() {
+  local pkg="$1"
+  if is_command_available "$pkg"; then
+    log_ok "$pkg is installed"
+    return 0
+  fi
+  log_warn "$pkg is not installed"
+  return 1
+}
