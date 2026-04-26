@@ -21,7 +21,7 @@ RUN_DIR="$LOGS_ROOT/$TS"
 [ -f "$SCRIPT_DIR/helpers/detect.sh" ]       && . "$SCRIPT_DIR/helpers/detect.sh"
 [ -f "$SCRIPT_DIR/helpers/methods-linux.sh" ]&& . "$SCRIPT_DIR/helpers/methods-linux.sh"
 [ -f "$SCRIPT_DIR/helpers/methods-macos.sh" ]&& . "$SCRIPT_DIR/helpers/methods-macos.sh"
-[ -f "$SCRIPT_DIR/helpers/listrm.sh" ]       && . "$SCRIPT_DIR/helpers/listrm.sh"
+[ -f "$SCRIPT_DIR/helpers/enumerate.sh" ]    && . "$SCRIPT_DIR/helpers/enumerate.sh"
 
 ensure_run_dir() {
   mkdir -p "$RUN_DIR/hosts" 2>/dev/null \
@@ -62,10 +62,61 @@ main() {
   esac
 }
 
-# Stubs filled in by Steps 8-11
-cmd_app()    { log_warn "[64] cmd_app stub -- implemented in Step 9 (Linux) / Step 10 (macOS)";  return 0; }
-cmd_env()    { log_warn "[64] cmd_env stub -- implemented in Step 10";                              return 0; }
-cmd_list()   { log_warn "[64] cmd_list stub -- implemented in Step 11";                             return 0; }
-cmd_remove() { log_warn "[64] cmd_remove stub -- implemented in Step 11";                           return 0; }
+# cmd_app + cmd_env still stubbed (waiting for Step 12 wiring); list + remove are live.
+cmd_app()    { log_warn "[64] cmd_app wiring lands in Step 12 -- helpers ready (write_autostart_desktop / write_launchagent_plist / etc.)"; return 0; }
+cmd_env()    { log_warn "[64] cmd_env wiring lands in Step 12 -- helpers ready (write_shell_rc_env / write_launchctl_env)";                return 0; }
+
+cmd_list() {
+  if ! declare -f list_startup_entries >/dev/null 2>&1; then
+    log_file_error "$SCRIPT_DIR/helpers/enumerate.sh" "list_startup_entries not loaded"
+    return 1
+  fi
+  local count=0
+  printf 'METHOD          NAME                 PATH/ID\n'
+  printf -- '--------------- -------------------- --------------------------------------------\n'
+  while IFS=$'\t' read -r m n p _scope; do
+    [ -z "${m:-}" ] && continue
+    printf '%-15s %-20s %s\n' "$m" "$n" "$p"
+    count=$((count+1))
+  done < <(list_startup_entries)
+  printf -- '--------------- -------------------- --------------------------------------------\n'
+  printf '%d entr%s tagged "%s".\n' "$count" "$([ $count -eq 1 ] && echo y || echo ies)" "${STARTUP_TAG_PREFIX:-lovable-startup}"
+  return 0
+}
+
+cmd_remove() {
+  if ! declare -f remove_startup_entry >/dev/null 2>&1; then
+    log_file_error "$SCRIPT_DIR/helpers/enumerate.sh" "remove_startup_entry not loaded"
+    return 1
+  fi
+  local name="" method=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --method) method="${2:-}"; shift 2 ;;
+      --all) method="ALL"; shift ;;
+      -h|--help) usage; return 0 ;;
+      *) [ -z "$name" ] && name="$1" || log_warn "[64] ignoring extra arg: $1"; shift ;;
+    esac
+  done
+  if [ -z "$name" ]; then
+    log_warn "[64] remove: <name> required"; usage; return 1
+  fi
+
+  local rc=0 hits=0
+  while IFS=$'\t' read -r m n _p _scope; do
+    [ -z "${m:-}" ] && continue
+    if [ "$n" = "$name" ] && { [ -z "$method" ] || [ "$method" = "ALL" ] || [ "$method" = "$m" ]; }; then
+      hits=$((hits+1))
+      remove_startup_entry "$m" "$n" || rc=1
+    fi
+  done < <(list_startup_entries)
+
+  if [ $hits -eq 0 ]; then
+    log_warn "[64] no entries matched name='$name' method='${method:-any}'"
+  else
+    log_ok "[64] removed $hits entr$([ $hits -eq 1 ] && echo y || echo ies) for '$name'"
+  fi
+  return $rc
+}
 
 main "$@"
