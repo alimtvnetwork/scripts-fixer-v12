@@ -1,0 +1,31 @@
+{
+  "id": "70",
+  "title": "Ubuntu WordPress installer (Nginx + PHP-FPM + MySQL/MariaDB + latest WordPress)",
+  "components": {
+    "mysql": {
+      "default_engine": "mysql",
+      "supported_engines": ["mysql", "mariadb"],
+      "default_port": 3306,
+      "default_data_dir": "/var/lib/mysql"
+    },
+    "php": {
+      "default_version": "latest",
+      "supported_versions": ["8.1", "8.2", "8.3", "latest"],
+      "extensions": [
+        "fpm", "mysql", "xml", "curl", "gd", "mbstring",
+        "zip", "intl", "bcmath", "soap", "imagick", "cli"
+      ]
+    },
+    "nginx": {
+      "default_site_port": 80,
+      "default_server_name": "localhost"
+    },
+    "wordpress": {
+      "download_url": "https://wordpress.org/latest.tar.gz",
+      "default_install_path": "/var/www/wordpress",
+      "default_db_name": "wordpress",
+      "default_db_user": "wp_user",
+      "auto_generate_password": true
+    }
+  }
+}
