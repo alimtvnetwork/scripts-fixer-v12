@@ -105,7 +105,8 @@ resolve_target() {
 }
 
 # ---------- per-host record ----------
-# Echo TAB-separated: name<TAB>host<TAB>user<TAB>port<TAB>auth<TAB>password<TAB>identity<TAB>connect_timeout
+# Echo 8 lines (one field per line) so empty fields aren't collapsed by IFS:
+#   name, host, user, port, auth, password, identity, connect_timeout
 host_record() {
   local name="$1"
   jq -r --arg n "$name" '
@@ -121,7 +122,7 @@ host_record() {
           ($h.password                   // $d.password                   // ""),
           ($h.identity_file              // $d.identity_file              // ""),
           (($h.connect_timeout           // $d.connect_timeout            // 8) | tostring)
-        ] | @tsv
+        ] | .[]
       end
   ' "$CONFIG"
 }
