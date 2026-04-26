@@ -12,6 +12,8 @@ param(
     [string]$VsCodePath,
     [ValidateSet('Auto','CurrentUser','AllUsers')]
     [string]$Scope = 'Auto',
+    [ValidateSet('Quiet','Normal','Debug')]
+    [string]$Verbosity = 'Normal',
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest = @(),
