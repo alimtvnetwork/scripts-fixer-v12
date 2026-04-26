@@ -26,11 +26,13 @@ fi
 NO_UPGRADE=0
 VERSION_MODE=0
 DRY_RUN=0
+HELP_MODE=0
 for arg in "$@"; do
     case "$arg" in
         --no-upgrade) NO_UPGRADE=1 ;;
-        --version) VERSION_MODE=1 ;;
+        --version|-V) VERSION_MODE=1 ;;
         --dry-run) DRY_RUN=1 ;;
+        --help|-h) HELP_MODE=1 ;;
     esac
 done
 if [ "${SCRIPTS_FIXER_NO_UPGRADE:-0}" = "1" ]; then NO_UPGRADE=1; fi
@@ -39,15 +41,67 @@ echo ""
 echo "  Scripts Fixer -- Bootstrap Installer (v$CURRENT)"
 echo ""
 
+# -- Help mode -------------------------------------------------------------
+if [ "$HELP_MODE" = "1" ]; then
+    cat <<'EOF'
+  Usage: install.sh [--version|-V] [--help|-h] [--no-upgrade] [--dry-run]
+
+  Flags:
+    --version, -V    Print bootstrap repo version + payload semver, then exit.
+                     Also probes for newer scripts-fixer-vN repos and reports
+                     the highest one available without redirecting.
+    --help, -h       Show this help and exit.
+    --no-upgrade     Skip auto-discovery; install from the current repo.
+    --dry-run        Print every step but mutate nothing.
+
+  Env:
+    SCRIPTS_FIXER_NO_UPGRADE=1   Same as --no-upgrade
+    SCRIPTS_FIXER_PROBE_MAX=N    How many vN+k to probe (default 30, max 100)
+    SCRIPTS_FIXER_REDIRECTED=1   Internal loop guard, set after one redirect
+EOF
+    echo ""
+    exit 0
+fi
+
 if [ "$DRY_RUN" = "1" ]; then
     echo "  [DRYRUN] Dry-run mode enabled -- no files will be cloned, removed, or copied."
     echo ""
 fi
 
+# -- Helper: fetch payload semver from a repo's scripts/version.json -------
+# Args: <repo-vN-name>   (e.g. scripts-fixer-v8)
+# Echoes: "X.Y.Z" on success, "(unknown)" on any failure (network, missing
+#         file, malformed JSON). Never fails the caller -- version reporting
+#         must remain best-effort.
+fetch_payload_semver() {
+    local repo_name="$1"
+    local url="https://raw.githubusercontent.com/$OWNER/$repo_name/main/scripts/version.json"
+    local raw
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "(unknown)"
+        return 0
+    fi
+    raw="$(curl -fsSL -m 5 "$url" 2>/dev/null)" || { echo "(unknown)"; return 0; }
+    [ -z "$raw" ] && { echo "(unknown)"; return 0; }
+    # Best-effort JSON parse without requiring jq: grep the "version" field.
+    local ver
+    ver="$(printf '%s' "$raw" \
+        | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' \
+        | head -1 \
+        | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+    if [ -z "$ver" ]; then
+        echo "(unknown)"
+    else
+        echo "$ver"
+    fi
+}
+
 # -- Version check mode (discover + report, no clone) ----------------------
 if [ "$VERSION_MODE" = "1" ]; then
     RANGE_END=$((CURRENT + PROBE_MAX))
-    echo "  [VERSION] Bootstrap v$CURRENT"
+    CURRENT_SEMVER="$(fetch_payload_semver "$BASE-v$CURRENT")"
+    echo "  [VERSION] Bootstrap repo : $BASE-v$CURRENT"
+    echo "  [VERSION] Payload semver : $CURRENT_SEMVER"
     echo "  [SCAN] Probing v$((CURRENT + 1))..v$RANGE_END for newer releases (parallel)..."
 
     probe_one() {
@@ -65,10 +119,12 @@ if [ "$VERSION_MODE" = "1" ]; then
         | sort -n | tail -1)
 
     if [ -n "$LATEST" ] && [ "$LATEST" -gt "$CURRENT" ]; then
-        echo "  [FOUND] Newer version available: v$LATEST"
+        LATEST_SEMVER="$(fetch_payload_semver "$BASE-v$LATEST")"
+        echo "  [FOUND]    Newer repo     : $BASE-v$LATEST"
+        echo "  [FOUND]    Newer semver   : $LATEST_SEMVER"
         echo "  [RESOLVED] Would redirect to $BASE-v$LATEST"
     else
-        echo "  [OK] You're on the latest (v$CURRENT)"
+        echo "  [OK] You're on the latest ($BASE-v$CURRENT, semver $CURRENT_SEMVER)"
     fi
     echo ""
     echo "  (Use without --version flag to actually install)"
