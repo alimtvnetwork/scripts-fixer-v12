@@ -1,0 +1,57 @@
+{
+  "scriptName": "os-clean",
+  "scriptTitle": "Cross-OS cleanup (user temp/caches, trash, package caches, logs+crash dumps)",
+  "scriptDesc": "Sweep user temp + caches, trash, package-manager caches (apt/dnf/pacman/brew/npm/pnpm/bun/yarn/pip), and rotated/system/user logs + crash dumps. Apply by default; use --dry-run to preview.",
+  "messages": {
+    "startBanner":         "===== os-clean (script 65) on {os} -- mode={mode} =====",
+    "modeApply":           "APPLY mode: changes will be made. Pass --dry-run to preview only.",
+    "modeDryRun":          "DRY-RUN mode: no changes will be made.",
+    "categoryStart":       "[{cat}] {label} ({bucket}) -- scanning",
+    "categorySkipOs":      "[{cat}] skipped (osOnly={os}, current={current})",
+    "categorySkipExclude": "[{cat}] skipped (excluded via config.excludeCategories or --exclude)",
+    "categorySkipFilter":  "[{cat}] skipped (does not match --only filter)",
+    "categorySkipNoCmd":   "[{cat}] skipped (command '{cmd}' not on PATH)",
+    "categorySkipNoPath":  "[{cat}] no eligible paths exist on this host -- nothing to do",
+    "categoryNeedsYes":    "[{cat}] destructive category requires --yes (or interactive confirmation). Skipping.",
+    "categoryDryHit":      "[{cat}] DRY-RUN: would free {bytes} across {count} item(s)",
+    "categoryApplied":     "[{cat}] freed {bytes} across {count} item(s) (locked: {locked})",
+    "categoryCmdRun":      "[{cat}] running: {argv}",
+    "categoryCmdFail":     "[{cat}] command failed (exit={rc}). stderr: {err}",
+    "lockedItem":          "  locked: {path} ({reason})",
+    "summaryHeader":       "===== summary ({mode}) =====",
+    "summaryRow":          "  {status}  {cat:<22}  {label:<38}  {count:>6}  {bytes:>10}",
+    "summaryTotals":       "  TOTAL: {count} item(s), {bytes} (locked: {locked})",
+    "writeManifestFail":   "Failed to write manifest at {path} (failure: {reason})",
+    "writeManifestOk":     "Manifest written: {path}",
+    "noJqFallback":        "jq not found -- using bash JSON reader (slower; install jq for speed).",
+    "unknownVerb":         "Unknown subverb '{verb}'. Use one of: run, list-categories, help.",
+    "unknownCategory":     "Unknown category '{cat}' (not in config.categories). Aborting before any deletions.",
+    "doneOk":              "Done. {count} item(s), {bytes} freed.",
+    "doneDry":             "Dry-run complete. {count} item(s), {bytes} would be freed."
+  },
+  "help": {
+    "synopsis": "scripts-linux/run.sh 65 [run|list-categories|help] [flags]",
+    "subverbs": {
+      "run":              "Sweep all enabled categories. Default verb if omitted.",
+      "list-categories":  "Print every defined category with label, bucket, destructive flag, and per-OS path globs.",
+      "help":             "Show this help."
+    },
+    "flags": {
+      "--dry-run":           "Preview only; no deletions, no package-manager mutations.",
+      "--apply":              "Force apply mode (default; explicit for clarity in CI).",
+      "--only <cat,cat2>":    "Limit to comma-separated category ids.",
+      "--exclude <cat,cat2>": "Skip these categories (added to config.excludeCategories).",
+      "--yes":                "Pre-approve destructive categories (trash, logs-system).",
+      "--json":               "Emit a single JSON object on stdout instead of human-readable rows.",
+      "--no-color":           "Disable ANSI colours in human-readable mode.",
+      "--quiet":              "Suppress per-item locked-path notes (still in manifest)."
+    },
+    "examples": [
+      "scripts-linux/run.sh 65                      # apply, all categories",
+      "scripts-linux/run.sh 65 --dry-run            # preview only",
+      "scripts-linux/run.sh 65 --only caches-user,pkg-bun",
+      "scripts-linux/run.sh 65 --exclude trash      # never touch ~/.local/share/Trash",
+      "scripts-linux/run.sh 65 --yes --only trash   # actually empty the trash"
+    ]
+  }
+}

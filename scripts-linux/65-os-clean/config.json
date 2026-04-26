@@ -1,0 +1,171 @@
+{
+  "_comment": "Cross-OS user/system cleanup (Unix side). Pairs with Windows scripts/os/ clean subverbs. Apply-by-default; pass --dry-run for a preview. Per-category opt-out via excludeCategories.",
+  "tagPrefix": "lovable-os-clean",
+  "logsDir": ".logs/65",
+  "applyByDefault": true,
+  "stopOnError": false,
+  "minLeafBytes": 0,
+  "excludeCategories": [],
+  "destructiveRequiresYes": ["trash", "logs-system"],
+  "categories": {
+    "temp-user": {
+      "label": "User temp directory",
+      "bucket": "A",
+      "destructive": false,
+      "paths": {
+        "linux": ["${TMPDIR:-/tmp}/${USER}-*", "${TMPDIR:-/tmp}/.cache-${USER}*"],
+        "macos": ["${TMPDIR:-/tmp}/${USER}-*", "${TMPDIR:-/var/folders/*/T/}*"]
+      },
+      "mode": "glob"
+    },
+    "caches-user": {
+      "label": "User caches",
+      "bucket": "A",
+      "destructive": false,
+      "paths": {
+        "linux": ["${XDG_CACHE_HOME:-$HOME/.cache}"],
+        "macos": ["$HOME/Library/Caches"]
+      },
+      "mode": "contents",
+      "preserveSubdirs": ["lovable", "ssh", "gnupg"]
+    },
+    "trash": {
+      "label": "Trash / Recycle bin",
+      "bucket": "B",
+      "destructive": true,
+      "paths": {
+        "linux": ["$HOME/.local/share/Trash/files", "$HOME/.local/share/Trash/info"],
+        "macos": ["$HOME/.Trash"]
+      },
+      "mode": "contents"
+    },
+    "pkg-apt": {
+      "label": "apt package cache",
+      "bucket": "C",
+      "destructive": false,
+      "command": "apt-get",
+      "applyCmd": ["sudo", "apt-get", "clean"],
+      "dryCmd":   ["sudo", "apt-get", "-s", "clean"],
+      "sizePath": "/var/cache/apt/archives",
+      "osOnly": "linux"
+    },
+    "pkg-dnf": {
+      "label": "dnf package cache",
+      "bucket": "C",
+      "destructive": false,
+      "command": "dnf",
+      "applyCmd": ["sudo", "dnf", "clean", "all"],
+      "dryCmd":   ["sudo", "dnf", "clean", "all", "--assumeno"],
+      "sizePath": "/var/cache/dnf",
+      "osOnly": "linux"
+    },
+    "pkg-pacman": {
+      "label": "pacman package cache",
+      "bucket": "C",
+      "destructive": false,
+      "command": "pacman",
+      "applyCmd": ["sudo", "pacman", "-Sc", "--noconfirm"],
+      "dryCmd":   ["sudo", "pacman", "-Sc", "--noconfirm", "--print"],
+      "sizePath": "/var/cache/pacman/pkg",
+      "osOnly": "linux"
+    },
+    "pkg-brew": {
+      "label": "Homebrew cache",
+      "bucket": "C",
+      "destructive": false,
+      "command": "brew",
+      "applyCmd": ["brew", "cleanup", "-s", "--prune=all"],
+      "dryCmd":   ["brew", "cleanup", "-s", "--prune=all", "-n"],
+      "sizePath": "$HOME/Library/Caches/Homebrew"
+    },
+    "pkg-npm": {
+      "label": "npm cache",
+      "bucket": "C",
+      "destructive": false,
+      "command": "npm",
+      "applyCmd": ["npm", "cache", "clean", "--force"],
+      "dryCmd":   ["npm", "cache", "verify"],
+      "sizePath": "$HOME/.npm/_cacache"
+    },
+    "pkg-pnpm": {
+      "label": "pnpm store",
+      "bucket": "C",
+      "destructive": false,
+      "command": "pnpm",
+      "applyCmd": ["pnpm", "store", "prune"],
+      "dryCmd":   ["pnpm", "store", "status"],
+      "sizePath": "$HOME/.local/share/pnpm/store"
+    },
+    "pkg-bun": {
+      "label": "bun cache",
+      "bucket": "C",
+      "destructive": false,
+      "paths": {
+        "linux": ["$HOME/.bun/install/cache"],
+        "macos": ["$HOME/.bun/install/cache"]
+      },
+      "mode": "contents"
+    },
+    "pkg-yarn": {
+      "label": "yarn cache",
+      "bucket": "C",
+      "destructive": false,
+      "command": "yarn",
+      "applyCmd": ["yarn", "cache", "clean"],
+      "dryCmd":   ["yarn", "cache", "list"],
+      "sizePath": "$HOME/.cache/yarn"
+    },
+    "pkg-pip": {
+      "label": "pip cache",
+      "bucket": "C",
+      "destructive": false,
+      "command": "pip",
+      "applyCmd": ["pip", "cache", "purge"],
+      "dryCmd":   ["pip", "cache", "info"],
+      "sizePath": "$HOME/.cache/pip"
+    },
+    "logs-rotated": {
+      "label": "Rotated system logs (.gz/.1/.old)",
+      "bucket": "D",
+      "destructive": false,
+      "paths": {
+        "linux": ["/var/log"],
+        "macos": ["/var/log"]
+      },
+      "mode": "glob",
+      "globPatterns": ["*.gz", "*.1", "*.2", "*.old", "*-????????"],
+      "requiresSudo": true
+    },
+    "logs-journal": {
+      "label": "systemd journal vacuum (>7d)",
+      "bucket": "D",
+      "destructive": false,
+      "command": "journalctl",
+      "applyCmd": ["sudo", "journalctl", "--vacuum-time=7d"],
+      "dryCmd":   ["sudo", "journalctl", "--disk-usage"],
+      "sizePath": "/var/log/journal",
+      "osOnly": "linux"
+    },
+    "logs-user": {
+      "label": "User log files",
+      "bucket": "D",
+      "destructive": false,
+      "paths": {
+        "linux": ["$HOME/.npm/_logs", "$HOME/.cache/*/logs"],
+        "macos": ["$HOME/Library/Logs", "$HOME/.npm/_logs"]
+      },
+      "mode": "contents"
+    },
+    "logs-system": {
+      "label": "System crash + diagnostic dumps",
+      "bucket": "D",
+      "destructive": true,
+      "paths": {
+        "linux": ["/var/crash"],
+        "macos": ["/Library/Logs/DiagnosticReports", "$HOME/Library/Logs/DiagnosticReports"]
+      },
+      "mode": "contents",
+      "requiresSudo": true
+    }
+  }
+}

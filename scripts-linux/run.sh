@@ -44,6 +44,13 @@ while [ $# -gt 0 ]; do
         VERB="startup-passthrough"; STARTUP_SUB="env";    shift; STARTUP_REST=("$@"); break ;;
     startup-prune|startup-purge)
         VERB="startup-passthrough"; STARTUP_SUB="prune";  shift; STARTUP_REST=("$@"); break ;;
+    # ---- top-level shortcuts to script 65 (cross-OS os-clean) ----
+    os-clean|clean)
+        VERB="osclean-passthrough"; OSCLEAN_SUB="run";              shift; OSCLEAN_REST=("$@"); break ;;
+    os-clean-list|clean-list|clean-categories)
+        VERB="osclean-passthrough"; OSCLEAN_SUB="list-categories";  shift; OSCLEAN_REST=("$@"); break ;;
+    os-clean-help|clean-help)
+        VERB="osclean-passthrough"; OSCLEAN_SUB="help";             shift; OSCLEAN_REST=("$@"); break ;;
     *) log_warn "Unknown arg: $1"; shift ;;
   esac
 done
@@ -76,6 +83,15 @@ Cross-OS startup management (script 64 shortcuts):
   startup-prune                Idempotent sweep: remove ALL tool-tagged entries
       --dry-run                Preview only, no changes
       --yes                    Skip the interactive confirmation prompt
+
+Cross-OS cleanup (script 65 shortcuts):
+  os-clean                     Sweep temp/caches/trash/pkg-caches/logs (apply mode)
+      --dry-run                Preview only, no deletions
+      --only A,B,C             Limit to comma-separated category ids
+      --exclude A,B,C          Skip these categories
+      --yes                    Pre-approve destructive (trash, logs-system)
+      --json                   Emit machine-readable summary on stdout
+  os-clean-list                Print all defined cleanup categories
 
 Flags:
   -I <id>              Restrict to a single script id
@@ -206,6 +222,9 @@ case "${VERB:-help}" in
   repair-all)  verb_repair_all ;;
   startup-passthrough)
     bash "$ROOT/64-startup-add/run.sh" "$STARTUP_SUB" "${STARTUP_REST[@]:-}"
+    ;;
+  osclean-passthrough)
+    bash "$ROOT/65-os-clean/run.sh" "$OSCLEAN_SUB" "${OSCLEAN_REST[@]:-}"
     ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then

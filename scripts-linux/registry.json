@@ -1,5 +1,5 @@
 {
-  "version": "0.135.0",
+  "version": "0.136.0",
   "description": "Linux installer registry. Mirrors Windows numbering. Windows-only scripts intentionally absent.",
   "scripts": [
     {
@@ -253,6 +253,12 @@
       "folder": "64-startup-add",
       "phase": "12",
       "title": "Cross-OS startup-add (apps + env vars; autostart|systemd-user|launchagent|shell-rc)"
+    },
+    {
+      "id": "65",
+      "folder": "65-os-clean",
+      "phase": "12",
+      "title": "Cross-OS cleanup (user temp+caches, trash, package caches, logs+crash dumps)"
     }
   ]
 }
