@@ -154,13 +154,13 @@ _show_diff() {
 prompt_restore_decision() {
   local backup_dir="$1"
   if [ "${ASSUME_YES:-0}" = "1" ]; then
-    log_info "[62] --yes -> restoring without prompt"; echo restore; return
+    log_info "[62] --yes -> restoring without prompt" >&2; echo restore; return
   fi
   if [ "${NO_PROMPT:-0}" = "1" ]; then
-    log_info "[62] --no-prompt -> keeping current ~/.zshrc"; echo keep; return
+    log_info "[62] --no-prompt -> keeping current ~/.zshrc" >&2; echo keep; return
   fi
   if ! _is_interactive; then
-    log_info "[62] non-interactive shell -> defaulting to RESTORE (use --no-prompt to keep instead)"
+    log_info "[62] non-interactive shell -> defaulting to RESTORE (use --no-prompt to keep instead)" >&2
     echo restore; return
   fi
   show_restore_choice "$backup_dir" >&2
