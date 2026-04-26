@@ -352,8 +352,11 @@ verb_install() {
       --no-restore)         DO_RESTORE=false ;;
       --backup=*)           backup_sel="${arg#--backup=}" ;;
       --backup-latest)      backup_sel="latest" ;;
+      --yes|-y)             ASSUME_YES=1 ;;
+      --no-prompt)          NO_PROMPT=1 ;;
     esac
   done
+  : "${ASSUME_YES:=0}"; : "${NO_PROMPT:=0}"
 
   pre_clear_backup >/dev/null
 
@@ -362,7 +365,13 @@ verb_install() {
     local pick
     if pick=$(choose_backup_dir "$backup_sel"); then
       log_info "[62] Selected backup: $pick"
-      restore_zshrc_from "$pick" || true
+      local decision
+      decision=$(prompt_restore_decision "$pick")
+      case "$decision" in
+        restore) restore_zshrc_from "$pick" || true ;;
+        keep)    log_info "[62] Keeping current ~/.zshrc as-is (will still strip marker blocks)" ;;
+        abort)   log_warn "[62] User aborted -- pre-clear safety backup is intact, no further changes made"; return 0 ;;
+      esac
     else
       log_info "[62] No backup restored -- continuing with surgical strip on current ~/.zshrc"
     fi
@@ -418,12 +427,28 @@ verb_strip() {
 }
 
 verb_restore() {
-  local sel="${1:-latest}"
+  local sel="latest"
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --yes|-y)    ASSUME_YES=1 ;;
+      --no-prompt) NO_PROMPT=1 ;;
+      --*)         : ;;  # unknown flag -- ignore
+      *)           sel="$arg" ;;
+    esac
+  done
+  : "${ASSUME_YES:=0}"; : "${NO_PROMPT:=0}"
   pre_clear_backup >/dev/null
   local pick
   pick=$(choose_backup_dir "$sel") || return 1
   log_info "[62] Selected backup: $pick"
-  restore_zshrc_from "$pick"
+  local decision
+  decision=$(prompt_restore_decision "$pick")
+  case "$decision" in
+    restore) restore_zshrc_from "$pick" ;;
+    keep)    log_info "[62] Restore declined -- current ~/.zshrc kept"; return 0 ;;
+    abort)   log_warn "[62] User aborted restore"; return 0 ;;
+  esac
 }
 
 verb_list_backups() {
@@ -436,10 +461,17 @@ verb_list_backups() {
     log_warn "[62] No backups under $BACKUP_ROOT"; return 1
   fi
   echo "Backups in $BACKUP_ROOT (newest first):"
-  local d has_zshrc
+  local d has_zshrc fcount zsize
   while IFS= read -r d; do
-    if [ -f "$BACKUP_ROOT/$d/.zshrc" ]; then has_zshrc='zshrc:yes'; else has_zshrc='zshrc:no '; fi
-    printf "  %-32s  %s\n" "$d" "$has_zshrc"
+    if [ -f "$BACKUP_ROOT/$d/.zshrc" ]; then
+      has_zshrc='zshrc:yes'
+      zsize=$(_human_size "$(stat -c '%s' "$BACKUP_ROOT/$d/.zshrc" 2>/dev/null || echo 0)")
+    else
+      has_zshrc='zshrc:no '
+      zsize='   --   '
+    fi
+    fcount=$(find "$BACKUP_ROOT/$d" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l)
+    printf "  %-32s  %s  %3s files  zshrc=%s\n" "$d" "$has_zshrc" "$fcount" "$zsize"
   done <<< "$rows"
 }
 
