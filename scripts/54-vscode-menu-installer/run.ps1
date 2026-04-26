@@ -90,7 +90,7 @@ switch ($Command.ToLower()) {
             Write-Host "  Proceeding with surgical removal of keys we created." -ForegroundColor Gray
             Write-Host ""
         }
-        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope
+        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope -Verbosity $Verbosity
     }
     "check" {
         # Quick read-only registry verification for folder + background +
