@@ -281,6 +281,24 @@ function Invoke-VsCodeMenuCheck {
             if ($st.verdict -ne 'PASS' -and $st.reason) {
                 Write-Log ("           reason: " + $st.reason + " (failure path: " + $regPath + ")") -Level "error"
             }
+            # CODE RED: when sub-keys/values are missing, list each one on
+            # its own line with the exact registry path it should live under.
+            if ($st.missingSubkeys -and $st.missingSubkeys.Count -gt 0) {
+                $unique = @($st.missingSubkeys | Select-Object -Unique)
+                Write-Log ("           missing sub-keys/values (" + $unique.Count + "):") -Level "error"
+                foreach ($mk in $unique) {
+                    $childPath = if ($mk -eq '(Default)' -or $mk -eq 'Icon') {
+                        $regPath + '  -> value: ' + $mk
+                    } elseif ($mk -eq 'command') {
+                        $regPath + '\command  (subkey missing)'
+                    } elseif ($mk -eq 'command\(Default)') {
+                        $regPath + '\command  -> value: (Default)'
+                    } else {
+                        $regPath + '\' + $mk
+                    }
+                    Write-Log ("             - " + $childPath + " (failure: not present in " + $st.hive + ")") -Level "error"
+                }
+            }
             if ($st.verdict -eq 'PASS') { $totalPass++ } else { $totalMiss++ }
         }
 
@@ -288,6 +306,30 @@ function Invoke-VsCodeMenuCheck {
         $bgResult     = $perTarget | Where-Object { $_.target -eq 'background' } | Select-Object -First 1
         $folderTag    = if ($folderResult) { $folderResult.verdict } else { "n/a" }
         $bgTag        = if ($bgResult)     { $bgResult.verdict     } else { "n/a" }
+
+        # Folder + background COVERAGE line -- the user explicitly asked
+        # for confirmation that BOTH directory + background verbs exist
+        # under the resolved scope.
+        $hiveLabel = if ($hasScope) {
+            if ($Scope -eq 'AllUsers') { 'HKCR (machine-wide)' }
+            else                       { 'HKCU\Software\Classes (per-user)' }
+        } else { 'HKCR (merged view)' }
+
+        $folderPresent = ($folderResult -and $folderResult.keyExists)
+        $bgPresent     = ($bgResult     -and $bgResult.keyExists)
+        $coverageOk    = $folderPresent -and $bgPresent
+        $coverageLevel = if ($coverageOk) { 'success' } else { 'error' }
+        $coverageTag   = if ($coverageOk) { 'OK  ' } else { 'GAP ' }
+        Write-Log ("  [{0}] folder+background coverage in {1}: folder={2}, background={3}" -f `
+            $coverageTag, $hiveLabel, $folderTag, $bgTag) -Level $coverageLevel
+        if (-not $folderPresent) {
+            $missPath = if ($folderResult) { $folderResult.registryPath } else { '(no registryPaths.directory entry in config)' }
+            Write-Log ("           - directory verb MISSING at: " + $missPath + " (failure: folder right-click won't show this entry)") -Level "error"
+        }
+        if (-not $bgPresent) {
+            $missPath = if ($bgResult) { $bgResult.registryPath } else { '(no registryPaths.background entry in config)' }
+            Write-Log ("           - background verb MISSING at: " + $missPath + " (failure: empty-folder right-click won't show this entry)") -Level "error"
+        }
         Write-Log ("  summary: folder=" + $folderTag + ", background=" + $bgTag) -Level "info"
 
         $editionResults += [pscustomobject]@{
@@ -296,6 +338,9 @@ function Invoke-VsCodeMenuCheck {
             targets   = $perTarget
             folderOk  = ($folderTag -eq 'PASS')
             bgOk      = ($bgTag     -eq 'PASS')
+            folderPresent = $folderPresent
+            bgPresent     = $bgPresent
+            coverageOk    = $coverageOk
         }
     }
 
