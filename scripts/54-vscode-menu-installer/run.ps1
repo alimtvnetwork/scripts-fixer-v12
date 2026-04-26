@@ -32,8 +32,14 @@ function Show-RouterHelp {
     Show-ScriptHelp -LogMessages $logMsgs
     Write-Host ""
     Write-Host "  Privilege summary:" -ForegroundColor Yellow
-    Write-Host "    install / uninstall  -- require Administrator (write to HKEY_CLASSES_ROOT)" -ForegroundColor Gray
-    Write-Host "    check / verify       -- read-only, run as any user (HKCR is world-readable)" -ForegroundColor Gray
+    Write-Host "    install / uninstall / repair -- AllUsers needs Administrator;" -ForegroundColor Gray
+    Write-Host "                                    CurrentUser runs as any user." -ForegroundColor Gray
+    Write-Host "    check / verify              -- read-only, run as any user." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Scope (-Scope flag, default Auto):" -ForegroundColor Yellow
+    Write-Host "    Auto         -- AllUsers when elevated, else CurrentUser" -ForegroundColor Gray
+    Write-Host "    CurrentUser  -- writes to HKCU\Software\Classes (only this user)" -ForegroundColor Gray
+    Write-Host "    AllUsers     -- writes to HKEY_CLASSES_ROOT (all users; needs admin)" -ForegroundColor Gray
     Write-Host ""
     Write-Host "  Tip: launch an elevated PowerShell with:" -ForegroundColor Yellow
     Write-Host "    Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-Command','cd ""$((Split-Path -Parent (Split-Path -Parent $scriptDir)))""'" -ForegroundColor DarkGray
