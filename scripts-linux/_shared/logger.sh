@@ -38,3 +38,21 @@ log_file_error() {
   local path="$1"; local reason="$2"
   __log_write err "FILE-ERROR path='$path' reason='$reason'"
 }
+# Public: log a message tagged with the current hostname + primary IP.
+# Useful in remote/multi-node scripts so output is unambiguous.
+# Usage:  log_msg_ip "joining cluster"          (default level: info)
+#         log_msg_ip "joined cluster" ok
+log_msg_ip() {
+  local message="$1"
+  local level="${2:-info}"
+  local hostname_val ip_val
+  hostname_val=$(hostname 2>/dev/null || echo "unknown-host")
+  ip_val=$(hostname -I 2>/dev/null | awk '{print $1}')
+  [ -n "$ip_val" ] || ip_val="?.?.?.?"
+  case "$level" in
+    ok)   log_ok   "[$hostname_val @ $ip_val] $message" ;;
+    warn) log_warn "[$hostname_val @ $ip_val] $message" ;;
+    err)  log_err  "[$hostname_val @ $ip_val] $message" ;;
+    *)    log_info "[$hostname_val @ $ip_val] $message" ;;
+  esac
+}
