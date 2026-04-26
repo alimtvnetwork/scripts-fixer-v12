@@ -51,6 +51,9 @@ try {
     $isDisabled = -not $config.enabled
     if ($isDisabled) { Write-Log $logMessages.messages.scriptDisabled -Level "warn"; return }
 
+    # -- Verbosity (controls verification + audit-report loudness) -----------
+    Set-VerbosityLevel -Level $Verbosity
+
     # -- Open audit log (timestamped, one file per run) ----------------------
     $auditPath = Initialize-RegistryAudit -Action "install" -ScriptDir $scriptDir
 
