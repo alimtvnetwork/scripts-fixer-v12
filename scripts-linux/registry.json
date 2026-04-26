@@ -1,5 +1,5 @@
 {
-  "version": "0.121.0",
+  "version": "0.122.0",
   "description": "Linux installer registry. Mirrors Windows numbering. Windows-only scripts intentionally absent.",
   "scripts": [
     {
