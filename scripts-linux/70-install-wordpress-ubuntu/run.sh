@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# scripts-linux/70-install-wordpress-ubuntu/run.sh
+# Ubuntu WordPress installer (Nginx + PHP-FPM + MySQL/MariaDB + WordPress).
+#
+# Verbs:
+#   install               install all components in order
+#   install wp-only       install ONLY WordPress (assumes prereqs are present)
+#   install <component>   install one of: mysql | php | nginx | wordpress
+#   check                 verify every installed component
+#   repair                wipe markers, re-run install
+#   uninstall             remove WordPress + per-component cleanup
+#
+# Flags:
+#   --interactive | -i    prompt for port / data dir / php version /
+#                         install path / site port / db name|user|pass
+#   --db mysql|mariadb    pick DB engine (default: mysql)
+#   --php <ver>           pin PHP version (8.1|8.2|8.3|latest, default: latest)
+#   --port <n>            MySQL port (default: 3306)
+#   --datadir <path>      MySQL data directory (default: /var/lib/mysql)
+#   --path <path>         WordPress install path (default: /var/www/wordpress)
+#   --site-port <n>       nginx HTTP port (default: 80)
+#   --server-name <name>  nginx server_name (default: localhost)
+#   --db-name <name>      WordPress DB name (default: wordpress)
+#   --db-user <name>      WordPress DB user (default: wp_user)
+#   --db-pass <pw>        WordPress DB password (default: auto-generate)
+#   -h | --help           show this help and exit
+set -u
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export SCRIPT_ID="70"
+export ROOT
+
+. "$ROOT/_shared/logger.sh"
+. "$ROOT/_shared/file-error.sh"
+. "$SCRIPT_DIR/components/mysql.sh"
+. "$SCRIPT_DIR/components/php.sh"
+. "$SCRIPT_DIR/components/nginx.sh"
+. "$SCRIPT_DIR/components/wordpress.sh"
+
+CONFIG="$SCRIPT_DIR/config.json"
+if [ ! -f "$CONFIG" ]; then
+    log_file_error "$CONFIG" "config.json missing for 70-install-wordpress-ubuntu"
+    exit 1
+fi
+
+# ---- defaults ---------------------------------------------------------------
+INTERACTIVE=0
+VERB=""
+SUBCOMPONENT=""
+export WP_DB_ENGINE="mysql"
+export WP_PHP_VERSION="latest"
+export WP_MYSQL_PORT="3306"
+export WP_MYSQL_DATADIR="/var/lib/mysql"
+export WP_INSTALL_PATH="/var/www/wordpress"
+export WP_SITE_PORT="80"
+export WP_SERVER_NAME="localhost"
+export WP_DB_NAME="wordpress"
+export WP_DB_USER="wp_user"
+export WP_DB_PASS=""
+
+_show_help() {
+    sed -n '2,/^set -u$/p' "$0" | sed 's/^# \{0,1\}//' | head -n -1
+}
+
+# ---- arg parse --------------------------------------------------------------
+while [ $# -gt 0 ]; do
+    case "$1" in
+        install|check|repair|uninstall)
+            VERB="$1"; shift
+            # Optional positional: component (mysql|php|nginx|wordpress|wp-only|wp)
+            case "${1:-}" in
+                mysql|php|nginx|wordpress|wp-only|wp)
+                    SUBCOMPONENT="$1"; shift ;;
+            esac
+            ;;
+        -i|--interactive)  INTERACTIVE=1; shift ;;
+        --db)              WP_DB_ENGINE="$2"; shift 2 ;;
+        --php)             WP_PHP_VERSION="$2"; shift 2 ;;
+        --port)            WP_MYSQL_PORT="$2"; shift 2 ;;
+        --datadir)         WP_MYSQL_DATADIR="$2"; shift 2 ;;
+        --path)            WP_INSTALL_PATH="$2"; shift 2 ;;
+        --site-port)       WP_SITE_PORT="$2"; shift 2 ;;
+        --server-name)     WP_SERVER_NAME="$2"; shift 2 ;;
+        --db-name)         WP_DB_NAME="$2"; shift 2 ;;
+        --db-user)         WP_DB_USER="$2"; shift 2 ;;
+        --db-pass)         WP_DB_PASS="$2"; shift 2 ;;
+        -h|--help)         _show_help; exit 0 ;;
+        *)
+            log_warn "[70] Unknown arg: '$1' -- run with --help for usage"
+            shift ;;
+    esac
+done
+
+VERB="${VERB:-install}"
+
+# ---- interactive prompts ----------------------------------------------------
+_prompt() {
+    # _prompt "label" "default" -> echoes user reply (default if empty)
+    local label="$1" default="$2" reply=""
+    if [ ! -t 0 ] && [ ! -e /dev/tty ]; then
+        echo "$default"
+        return
+    fi
+    printf '  %s [%s]: ' "$label" "$default" > /dev/tty
+    if ! IFS= read -r reply < /dev/tty; then
+        echo "$default"
+        return
+    fi
+    [ -z "$reply" ] && reply="$default"
+    echo "$reply"
+}
+
+_run_interactive() {
+    log_info "[70] Interactive mode -- press Enter to accept the [default]"
+    WP_DB_ENGINE="$(_prompt    'DB engine (mysql|mariadb)'      "$WP_DB_ENGINE")"
+    WP_MYSQL_PORT="$(_prompt   'MySQL port'                     "$WP_MYSQL_PORT")"
+    WP_MYSQL_DATADIR="$(_prompt 'MySQL data dir'                "$WP_MYSQL_DATADIR")"
+    WP_PHP_VERSION="$(_prompt  'PHP version (8.1|8.2|8.3|latest)' "$WP_PHP_VERSION")"
+    WP_INSTALL_PATH="$(_prompt 'WordPress install path'         "$WP_INSTALL_PATH")"
+    WP_SITE_PORT="$(_prompt    'nginx HTTP port'                "$WP_SITE_PORT")"
+    WP_SERVER_NAME="$(_prompt  'nginx server_name'              "$WP_SERVER_NAME")"
+    WP_DB_NAME="$(_prompt      'DB name'                        "$WP_DB_NAME")"
+    WP_DB_USER="$(_prompt      'DB user'                        "$WP_DB_USER")"
+    WP_DB_PASS="$(_prompt      'DB password (blank = auto-generate)' "$WP_DB_PASS")"
+    export WP_DB_ENGINE WP_PHP_VERSION WP_MYSQL_PORT WP_MYSQL_DATADIR \
+           WP_INSTALL_PATH WP_SITE_PORT WP_SERVER_NAME \
+           WP_DB_NAME WP_DB_USER WP_DB_PASS
+}
+
+if [ "$INTERACTIVE" = "1" ] && [ "$VERB" = "install" ]; then
+    _run_interactive
+fi
+
+# ---- verb dispatchers -------------------------------------------------------
+_install_one() {
+    case "$1" in
+        mysql)     component_mysql_install     ;;
+        php)       component_php_install       ;;
+        nginx)     component_nginx_install     ;;
+        wordpress|wp|wp-only) component_wordpress_install ;;
+        *)         log_err "[70] Unknown component: '$1'"; return 2 ;;
+    esac
+}
+
+_install_all() {
+    log_info "[70] Starting Ubuntu WordPress installer (engine=$WP_DB_ENGINE php=$WP_PHP_VERSION path=$WP_INSTALL_PATH)"
+    local rc=0
+    component_mysql_install     || rc=$?
+    [ $rc -eq 0 ] && component_php_install       || rc=$?
+    [ $rc -eq 0 ] && component_nginx_install     || rc=$?
+    [ $rc -eq 0 ] && component_wordpress_install || rc=$?
+    return $rc
+}
+
+_check_all() {
+    local rc=0
+    component_mysql_verify     && log_ok "[70][verify] mysql OK"     || { log_err "[70][verify] mysql FAILED";     rc=1; }
+    component_php_verify       && log_ok "[70][verify] php OK"       || { log_err "[70][verify] php FAILED";       rc=1; }
+    component_nginx_verify     && log_ok "[70][verify] nginx OK"     || { log_err "[70][verify] nginx FAILED";     rc=1; }
+    component_wordpress_verify && log_ok "[70][verify] wordpress OK" || { log_err "[70][verify] wordpress FAILED"; rc=1; }
+    if [ $rc -eq 0 ]; then
+        log_ok "[70][verify] OK -- all components reachable"
+        log_info "[70][verify] site: http://${WP_SERVER_NAME}:${WP_SITE_PORT}/"
+    else
+        log_err "[70][verify] FAILED -- see lines above for the failing component"
+    fi
+    return $rc
+}
+
+_uninstall_all() {
+    component_wordpress_uninstall
+    component_nginx_uninstall
+    # Leave php + mysql in place by default (other apps may depend on them).
+    # The operator can run `install uninstall mysql` / `install uninstall php`
+    # explicitly to remove those packages too.
+    log_info "[70] WordPress + nginx vhost removed. To also remove PHP / MySQL packages, run: $0 uninstall php   and   $0 uninstall mysql"
+}
+
+# ---- main -------------------------------------------------------------------
+rc=0
+case "$VERB" in
+    install)
+        if [ -n "$SUBCOMPONENT" ]; then
+            _install_one "$SUBCOMPONENT" || rc=$?
+        else
+            _install_all || rc=$?
+        fi
+        if [ $rc -eq 0 ]; then
+            echo ""
+            log_info "[70] === WordPress installation summary ==="
+            log_info "[70]   site URL    : http://${WP_SERVER_NAME}:${WP_SITE_PORT}/"
+            log_info "[70]   install dir : $WP_INSTALL_PATH"
+            log_info "[70]   db engine   : $WP_DB_ENGINE (port $WP_MYSQL_PORT)"
+            log_info "[70]   credentials : $ROOT/.installed/70-wordpress-credentials.json"
+            log_info "[70] Now visit the site URL in a browser to finish the WordPress setup wizard."
+        fi
+        ;;
+    check)
+        _check_all || rc=$?
+        ;;
+    repair)
+        rm -f "$ROOT/.installed/70-mysql.ok" "$ROOT/.installed/70-php.ok" \
+              "$ROOT/.installed/70-nginx.ok" "$ROOT/.installed/70-wordpress.ok"
+        _install_all || rc=$?
+        ;;
+    uninstall)
+        if [ -n "$SUBCOMPONENT" ]; then
+            case "$SUBCOMPONENT" in
+                mysql)     component_mysql_uninstall     ;;
+                php)       component_php_uninstall       ;;
+                nginx)     component_nginx_uninstall     ;;
+                wordpress|wp|wp-only) component_wordpress_uninstall ;;
+            esac
+        else
+            _uninstall_all
+        fi
+        ;;
+    *)
+        log_err "[70] Unknown verb: '$VERB' -- use install|check|repair|uninstall"
+        rc=2
+        ;;
+esac
+
+exit $rc
