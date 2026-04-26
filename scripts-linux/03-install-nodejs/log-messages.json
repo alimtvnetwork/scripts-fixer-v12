@@ -1,0 +1,18 @@
+{
+  "description": "Log messages for 03-install-nodejs",
+  "messages": {
+    "start":           "[03] Starting Node.js LTS installer",
+    "resolved":        "[03] Resolution method: {method}",
+    "alreadyInstalled":"[03] Already installed: {pkg}",
+    "installing":      "[03] Installing via {method}: {pkg}",
+    "installSuccess":  "[03] Installed: {pkg}",
+    "installFailed":   "[03] Install failed for {pkg}: {err}",
+    "verifyOk":        "[03] Verify OK: {detail}",
+    "verifyFail":      "[03] Verify FAILED: {detail}",
+    "uninstalling":    "[03] Uninstalling: {pkg}",
+    "uninstallOk":     "[03] Uninstalled: {pkg}",
+    "uninstallFailed": "[03] Uninstall failed: {err}",
+    "noMethod":        "[03] No supported install method on this system",
+    "notDebianFamily": "[03] Not a Debian-family distro -- skipping apt path"
+  }
+}

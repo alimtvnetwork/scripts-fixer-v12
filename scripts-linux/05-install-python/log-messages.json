@@ -1,0 +1,18 @@
+{
+  "description": "Log messages for 05-install-python",
+  "messages": {
+    "start":           "[05] Starting Python 3 + pip + venv installer",
+    "resolved":        "[05] Resolution method: {method}",
+    "alreadyInstalled":"[05] Already installed: {pkg}",
+    "installing":      "[05] Installing via {method}: {pkg}",
+    "installSuccess":  "[05] Installed: {pkg}",
+    "installFailed":   "[05] Install failed for {pkg}: {err}",
+    "verifyOk":        "[05] Verify OK: {detail}",
+    "verifyFail":      "[05] Verify FAILED: {detail}",
+    "uninstalling":    "[05] Uninstalling: {pkg}",
+    "uninstallOk":     "[05] Uninstalled: {pkg}",
+    "uninstallFailed": "[05] Uninstall failed: {err}",
+    "noMethod":        "[05] No supported install method on this system",
+    "notDebianFamily": "[05] Not a Debian-family distro -- skipping apt path"
+  }
+}

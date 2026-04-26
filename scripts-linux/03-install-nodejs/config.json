@@ -1,0 +1,1 @@
+{"install":{"apt":"nodejs","tarball":{"url":"https://nodejs.org/dist/latest/"}},"notes":"NodeSource recommended for newer LTS"}

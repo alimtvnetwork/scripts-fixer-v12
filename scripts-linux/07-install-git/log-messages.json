@@ -1,0 +1,18 @@
+{
+  "description": "Log messages for 07-install-git",
+  "messages": {
+    "start":           "[07] Starting Git installer",
+    "resolved":        "[07] Resolution method: {method}",
+    "alreadyInstalled":"[07] Already installed: {pkg}",
+    "installing":      "[07] Installing via {method}: {pkg}",
+    "installSuccess":  "[07] Installed: {pkg}",
+    "installFailed":   "[07] Install failed for {pkg}: {err}",
+    "verifyOk":        "[07] Verify OK: {detail}",
+    "verifyFail":      "[07] Verify FAILED: {detail}",
+    "uninstalling":    "[07] Uninstalling: {pkg}",
+    "uninstallOk":     "[07] Uninstalled: {pkg}",
+    "uninstallFailed": "[07] Uninstall failed: {err}",
+    "noMethod":        "[07] No supported install method on this system",
+    "notDebianFamily": "[07] Not a Debian-family distro -- skipping apt path"
+  }
+}

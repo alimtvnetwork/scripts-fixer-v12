@@ -1,0 +1,14 @@
+{
+  "description": "Log messages for 17-install-powershell",
+  "messages": {
+    "start":           "[17] Starting PowerShell installer",
+    "resolved":        "[17] Resolution method: {method}",
+    "alreadyInstalled":"[17] PowerShell already installed",
+    "addingMsRepo":    "[17] Adding Microsoft apt repo for {distro} {version}",
+    "msRepoFailed":    "[17] Failed to add Microsoft repo: {err}",
+    "installSuccess":  "[17] PowerShell installed",
+    "verifyOk":        "[17] pwsh detected: {detail}",
+    "verifyFail":      "[17] pwsh not on PATH",
+    "noMethod":        "[17] No supported install method"
+  }
+}

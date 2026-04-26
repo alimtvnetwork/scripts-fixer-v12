@@ -1,0 +1,18 @@
+{
+  "description": "Log messages for 09-install-cpp",
+  "messages": {
+    "start":           "[09] Starting C++ toolchain (build-essential, gdb, cmake) installer",
+    "resolved":        "[09] Resolution method: {method}",
+    "alreadyInstalled":"[09] Already installed: {pkg}",
+    "installing":      "[09] Installing via {method}: {pkg}",
+    "installSuccess":  "[09] Installed: {pkg}",
+    "installFailed":   "[09] Install failed for {pkg}: {err}",
+    "verifyOk":        "[09] Verify OK: {detail}",
+    "verifyFail":      "[09] Verify FAILED: {detail}",
+    "uninstalling":    "[09] Uninstalling: {pkg}",
+    "uninstallOk":     "[09] Uninstalled: {pkg}",
+    "uninstallFailed": "[09] Uninstall failed: {err}",
+    "noMethod":        "[09] No supported install method on this system",
+    "notDebianFamily": "[09] Not a Debian-family distro -- skipping apt path"
+  }
+}
