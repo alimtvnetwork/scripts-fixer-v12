@@ -19,6 +19,7 @@ export SCRIPT_ID="67"
 . "$ROOT/_shared/verify.sh"
 . "$SCRIPT_DIR/helpers/detect.sh"
 . "$SCRIPT_DIR/helpers/remove.sh"
+. "$SCRIPT_DIR/helpers/verify-context-menu.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 LOGS_ROOT="${LOGS_OVERRIDE:-$ROOT/.logs/67}"
@@ -27,7 +28,9 @@ RUN_DIR="$LOGS_ROOT/$TS"
 ROWS_TSV="$RUN_DIR/rows.tsv"
 PLAN_TSV="$RUN_DIR/plan.tsv"
 VERIFY_TSV="$RUN_DIR/verify.tsv"
+VERIFY_CTX_TSV="$RUN_DIR/verify-context-menu.tsv"
 export ROWS_TSV
+export VERIFY_CTX_TSV
 
 # --------------------------------------------------------------------- args
 VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; SKIP_DETECT=0; ASSUME_YES=0
