@@ -56,7 +56,12 @@ param(
     [ValidateSet('Both','CurrentUser','AllUsers')]
     [string]                                $OnlyScope     = 'Both',
     [switch]                                $KeepGoing,
-    [switch]                                $NoColor
+    [switch]                                $NoColor,
+    # When supplied, a machine-readable residue report is written to this
+    # path as JSON. Existing files are overwritten. The directory must
+    # already exist; if the write fails the operator gets a CODE-RED line
+    # naming the exact path and reason. Independent of console output.
+    [string]                                $ReportPath    = ""
 )
 
 Set-StrictMode -Version Latest
@@ -116,6 +121,42 @@ function Write-C {
 $script:scopeStatus = @{
     CurrentUser = [ordered]@{ ran=$false; installFail=$false; uninstallFail=$false; bleedFail=$false; reasons=@() }
     AllUsers    = [ordered]@{ ran=$false; installFail=$false; uninstallFail=$false; bleedFail=$false; reasons=@() }
+}
+
+# Structured per-row residue ledger. Every Add-ResidueRow call appends one
+# entry shaped:
+#   Scope    : 'CurrentUser' | 'AllUsers'
+#   Edition  : config edition name
+#   Target   : 'file' | 'directory' | 'background'
+#   Class    : one of MISSING-AFTER-INSTALL | RESIDUE | BLEED-INSTALL | BLEED-UNINSTALL
+#   Hive     : 'this' (the scope under test) | 'opposite' (the watch hive)
+#   PsPath   : full PsPath (Registry::HKEY_*\...)
+#   Detail   : short human reason for the entry
+# This is the source of truth for both the on-screen residue table and
+# the optional -ReportPath JSON dump. The legacy concatenated-reasons
+# strings on $scopeStatus are kept untouched so the granular exit codes
+# stay bit-for-bit compatible.
+$script:residueRows = New-Object System.Collections.Generic.List[object]
+
+function Add-ResidueRow {
+    param(
+        [Parameter(Mandatory)] [ValidateSet('CurrentUser','AllUsers')]                                  [string] $Scope,
+        [Parameter(Mandatory)]                                                                          [string] $EditionName,
+        [Parameter(Mandatory)] [ValidateSet('file','directory','background','-')]                       [string] $Target,
+        [Parameter(Mandatory)] [ValidateSet('MISSING-AFTER-INSTALL','RESIDUE','BLEED-INSTALL','BLEED-UNINSTALL')] [string] $Class,
+        [Parameter(Mandatory)] [ValidateSet('this','opposite')]                                         [string] $Hive,
+        [Parameter(Mandatory)]                                                                          [string] $PsPath,
+        [Parameter(Mandatory)]                                                                          [string] $Detail
+    )
+    $script:residueRows.Add([pscustomobject]@{
+        Scope   = $Scope
+        Edition = $EditionName
+        Target  = $Target
+        Class   = $Class
+        Hive    = $Hive
+        PsPath  = $PsPath
+        Detail  = $Detail
+    })
 }
 
 function Add-ScopeFail {
@@ -282,6 +323,10 @@ function Invoke-ScopeCase {
         } else {
             Write-C "    [FAIL] MISSING: $($row.PsPath) (failure: install did not create the expected key)" "Red"
             $missingAfterInstall += $row.PsPath
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target $row.Target -Class 'MISSING-AFTER-INSTALL' `
+                -Hive 'this' -PsPath $row.PsPath `
+                -Detail "install completed but the expected key did not appear"
         }
     }
     if ($missingAfterInstall.Count -gt 0) {
@@ -296,6 +341,10 @@ function Invoke-ScopeCase {
     } else {
         foreach ($p in $bleedAfterInstall) {
             Write-C "    [FAIL] BLEED: install created '$p' in $oppositeScope hive (failure: scope routing leak)" "Red"
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target '-' -Class 'BLEED-INSTALL' `
+                -Hive 'opposite' -PsPath $p `
+                -Detail "install created a key in the $oppositeScope hive (scope routing leak)"
         }
         Add-ScopeFail -Scope $Scope -Phase bleed -Reason ("install created keys in $oppositeScope hive: " + ($bleedAfterInstall -join '; '))
     }
@@ -326,6 +375,10 @@ function Invoke-ScopeCase {
         } else {
             Write-C "    [FAIL] RESIDUE: $($row.PsPath) (failure: uninstall left the key behind)" "Red"
             $stillThere += $row.PsPath
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target $row.Target -Class 'RESIDUE' `
+                -Hive 'this' -PsPath $row.PsPath `
+                -Detail "uninstall completed but the key is still present (expected to be removed)"
         }
     }
     if ($stillThere.Count -gt 0) {
@@ -340,6 +393,10 @@ function Invoke-ScopeCase {
     } else {
         foreach ($p in $bleedAfterUninstall) {
             Write-C "    [FAIL] BLEED (post-uninstall): '$p' was created in $oppositeScope hive (failure: scope routing leak)" "Red"
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target '-' -Class 'BLEED-UNINSTALL' `
+                -Hive 'opposite' -PsPath $p `
+                -Detail "post-uninstall: a key appeared in the $oppositeScope hive (scope routing leak)"
         }
         Add-ScopeFail -Scope $Scope -Phase bleed -Reason ("post-uninstall keys in $oppositeScope hive: " + ($bleedAfterUninstall -join '; '))
     }
@@ -383,6 +440,107 @@ function Write-ScopeSummary {
 
 Write-ScopeSummary "CurrentUser" $cuStat
 Write-ScopeSummary "AllUsers"    $auStat
+
+# ---- Detailed residue report ------------------------------------------------
+# Lists exactly which expected keys are missing or left behind, per scope +
+# edition + target. Always rendered (even on full PASS) so operators get a
+# consistent footer; an empty report is itself a useful signal.
+function Write-ResidueReport {
+    param(
+        [Parameter(Mandatory)] [System.Collections.Generic.List[object]] $Rows
+    )
+    Write-C ""
+    Write-C "----------------------------------------------------------------" "DarkGray"
+    Write-C " Residue report (post-uninstall + missing-after-install)"        "White"
+    Write-C "----------------------------------------------------------------" "DarkGray"
+
+    if ($Rows.Count -eq 0) {
+        Write-C "  (no residue and no missing keys -- every scope ended clean)" "Green"
+        return
+    }
+
+    # Group counts per scope so the operator can scan the totals first.
+    $hasCu = ($Rows | Where-Object { $_.Scope -eq 'CurrentUser' }).Count
+    $hasAu = ($Rows | Where-Object { $_.Scope -eq 'AllUsers'    }).Count
+    Write-C ("  Totals : CurrentUser={0}  AllUsers={1}  (rows={2})" -f $hasCu, $hasAu, $Rows.Count) "Yellow"
+    Write-C ""
+
+    # Header. Fixed widths so the table stays aligned in plain text logs.
+    $fmt = "  {0,-11}  {1,-12}  {2,-11}  {3,-22}  {4,-8}  {5}"
+    Write-C ($fmt -f "SCOPE","EDITION","TARGET","CLASS","HIVE","PATH") "DarkCyan"
+    Write-C ("  " + ('-' * 100)) "DarkGray"
+
+    # Stable sort: scope, edition, then class so RESIDUE entries cluster
+    # together (most actionable for operators).
+    $sorted = $Rows | Sort-Object Scope, Edition, Class, Target, PsPath
+    foreach ($r in $sorted) {
+        $color = switch ($r.Class) {
+            'RESIDUE'                { "Red"     }
+            'MISSING-AFTER-INSTALL'  { "Red"     }
+            'BLEED-INSTALL'          { "Magenta" }
+            'BLEED-UNINSTALL'        { "Magenta" }
+            default                  { "White"   }
+        }
+        Write-C ($fmt -f $r.Scope, $r.Edition, $r.Target, $r.Class, $r.Hive, $r.PsPath) $color
+        Write-C ("                                                              -> " + $r.Detail) "DarkGray"
+    }
+    Write-C ""
+    Write-C "  Class legend:" "DarkCyan"
+    Write-C "    RESIDUE                = uninstall left the key behind in the scope under test" "DarkGray"
+    Write-C "    MISSING-AFTER-INSTALL  = install ran but the expected key never appeared"        "DarkGray"
+    Write-C "    BLEED-INSTALL          = install created a key in the OPPOSITE scope's hive"     "DarkGray"
+    Write-C "    BLEED-UNINSTALL        = a key appeared in the OPPOSITE hive after uninstall"    "DarkGray"
+}
+
+Write-ResidueReport -Rows $script:residueRows
+
+# ---- Optional JSON dump for CI ---------------------------------------------
+# When -ReportPath is supplied, emit a deterministic JSON document so a
+# CI job (or a follow-up script) can parse the same data without screen-
+# scraping. CODE-RED on any write failure: log the exact target path.
+if (-not [string]::IsNullOrWhiteSpace($ReportPath)) {
+    # Build the report document with plain hashtables. Two PowerShell
+    # quirks shape the code here:
+    #   1. Nested [ordered]@{} or [pscustomobject]@{} casts that contain
+    #      pre-built PSObject/Ordered values fail at runtime with
+    #      "Argument types do not match". Plain @{} avoids that. Property
+    #      order in JSON is irrelevant to consumers (they parse by name).
+    #   2. `@($genericList)` over a System.Collections.Generic.List[object]
+    #      *also* trips the same "Argument types do not match" error in
+    #      pwsh 7.5+ when the list contains [pscustomobject] items. Use
+    #      `.ToArray()` to materialise a plain object[] instead.
+    $residueArray = $script:residueRows.ToArray()
+    $scopeStatusObj = @{
+        CurrentUser = @{} + $script:scopeStatus.CurrentUser
+        AllUsers    = @{} + $script:scopeStatus.AllUsers
+    }
+    $totalsObj = @{
+        rows                = $script:residueRows.Count
+        residue             = ($script:residueRows | Where-Object { $_.Class -eq 'RESIDUE' }).Count
+        missingAfterInstall = ($script:residueRows | Where-Object { $_.Class -eq 'MISSING-AFTER-INSTALL' }).Count
+        bleedInstall        = ($script:residueRows | Where-Object { $_.Class -eq 'BLEED-INSTALL' }).Count
+        bleedUninstall      = ($script:residueRows | Where-Object { $_.Class -eq 'BLEED-UNINSTALL' }).Count
+    }
+    $reportDoc = @{
+        schema      = "scripts/54/scope-matrix-residue-report.v1"
+        generatedAt = (Get-Date).ToString("o")
+        admin       = $isAdmin
+        editions    = @($editionsToTest)
+        scopes      = @($scopesPlanned)
+        scopeStatus = $scopeStatusObj
+        residueRows = $residueArray
+        totals      = $totalsObj
+    }
+    try {
+        $json = $reportDoc | ConvertTo-Json -Depth 8
+        Set-Content -LiteralPath $ReportPath -Value $json -Encoding UTF8 -ErrorAction Stop
+        Write-C ""
+        Write-C "  [REPORT] Residue report written to: $ReportPath" "Cyan"
+    } catch {
+        Write-C ""
+        Write-C "  FATAL: could not write residue report to: $ReportPath  (failure: $($_.Exception.Message))" "Red"
+    }
+}
 
 # Pick the granular exit code per the contract in the file header.
 $cuFailed = $cuStat.ran -and ($cuStat.installFail -or $cuStat.uninstallFail -or $cuStat.bleedFail)

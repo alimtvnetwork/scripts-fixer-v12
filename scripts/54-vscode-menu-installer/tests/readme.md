@@ -155,7 +155,34 @@ a divergent re-implementation here would silently mask real bugs.
 
 # CI-friendly
 .\run-scope-matrix.ps1 -NoColor
+
+# Dump a machine-readable residue report for CI consumption
+.\run-scope-matrix.ps1 -ReportPath .\matrix-residue.json
 ```
+
+### Detailed residue report
+
+After every run -- pass or fail -- the harness prints a **Residue report**
+table listing every expected key that ended up in the wrong state, with
+columns `SCOPE | EDITION | TARGET | CLASS | HIVE | PATH` and a one-line
+`Detail` follow-up per row. Classes:
+
+| Class                   | Meaning                                                              |
+|-------------------------|----------------------------------------------------------------------|
+| `RESIDUE`               | uninstall left the key behind in the scope under test                |
+| `MISSING-AFTER-INSTALL` | install ran but the expected key never appeared                      |
+| `BLEED-INSTALL`         | install created a key in the OPPOSITE scope's hive (routing leak)    |
+| `BLEED-UNINSTALL`       | a key appeared in the OPPOSITE hive after uninstall (routing leak)   |
+
+An empty report is itself a useful signal -- it confirms every targeted
+path landed and was removed in the correct hive for every `(scope,
+edition)` combination that ran.
+
+When `-ReportPath <file>` is supplied, the same data is also written as a
+JSON document with schema `scripts/54/scope-matrix-residue-report.v1`,
+containing `editions`, `scopes`, `admin`, `scopeStatus`, per-row
+`residueRows`, and a `totals` summary. CI jobs should consume this file
+rather than screen-scraping the table.
 
 ### Granular exit codes
 
