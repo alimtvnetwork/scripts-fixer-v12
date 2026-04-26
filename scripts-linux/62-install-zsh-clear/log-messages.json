@@ -20,6 +20,13 @@
     "doneSafe":           "[62] Done (safe mode). Open a new shell to verify.",
     "doneAggressive":     "[62] Done (aggressive mode applied: {flags})",
     "checkOk":            "[62] No lovable marker blocks present in ~/.zshrc",
-    "checkResidual":      "[62] Residual marker block(s) still present in ~/.zshrc: {names}"
+    "checkResidual":      "[62] Residual marker block(s) still present in ~/.zshrc: {names}",
+    "promptYes":          "[62] --yes -> restoring without prompt",
+    "promptNo":           "[62] --no-prompt -> keeping current ~/.zshrc",
+    "promptNonTty":       "[62] non-interactive shell -> defaulting to RESTORE (use --no-prompt to keep instead)",
+    "promptKept":         "[62] Keeping current ~/.zshrc as-is (will still strip marker blocks)",
+    "promptAbort":        "[62] User aborted -- pre-clear safety backup is intact, no further changes made",
+    "promptDeclined":     "[62] Restore declined -- current ~/.zshrc kept",
+    "preBackupManifest":  "[62] Pre-clear safety backup created at {dst} (contents listed above)"
   }
 }
