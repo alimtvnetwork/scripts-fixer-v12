@@ -430,10 +430,23 @@ function Invoke-PostOpVerification {
             $regPath = $ed.registryPaths.$target
             $exists  = Test-RegistryKeyExists -RegistryPath $regPath
 
+            # Sub-key probe: install MUST also leave a \command\(Default) behind.
+            # We collect these in a list so the report can name every missing
+            # piece -- not just the parent key.
+            $missingChildren = @()
+            $cmdPath         = $regPath + '\command'
+            $cmdExists       = Test-RegistryKeyExists -RegistryPath $cmdPath
             if ($Action -eq 'install') {
-                $expected = 'present'
-                $isOk = $exists
-                $actual = $(if ($exists) { 'present' } else { 'MISSING' })
+                if (-not $exists)     { $missingChildren += '(parent key)' }
+                if (-not $cmdExists)  { $missingChildren += 'command' }
+            }
+
+            if ($Action -eq 'install') {
+                $expected = 'present + \\command'
+                $isOk     = $exists -and $cmdExists
+                $actual   = if ($exists -and $cmdExists)        { 'present + \command' }
+                            elseif ($exists -and -not $cmdExists){ 'parent OK, \command MISSING' }
+                            else                                 { 'MISSING' }
             } else {
                 $expected = 'absent'
                 $isOk = -not $exists
@@ -443,14 +456,27 @@ function Invoke-PostOpVerification {
             $reason = $null
             if (-not $isOk) {
                 $reason = "expected=$expected, actual=$actual at $regPath"
+                if ($missingChildren.Count -gt 0) {
+                    $reason += " (missing: " + ($missingChildren -join ', ') + ")"
+                }
             }
 
             $tag   = if ($isOk) { 'OK  ' } else { 'FAIL' }
             $level = if ($isOk) { 'success' } else { 'error' }
-            $line  = "  [{0}] {1,-10} expected={2,-7} actual={3,-13} {4}" -f $tag, $target, $expected, $actual, $regPath
+            $line  = "  [{0}] {1,-10} expected={2,-25} actual={3,-30} {4}" -f $tag, $target, $expected, $actual, $regPath
             Write-Log $line -Level $level
             if (-not $isOk) {
                 Write-Log ("        failure path: " + $regPath + " (reason: " + $reason + ")") -Level "error"
+                # Per-sub-key breakdown so the operator sees exactly which
+                # piece is gone (matches the read-only check verb's output).
+                if ($Action -eq 'install') {
+                    if (-not $exists) {
+                        Write-Log ("        - missing sub-key: " + $regPath + " (failure: parent key not created)") -Level "error"
+                    }
+                    if (-not $cmdExists) {
+                        Write-Log ("        - missing sub-key: " + $cmdPath + " (failure: \\command not created -- the menu would do nothing)") -Level "error"
+                    }
+                }
             }
 
             $details += [pscustomobject]@{
@@ -461,8 +487,32 @@ function Invoke-PostOpVerification {
                 actual   = $actual
                 ok       = $isOk
                 reason   = $reason
+                missingChildren = $missingChildren
             }
             if ($isOk) { $passCount++ } else { $failCount++ }
+        }
+
+        # Folder + background coverage line per edition (install only --
+        # uninstall already wants both gone, so the per-target FAIL/OK
+        # rows above tell the same story without an extra summary).
+        if ($Action -eq 'install') {
+            $folderRow = $details | Where-Object { $_.edition -eq $editionName -and $_.target -eq 'directory'  } | Select-Object -Last 1
+            $bgRow     = $details | Where-Object { $_.edition -eq $editionName -and $_.target -eq 'background' } | Select-Object -Last 1
+            $folderOk  = ($folderRow -and $folderRow.ok)
+            $bgOk      = ($bgRow     -and $bgRow.ok)
+            $covOk     = $folderOk -and $bgOk
+            $covTag    = if ($covOk) { 'OK  ' } else { 'GAP ' }
+            $covLevel  = if ($covOk) { 'success' } else { 'error' }
+            Write-Log ("  [{0}] folder+background coverage under scope='{1}': folder={2}, background={3}" -f `
+                $covTag, $ResolvedScope, `
+                $(if ($folderOk) { 'OK' } else { 'GAP' }), `
+                $(if ($bgOk)     { 'OK' } else { 'GAP' })) -Level $covLevel
+            if (-not $folderOk -and $folderRow) {
+                Write-Log ("           - directory verb gap at: " + $folderRow.regPath) -Level "error"
+            }
+            if (-not $bgOk -and $bgRow) {
+                Write-Log ("           - background verb gap at: " + $bgRow.regPath) -Level "error"
+            }
         }
     }
 
