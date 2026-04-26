@@ -1,5 +1,5 @@
 {
-  "version": "0.116.0",
+  "version": "0.117.0",
   "description": "Linux installer registry. Mirrors Windows numbering. Windows-only scripts intentionally absent.",
   "scripts": [
     {
@@ -235,6 +235,12 @@
       "folder": "61-install-zsh-theme-switcher",
       "phase": "10",
       "title": "ZSH theme switcher (interactive + flag, wires zsh-theme into ~/.zshrc)"
+    },
+    {
+      "id": "63",
+      "folder": "63-remote-runner",
+      "phase": "12",
+      "title": "Remote runner (multi-host SSH executor, password+key, groups, parallel)"
     }
   ]
 }
