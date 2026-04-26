@@ -1,0 +1,18 @@
+{
+  "timestamp":     "20260426-090231",
+  "profile":       "minimal",
+  "profileTitle":  "Minimal dev workstation (editor + git + node + python)",
+  "verb":          "check",
+  "parallel":      1,
+  "totalScripts":  4,
+  "ok":            3,
+  "failed":        1,
+  "skipped":       0,
+  "elapsedSeconds":1,
+  "results": [
+    {"id":"07","folder":"07-install-git","status":"ok","rc":0,"elapsedSeconds":0},
+    {"id":"01","folder":"01-install-vscode","status":"failed","rc":1,"elapsedSeconds":0},
+    {"id":"03","folder":"03-install-nodejs","status":"ok","rc":0,"elapsedSeconds":1},
+    {"id":"05","folder":"05-install-python","status":"ok","rc":0,"elapsedSeconds":0}
+  ]
+}
