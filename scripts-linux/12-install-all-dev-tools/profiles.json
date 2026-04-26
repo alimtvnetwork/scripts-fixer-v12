@@ -1,0 +1,30 @@
+{
+  "description": "Profile -> ordered list of script IDs for 12-install-all-dev-tools",
+  "profiles": {
+    "minimal": {
+      "title": "Minimal dev workstation (editor + git + node + python)",
+      "ids": ["07", "01", "03", "05"]
+    },
+    "backend": {
+      "title": "Backend developer (minimal + db + docker + java/go/dotnet)",
+      "ids":  ["07", "01", "03", "05", "09", "20", "24", "45", "40", "06", "39"]
+    },
+    "fullstack": {
+      "title": "Full-stack web (backend + pnpm + php + mongo + jenkins)",
+      "ids":  ["07", "01", "03", "05", "09", "20", "24", "45", "40", "06", "39", "04", "16", "22", "55"]
+    },
+    "ai": {
+      "title": "AI / ML workstation (python venv + ollama + llama.cpp + jupyterlab)",
+      "ids":  ["07", "01", "05", "09", "41", "42", "43"]
+    },
+    "all": {
+      "title": "Install every registered script (excluding orchestrator itself)",
+      "ids":  "*"
+    }
+  },
+  "defaults": {
+    "profile":   "minimal",
+    "parallel":  1,
+    "stopOnFail": false
+  }
+}

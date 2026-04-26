@@ -1,0 +1,9 @@
+{
+  "install": {
+    "method":          "orchestrator",
+    "profilesFile":    "profiles.json",
+    "summaryDir":      "../.summary",
+    "logDir":          "../.logs",
+    "installedDir":    "../.installed"
+  }
+}

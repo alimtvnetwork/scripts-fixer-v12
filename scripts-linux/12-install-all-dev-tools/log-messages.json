@@ -1,0 +1,14 @@
+{
+  "description": "Log messages for 12-install-all-dev-tools",
+  "messages": {
+    "start":           "[12] Orchestrator starting (profile={profile}, parallel={parallel})",
+    "profileResolved": "[12] Profile '{profile}' -> {count} scripts: {ids}",
+    "profileMissing":  "[12] Profile '{profile}' not found in profiles.json",
+    "running":         "[12] Running id={id} ({i}/{n}) verb={verb}",
+    "ok":              "[12] [{id}] OK ({elapsed}s)",
+    "failed":          "[12] [{id}] FAILED rc={rc} ({elapsed}s)",
+    "skipped":         "[12] [{id}] SKIPPED (already installed)",
+    "summaryWritten":  "[12] Summary written: {path}",
+    "done":            "[12] Done: ok={ok} failed={failed} skipped={skipped} total_elapsed={elapsed}s"
+  }
+}
