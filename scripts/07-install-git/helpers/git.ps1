@@ -8,6 +8,13 @@ $_loggingPath = Join-Path $_sharedDir "logging.ps1"
 if ((Test-Path $_loggingPath) -and -not (Get-Command Write-Log -ErrorAction SilentlyContinue)) {
     . $_loggingPath
 }
+# git-config defaults are owned by the shared helper (single source of truth
+# shared with the bash side). Configure-GitGlobal below delegates all
+# scalar/url/safe-directory writes to Apply-DefaultGitConfig.
+$_gitDefaultsPath = Join-Path $_sharedDir "git-config-defaults.ps1"
+if ((Test-Path $_gitDefaultsPath) -and -not (Get-Command Apply-DefaultGitConfig -ErrorAction SilentlyContinue)) {
+    . $_gitDefaultsPath
+}
 
 
 function Install-Git {
@@ -265,71 +272,22 @@ function Configure-GitGlobal {
         }
     }
 
-    # -- init.defaultBranch ------------------------------------------------------
-    $branchConfig = $gc.defaultBranch
-    if ($branchConfig.enabled) {
-        $currentBranch = & git config --global init.defaultBranch 2>$null
-        if ($currentBranch -eq $branchConfig.value) {
-            Write-Log ($LogMessages.messages.defaultBranchAlreadySet -replace '\{value\}', $currentBranch) -Level "info"
-        }
-        else {
-            & git config --global init.defaultBranch $branchConfig.value
-            Write-Log ($LogMessages.messages.settingDefaultBranch -replace '\{value\}', $branchConfig.value) -Level "success"
-        }
-    }
+    # -- All other scalar defaults (init.defaultBranch, core.autocrlf,
+    #    core.editor, credential.helper, push.autoSetupRemote, pull.rebase,
+    #    fetch.prune, safe.directory, url.* rewrites) are owned by the
+    #    shared helper, which is the single source of truth used by both
+    #    Windows install.ps1 and Linux install.sh.
+    #
+    #    Per-key overrides from this script's config.json (when set) are
+    #    forwarded so users keep deployment-specific control.
+    $overrides = @{}
+    if ($gc.PSObject.Properties.Name -contains "defaultBranch"       -and $gc.defaultBranch.enabled       -and $gc.defaultBranch.value)       { $overrides["init.defaultBranch"]   = $gc.defaultBranch.value }
+    if ($gc.PSObject.Properties.Name -contains "credentialManager"   -and $gc.credentialManager.enabled   -and $gc.credentialManager.helper)  { $overrides["credential.helper"]    = $gc.credentialManager.helper }
+    if ($gc.PSObject.Properties.Name -contains "lineEndings"         -and $gc.lineEndings.enabled         -and $gc.lineEndings.autocrlf)      { $overrides["core.autocrlf"]        = $gc.lineEndings.autocrlf }
+    if ($gc.PSObject.Properties.Name -contains "editor"              -and $gc.editor.enabled              -and $gc.editor.value)              { $overrides["core.editor"]          = $gc.editor.value }
+    if ($gc.PSObject.Properties.Name -contains "pushAutoSetupRemote" -and $gc.pushAutoSetupRemote.enabled)                                     { $overrides["push.autoSetupRemote"] = "true" }
 
-    # -- credential.helper -------------------------------------------------------
-    $credConfig = $gc.credentialManager
-    if ($credConfig.enabled) {
-        $currentCred = & git config --global credential.helper 2>$null
-        if ($currentCred -eq $credConfig.helper) {
-            Write-Log ($LogMessages.messages.credentialManagerAlreadySet -replace '\{value\}', $currentCred) -Level "info"
-        }
-        else {
-            & git config --global credential.helper $credConfig.helper
-            Write-Log ($LogMessages.messages.settingCredentialManager -replace '\{value\}', $credConfig.helper) -Level "success"
-        }
-    }
-
-    # -- core.autocrlf -----------------------------------------------------------
-    $lineConfig = $gc.lineEndings
-    if ($lineConfig.enabled) {
-        $currentCrlf = & git config --global core.autocrlf 2>$null
-        if ($currentCrlf -eq $lineConfig.autocrlf) {
-            Write-Log ($LogMessages.messages.autocrlfAlreadySet -replace '\{value\}', $currentCrlf) -Level "info"
-        }
-        else {
-            & git config --global core.autocrlf $lineConfig.autocrlf
-            Write-Log ($LogMessages.messages.settingAutocrlf -replace '\{value\}', $lineConfig.autocrlf) -Level "success"
-        }
-    }
-
-    # -- core.editor -------------------------------------------------------------
-    $editorConfig = $gc.editor
-    if ($editorConfig.enabled) {
-        $currentEditor = & git config --global core.editor 2>$null
-        if ($currentEditor -eq $editorConfig.value) {
-            Write-Log ($LogMessages.messages.editorAlreadySet -replace '\{value\}', $currentEditor) -Level "info"
-        }
-        else {
-            & git config --global core.editor $editorConfig.value
-            Write-Log ($LogMessages.messages.settingEditor -replace '\{value\}', $editorConfig.value) -Level "success"
-        }
-    }
-
-    # -- push.autoSetupRemote ----------------------------------------------------
-    $pushConfig = $gc.pushAutoSetupRemote
-    if ($pushConfig.enabled) {
-        $currentPush = & git config --global push.autoSetupRemote 2>$null
-        $isAlreadySet = $currentPush -eq "true"
-        if ($isAlreadySet) {
-            Write-Log ($LogMessages.messages.pushAutoSetupAlreadySet -replace '\{value\}', $currentPush) -Level "info"
-        }
-        else {
-            & git config --global push.autoSetupRemote true
-            Write-Log $LogMessages.messages.settingPushAutoSetup -Level "success"
-        }
-    }
+    Apply-DefaultGitConfig -Overrides $overrides | Out-Null
 }
 
 function Update-GitPath {
