@@ -536,6 +536,11 @@ function Write-RegistryAuditReport {
         user can see at a glance every key the script ADDED, REMOVED,
         SKIPPED (already absent), or FAILED on -- without opening the
         JSONL file.
+    .NOTES
+        Verbosity-aware (helpers/verbosity.ps1):
+          Quiet   -- only totals + failures (no banner, no per-row dump).
+          Normal  -- banner + per-row added/removed/skipped + failures.
+          Debug   -- everything Normal shows + raw record counts header.
     #>
     [CmdletBinding()]
     param(
@@ -543,34 +548,58 @@ function Write-RegistryAuditReport {
         [Parameter(Mandatory)] [ValidateSet('install','uninstall')] [string] $Action
     )
 
-    Write-Log "" -Level "info"
-    Write-Log "------------------------------------------------------------" -Level "info"
-    Write-Log " REGISTRY CHANGE REPORT" -Level "info"
+    # Resolve once; default to "Normal" if verbosity helper isn't loaded.
+    $atLeastNormal = $true
+    $atLeastDebug  = $false
+    if (Get-Command Test-VerbosityAtLeast -ErrorAction SilentlyContinue) {
+        $atLeastNormal = Test-VerbosityAtLeast -Level 'Normal'
+        $atLeastDebug  = Test-VerbosityAtLeast -Level 'Debug'
+    }
+
+    if ($atLeastNormal) {
+        Write-Log "" -Level "info"
+        Write-Log "------------------------------------------------------------" -Level "info"
+        Write-Log " REGISTRY CHANGE REPORT" -Level "info"
+    }
     $scopeLabel = if ($Summary.PSObject.Properties.Name -contains 'scope' -and $Summary.scope) { $Summary.scope } else { 'unknown' }
-    Write-Log (" Resolved scope: " + $scopeLabel + "  (hive actually touched this run)") -Level "info"
-    Write-Log "------------------------------------------------------------" -Level "info"
+    if ($atLeastNormal) {
+        Write-Log (" Resolved scope: " + $scopeLabel + "  (hive actually touched this run)") -Level "info"
+        Write-Log "------------------------------------------------------------" -Level "info"
+    }
+    if ($atLeastDebug) {
+        Write-Log (" [debug] raw record counts: added=" + $Summary.totalAdded +
+                   ", removed=" + $Summary.totalRemoved +
+                   ", skipped=" + $Summary.totalSkipped +
+                   ", failed="  + $Summary.totalFailed) -Level "info"
+    }
 
     if ($Summary.totalAdded -gt 0) {
-        Write-Log ("Added ({0}):" -f $Summary.totalAdded) -Level "success"
-        foreach ($a in $Summary.added) {
-            $rowScope = if ($a.PSObject.Properties.Name -contains 'scope' -and $a.scope) { $a.scope } else { $scopeLabel }
-            Write-Log ("  + [{0}/{1}/{2}] {3}" -f $rowScope, $a.edition, $a.target, $a.regPath) -Level "success"
+        if ($atLeastNormal) {
+            Write-Log ("Added ({0}):" -f $Summary.totalAdded) -Level "success"
+            foreach ($a in $Summary.added) {
+                $rowScope = if ($a.PSObject.Properties.Name -contains 'scope' -and $a.scope) { $a.scope } else { $scopeLabel }
+                Write-Log ("  + [{0}/{1}/{2}] {3}" -f $rowScope, $a.edition, $a.target, $a.regPath) -Level "success"
+            }
         }
     } elseif ($Action -eq 'install') {
+        # Always surface a 0-add install -- this is a real anomaly.
         Write-Log "Added (0): no new keys were written this run." -Level "warn"
     }
 
     if ($Summary.totalRemoved -gt 0) {
-        Write-Log ("Removed ({0}):" -f $Summary.totalRemoved) -Level "success"
-        foreach ($r in $Summary.removed) {
-            $rowScope = if ($r.PSObject.Properties.Name -contains 'scope' -and $r.scope) { $r.scope } else { $scopeLabel }
-            Write-Log ("  - [{0}/{1}/{2}] {3}" -f $rowScope, $r.edition, $r.target, $r.regPath) -Level "success"
+        if ($atLeastNormal) {
+            Write-Log ("Removed ({0}):" -f $Summary.totalRemoved) -Level "success"
+            foreach ($r in $Summary.removed) {
+                $rowScope = if ($r.PSObject.Properties.Name -contains 'scope' -and $r.scope) { $r.scope } else { $scopeLabel }
+                Write-Log ("  - [{0}/{1}/{2}] {3}" -f $rowScope, $r.edition, $r.target, $r.regPath) -Level "success"
+            }
         }
     } elseif ($Action -eq 'uninstall') {
         Write-Log "Removed (0): nothing was actually deleted this run." -Level "warn"
     }
 
-    if ($Summary.totalSkipped -gt 0) {
+    # Skipped rows are noise in Quiet mode.
+    if ($Summary.totalSkipped -gt 0 -and $atLeastNormal) {
         Write-Log ("Skipped / already absent ({0}):" -f $Summary.totalSkipped) -Level "info"
         foreach ($s in $Summary.skipped) {
             $rowScope = if ($s.PSObject.Properties.Name -contains 'scope' -and $s.scope) { $s.scope } else { $scopeLabel }
@@ -578,6 +607,7 @@ function Write-RegistryAuditReport {
         }
     }
 
+    # Failures ALWAYS print regardless of verbosity (per Write-VLog contract).
     if ($Summary.totalFailed -gt 0) {
         Write-Log ("FAILED ({0}):" -f $Summary.totalFailed) -Level "error"
         foreach ($f in $Summary.failed) {
@@ -589,10 +619,11 @@ function Write-RegistryAuditReport {
 
     $hasNoChanges = ($Summary.totalAdded + $Summary.totalRemoved + $Summary.totalFailed + $Summary.totalSkipped) -eq 0
     if ($hasNoChanges) {
+        # Always loud -- a no-op verification run is meaningful info.
         Write-Log "No registry change events were recorded for this run." -Level "warn"
     }
 
-    if ($Summary.auditPath) {
+    if ($Summary.auditPath -and $atLeastNormal) {
         Write-Log ("Full JSONL trail: " + $Summary.auditPath) -Level "info"
     }
 }
