@@ -219,6 +219,20 @@ The `check` verb verifies three repair invariants in addition to the install-sta
 
 The install-state checks ("is the entry registered?") are **always** enforced regardless of this flag.
 
+#### Where it is evaluated (code path)
+
+The flag is consulted **only** during the `check` verb. The exact call chain is:
+
+| Step | File | Line(s) | What happens |
+|------|------|---------|--------------|
+| 1 | `scripts/10-vscode-context-menu-fix/run.ps1` | `if ($cmdLower -eq 'check')` block (~L84) | Dispatcher enters the `check` branch. |
+| 2 | `scripts/10-vscode-context-menu-fix/run.ps1` | `Invoke-Script10RepairInvariantCheck -Config $config ...` (~L90) | Hands `$config` (parsed `config.json`) to the invariant pass. |
+| 3 | `scripts/10-vscode-context-menu-fix/helpers/check.ps1` | `Invoke-Script10RepairInvariantCheck` (~L352) calls `Test-Check10RepairEnforced -Config $Config` (~L359) | Reads `$Config.repair.enforceInvariants`. |
+| 4 | `scripts/10-vscode-context-menu-fix/helpers/check.ps1` | `Test-Check10RepairEnforced` (~L323-330) | Returns `$true` if the property is missing (default-on) or its boolean value otherwise. |
+| 5 | `scripts/10-vscode-context-menu-fix/helpers/check.ps1` | Branch at ~L369-373 | If `$enforced` → log normal banner and let MISS bubble up to exit 1. If not → log `"Repair invariants: NOT enforced ..."` warning and downgrade misses to PASS. |
+
+No other verb (`install`, `repair`, `rollback`, `verify`, `smoke`) reads this flag — they always act on the registry and rely on a follow-up `check` to interpret state.
+
 ### Decision tree: are invariants enforced or skipped?
 
 ```

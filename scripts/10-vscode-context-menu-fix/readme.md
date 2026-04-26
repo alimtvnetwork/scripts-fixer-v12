@@ -123,6 +123,24 @@ because there is no `verify` test harness here (that lives in Script 54). Behavi
 | `check`                                | **Yes** | Only verb that consults the flag. |
 | `install` (default) / `uninstall` / `repair` / `rollback` | No | These verbs only *write* state; run `check` afterwards to verify. |
 
+##### Where the flag is evaluated (code path)
+
+Trace from CLI to the boolean read, so it is unambiguous which line in `run.ps1`
+triggers the evaluation:
+
+1. `run.ps1` (~L84) — `if ($cmdLower -eq 'check') { ... }` enters the check branch.
+2. `run.ps1` (~L90) — calls `Invoke-Script10RepairInvariantCheck -Config $config -EditionFilter $Edition`.
+3. `helpers/check.ps1` (~L352) — `Invoke-Script10RepairInvariantCheck` opens with
+   `$enforced = Test-Check10RepairEnforced -Config $Config` (~L359).
+4. `helpers/check.ps1` (~L323-330) — `Test-Check10RepairEnforced` reads
+   `$Config.repair.enforceInvariants` (returns `$true` if the property is absent).
+5. `helpers/check.ps1` (~L369-373) — branches on `$enforced`: enforced path keeps
+   `[MISS]` rows that drive exit 1; non-enforced path emits the
+   `"Repair invariants: NOT enforced ..."` warning and reclassifies misses as PASS.
+
+The flag is **never** read from `run.ps1` directly; `run.ps1` only forwards
+`$config` to the helper. Every other verb skips this code path entirely.
+
 When to flip the flag to `false`: a machine where you *intentionally* keep
 `HKCR\*\shell\<Name>` (i.e. you want the menu on individual files too).
 The install-state portion of `check` will still catch missing/broken entries,
