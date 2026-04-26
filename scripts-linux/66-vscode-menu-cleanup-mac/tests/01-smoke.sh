@@ -138,7 +138,20 @@ else
   grep -q '"category":"services"'         "$manifest"; _assert "manifest mentions services"          $?
   grep -q '"category":"launchagents-user"' "$manifest"; _assert "manifest mentions launchagents-user" $?
   grep -q '"category":"shims-user"'        "$manifest"; _assert "manifest mentions shims-user"        $?
+
+  # Verification block must be present in the manifest and must say PASS.
+  grep -q '"verification"'                 "$manifest"; _assert "manifest contains verification block"          $?
+  grep -q '"fail":0'                       "$manifest"; _assert "manifest reports verification fail=0"           $?
+  grep -q '"result":"pass"'                "$manifest"; _assert "manifest contains at least one verify pass row" $?
 fi
+
+# Verify report must have been printed to the apply run output.
+grep -q "verify phase (re-probing every targeted item)" "$SANDBOX/apply.out"; _assert "apply printed verify phase header" $?
+grep -q "VERIFICATION VERDICT: . PASS"                  "$SANDBOX/apply.out"; _assert "apply printed PASS verdict"        $?
+
+# verify.tsv is written next to the manifest.
+verify_tsv="$(dirname "$manifest")/verify.tsv"
+[ -s "$verify_tsv" ]; _assert "verify.tsv written and non-empty ($verify_tsv)" $?
 
 echo
 echo "Results: PASS=$pass FAIL=$fail"
