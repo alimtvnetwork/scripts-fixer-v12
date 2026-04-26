@@ -33,7 +33,7 @@ path_expand_tilde() {
   local p="$1"
   case "$p" in
     "~")    printf '%s' "$HOME" ;;
-    "~/"*)  printf '%s/%s' "$HOME" "${p#~/}" ;;
+    "~/"*)  printf '%s/%s' "$HOME" "${p:2}" ;;   # strip the leading "~/" (2 chars)
     *)      printf '%s' "$p" ;;
   esac
 }
