@@ -109,6 +109,7 @@ component_wordpress_install() {
         # Drop existing AUTH_KEY..NONCE_SALT lines, append fresh ones.
         # The redirect runs with the operator's uid (mktemp is operator-writable),
         # so plain `awk ... > "$tmp"` is correct -- no sudo on the redirect.
+        # shellcheck disable=SC2024 # tmp is operator-owned (mktemp); no sudo redirect needed
         sudo awk '!/define\(.*(AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT).*\);$/' \
             "$cfg" > "$tmp"
         printf '\n%s\n' "$salts" >> "$tmp"
