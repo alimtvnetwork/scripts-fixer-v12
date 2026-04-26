@@ -47,8 +47,8 @@
       "label": "raw binary / shim with no package owner",
       "_comment": "Hits when 'code' (or 'code-insiders') is on PATH but NOT owned by dpkg, NOT a snap, AND not in any of the known tarball roots. This is the 'someone copied the binary into /usr/local/bin' or 'curl|sh installer dropped a shim' case. Probes are evaluated AFTER apt/snap/deb/tarball so the resolver can pick the most specific method when several match.",
       "probes": [
-        { "kind": "cmd-no-pkg-owner",   "pkg": "code"          },
-        { "kind": "cmd-no-pkg-owner",   "pkg": "code-insiders" },
+        { "kind": "cmd-no-pkg-owner",   "pkg": "code",          "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] },
+        { "kind": "cmd-no-pkg-owner",   "pkg": "code-insiders", "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] },
         { "kind": "symlink-into-roots", "pkg": "code",          "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] },
         { "kind": "symlink-into-roots", "pkg": "code-insiders", "roots": ["/opt/VSCode-linux-x64","/opt/VSCode-linux-arm64","/opt/visual-studio-code","$HOME/VSCode-linux-x64","$HOME/.local/share/code"] }
       ]
