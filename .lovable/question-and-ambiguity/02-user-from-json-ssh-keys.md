@@ -91,3 +91,21 @@ Implementing **Option C**:
   root shortcuts. Same approach as documented in ambiguity 01.
 - Add Option D (URL import) later: read `sshKeyUrls`, curl into a temp
   file, then funnel through the same `--ssh-key-file` plumbing.
+
+## Smoke-test observations (NOT bugs, just nuances to document)
+
+1. The summary line `SSH keys : requested=R installed=I` uses two
+   different units:
+   - `requested` counts the *number of `--ssh-key` + `--ssh-key-file`
+     CLI invocations* (or JSON array entries). One file flag = 1.
+   - `installed` counts *unique post-dedupe key lines actually written*.
+     One file with 3 keys + 1 dup contributes 2 here.
+   Result: `installed > requested` is normal when a single file holds
+   multiple keys, and `installed < requested` is normal when some inline
+   entries are malformed.
+   Future polish (low priority): rename the labels to
+   `sources requested` vs `keys installed` for clarity.
+2. JSON dispatcher uses `jq -e 'has("sshKeys") and (.sshKeys|type=="array")'`
+   so a record passing `"sshKeys": "ssh-ed25519 ..."` (string instead of
+   array) is silently ignored. The example in `examples/users.json` shows
+   the array form so this should be obvious from a copy-paste workflow.
