@@ -32,3 +32,4 @@ OneNote install (`onenote` keyword) must do ONLY OneNote. OneDrive disable lives
 - [Install bootstrap](mem://features/install-bootstrap) — scripts-fixer-vN auto-discovery installers (concrete instance of generic spec)
 - [Assets folder no-read](mem://constraints/assets-folder-noread) — Never read assets/ files into context
 - [Profile install locations](mem://features/02-profile-install-locations) — Per-profile install location matrix (C:\ system vs E:\dev-tool); README + spec + config.json must stay in sync
+- [Remote runner](mem://features/remote-runner) — Script 63: multi-host SSH executor with password/key, group targets, parallel mode, auto chmod 600 + .gitignore
