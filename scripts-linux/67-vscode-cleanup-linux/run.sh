@@ -122,6 +122,15 @@ if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
     scripts-linux/run.sh 67 --only user-config
     sudo scripts-linux/run.sh 67 --system
 
+  EXIT CODES
+    0 -- success (and context-menu / MIME scan came back clean)
+    1 -- one or more removal steps failed
+    2 -- aborted at confirmation prompt, or wrong OS
+    3 -- post-cleanup re-probe of removed targets found something still present
+    4 -- context-menu / MIME surface scan found VS Code wiring still present
+         (.desktop files, mimeapps.list lines, file-manager scripts, or live
+          xdg-mime defaults). See verify-context-menu.tsv for exact paths.
+
 EOF
   exit 0
 fi
