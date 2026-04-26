@@ -21,6 +21,7 @@ CODE RED: Every file/path error MUST log exact file path + failure reason. Use W
 - [Questionnaire](mem://features/questionnaire) — Questionnaire system for script 12
 - [Resolved folder](mem://features/resolved-folder) — .resolved/ runtime state persistence
 - [Shared helpers](mem://features/shared-helpers) — Shared PowerShell helper modules
+- [Script 54 verbosity switch](mem://features/09-script-54-verbosity-switch) — -Verbosity Quiet|Normal|Debug for verification + audit reports; failures never suppressed
 - [Cross-OS user mgmt (Script 68)](mem://features/04-cross-os-user-mgmt) — Linux+macOS user/group creation; CLI + JSON object/array auto-detect; mirrors Windows os add-user
 - [Script 54 scope matrix](mem://features/05-script-54-scope-matrix) — Mutating PS test harness: install/uninstall per -Scope (CurrentUser+AllUsers) with cross-hive bleed detection
 - [Script 54 audit scope](mem://features/06-script-54-audit-scope) — Every audit JSONL event + change-report row stamps the resolved Windows registry scope (CurrentUser/AllUsers)

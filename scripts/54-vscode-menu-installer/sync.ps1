@@ -17,6 +17,8 @@ param(
     [ValidateSet('Auto','CurrentUser','AllUsers')]
     [string]$Scope = 'Auto',
     [switch]$DryRun,
+    [ValidateSet('Quiet','Normal','Debug')]
+    [string]$Verbosity = 'Normal',
     [switch]$Help
 )
 
@@ -32,6 +34,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $scriptDir "helpers\vscode-install.ps1")
 . (Join-Path $scriptDir "helpers\audit-log.ps1")
 . (Join-Path $scriptDir "helpers\vscode-check.ps1")
+. (Join-Path $scriptDir "helpers\verbosity.ps1")
 
 $configPath = Join-Path $scriptDir "config.json"
 $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -50,6 +53,9 @@ Initialize-Logging -ScriptName ($logMessages.scriptName + " -- sync")
 try {
     $isDisabled = -not $config.enabled
     if ($isDisabled) { Write-Log $logMessages.messages.scriptDisabled -Level "warn"; return }
+
+    # -- Verbosity (controls verification + audit-report loudness) -----------
+    Set-VerbosityLevel -Level $Verbosity
 
     # Audit log: every rewrite is recorded as add/fail in the same JSONL
     # format install.ps1 uses, so the registry change report works for

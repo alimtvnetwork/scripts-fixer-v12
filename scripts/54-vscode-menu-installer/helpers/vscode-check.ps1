@@ -229,11 +229,18 @@ function Invoke-VsCodeMenuCheck {
     $totalPass = 0
     $totalMiss = 0
     $hasScope  = -not [string]::IsNullOrWhiteSpace($Scope)
-    if ($hasScope) {
+    # Verbosity gating (Test-VerbosityAtLeast may be absent for unit tests).
+    $atLeastNormal = $true
+    $atLeastDebug  = $false
+    if (Get-Command Test-VerbosityAtLeast -ErrorAction SilentlyContinue) {
+        $atLeastNormal = Test-VerbosityAtLeast -Level 'Normal'
+        $atLeastDebug  = Test-VerbosityAtLeast -Level 'Debug'
+    }
+    if ($hasScope -and $atLeastNormal) {
         Write-Log ("Check scope: '" + $Scope + "' -- probing " +
             $(if ($Scope -eq 'AllUsers') { 'HKEY_CLASSES_ROOT (machine-wide)' }
               else                       { 'HKCU\Software\Classes (per-user)' })) -Level "info"
-    } else {
+    } elseif ($atLeastNormal) {
         Write-Log "Check scope: not supplied -- probing original config paths (HKCR merged view)." -Level "info"
     }
 
@@ -258,8 +265,10 @@ function Invoke-VsCodeMenuCheck {
             $ed = Convert-EditionPathsForScope -EditionConfig $ed -Scope $Scope
         }
 
-        Write-Log "" -Level "info"
-        Write-Log ("Checking edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
+        if ($atLeastNormal) {
+            Write-Log "" -Level "info"
+            Write-Log ("Checking edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
+        }
 
         $perTarget = @()
         foreach ($targetName in @('file','directory','background')) {
@@ -277,7 +286,15 @@ function Invoke-VsCodeMenuCheck {
                    else { 'file      ' }
             $line = "  [{0}] {1}  {2}" -f $st.verdict, $tag, $regPath
             $level = if ($st.verdict -eq 'PASS') { 'success' } else { 'error' }
-            Write-Log $line -Level $level
+            # PASS rows are noise in Quiet mode; misses always print.
+            if ($st.verdict -ne 'PASS' -or $atLeastNormal) {
+                Write-Log $line -Level $level
+            }
+            if ($atLeastDebug) {
+                Write-Log ("           [debug] hive=" + $st.hive +
+                           ", keyExists=" + $st.keyExists +
+                           ", missingSubkeys=" + ($st.missingSubkeys -join ',')) -Level "info"
+            }
             if ($st.verdict -ne 'PASS' -and $st.reason) {
                 Write-Log ("           reason: " + $st.reason + " (failure path: " + $regPath + ")") -Level "error"
             }
@@ -320,8 +337,10 @@ function Invoke-VsCodeMenuCheck {
         $coverageOk    = $folderPresent -and $bgPresent
         $coverageLevel = if ($coverageOk) { 'success' } else { 'error' }
         $coverageTag   = if ($coverageOk) { 'OK  ' } else { 'GAP ' }
-        Write-Log ("  [{0}] folder+background coverage in {1}: folder={2}, background={3}" -f `
-            $coverageTag, $hiveLabel, $folderTag, $bgTag) -Level $coverageLevel
+        if (-not $coverageOk -or $atLeastNormal) {
+            Write-Log ("  [{0}] folder+background coverage in {1}: folder={2}, background={3}" -f `
+                $coverageTag, $hiveLabel, $folderTag, $bgTag) -Level $coverageLevel
+        }
         if (-not $folderPresent) {
             $missPath = if ($folderResult) { $folderResult.registryPath } else { '(no registryPaths.directory entry in config)' }
             Write-Log ("           - directory verb MISSING at: " + $missPath + " (failure: folder right-click won't show this entry)") -Level "error"
@@ -330,7 +349,9 @@ function Invoke-VsCodeMenuCheck {
             $missPath = if ($bgResult) { $bgResult.registryPath } else { '(no registryPaths.background entry in config)' }
             Write-Log ("           - background verb MISSING at: " + $missPath + " (failure: empty-folder right-click won't show this entry)") -Level "error"
         }
-        Write-Log ("  summary: folder=" + $folderTag + ", background=" + $bgTag) -Level "info"
+        if ($atLeastNormal) {
+            Write-Log ("  summary: folder=" + $folderTag + ", background=" + $bgTag) -Level "info"
+        }
 
         $editionResults += [pscustomobject]@{
             edition   = $edName
@@ -344,7 +365,8 @@ function Invoke-VsCodeMenuCheck {
         }
     }
 
-    Write-Log "" -Level "info"
+    if ($atLeastNormal) { Write-Log "" -Level "info" }
+    # Totals always print.
     Write-Log ("Verification totals: PASS=" + $totalPass + ", MISS=" + $totalMiss) -Level $(if ($totalMiss -eq 0) { 'success' } else { 'error' })
 
     return [pscustomobject]@{
@@ -405,10 +427,21 @@ function Invoke-PostOpVerification {
         [Parameter(Mandatory)] [hashtable] $ScopedEditions
     )
 
-    Write-Log "" -Level "info"
-    Write-Log "============================================================" -Level "info"
-    Write-Log (" POST-{0} VERIFICATION (scope={1})" -f $Action.ToUpper(), $ResolvedScope) -Level "info"
-    Write-Log "============================================================" -Level "info"
+    # Verbosity gating: Quiet hides banner + per-row PASS lines, keeps
+    # FAIL rows + totals. Debug adds raw exists/cmdExists probes.
+    $atLeastNormal = $true
+    $atLeastDebug  = $false
+    if (Get-Command Test-VerbosityAtLeast -ErrorAction SilentlyContinue) {
+        $atLeastNormal = Test-VerbosityAtLeast -Level 'Normal'
+        $atLeastDebug  = Test-VerbosityAtLeast -Level 'Debug'
+    }
+
+    if ($atLeastNormal) {
+        Write-Log "" -Level "info"
+        Write-Log "============================================================" -Level "info"
+        Write-Log (" POST-{0} VERIFICATION (scope={1})" -f $Action.ToUpper(), $ResolvedScope) -Level "info"
+        Write-Log "============================================================" -Level "info"
+    }
 
     $details = @()
     $passCount = 0
@@ -422,7 +455,9 @@ function Invoke-PostOpVerification {
             continue
         }
 
-        Write-Log ("Edition: " + $editionName + " (" + $ed.label + ")") -Level "info"
+        if ($atLeastNormal) {
+            Write-Log ("Edition: " + $editionName + " (" + $ed.label + ")") -Level "info"
+        }
 
         foreach ($target in @('file','directory','background')) {
             $hasTarget = $ed.registryPaths.PSObject.Properties.Name -contains $target
@@ -436,6 +471,10 @@ function Invoke-PostOpVerification {
             $missingChildren = @()
             $cmdPath         = $regPath + '\command'
             $cmdExists       = Test-RegistryKeyExists -RegistryPath $cmdPath
+            if ($atLeastDebug) {
+                Write-Log ("  [debug] probe: parent exists=" + $exists +
+                           ", \command exists=" + $cmdExists + " at " + $regPath) -Level "info"
+            }
             if ($Action -eq 'install') {
                 if (-not $exists)     { $missingChildren += '(parent key)' }
                 if (-not $cmdExists)  { $missingChildren += 'command' }
@@ -464,7 +503,10 @@ function Invoke-PostOpVerification {
             $tag   = if ($isOk) { 'OK  ' } else { 'FAIL' }
             $level = if ($isOk) { 'success' } else { 'error' }
             $line  = "  [{0}] {1,-10} expected={2,-25} actual={3,-30} {4}" -f $tag, $target, $expected, $actual, $regPath
-            Write-Log $line -Level $level
+            # PASS rows are noise in Quiet mode; FAIL rows always print.
+            if (-not $isOk -or $atLeastNormal) {
+                Write-Log $line -Level $level
+            }
             if (-not $isOk) {
                 Write-Log ("        failure path: " + $regPath + " (reason: " + $reason + ")") -Level "error"
                 # Per-sub-key breakdown so the operator sees exactly which
@@ -503,10 +545,13 @@ function Invoke-PostOpVerification {
             $covOk     = $folderOk -and $bgOk
             $covTag    = if ($covOk) { 'OK  ' } else { 'GAP ' }
             $covLevel  = if ($covOk) { 'success' } else { 'error' }
-            Write-Log ("  [{0}] folder+background coverage under scope='{1}': folder={2}, background={3}" -f `
-                $covTag, $ResolvedScope, `
-                $(if ($folderOk) { 'OK' } else { 'GAP' }), `
-                $(if ($bgOk)     { 'OK' } else { 'GAP' })) -Level $covLevel
+            # In Quiet mode, only print the coverage line when it's a GAP.
+            if (-not $covOk -or $atLeastNormal) {
+                Write-Log ("  [{0}] folder+background coverage under scope='{1}': folder={2}, background={3}" -f `
+                    $covTag, $ResolvedScope, `
+                    $(if ($folderOk) { 'OK' } else { 'GAP' }), `
+                    $(if ($bgOk)     { 'OK' } else { 'GAP' })) -Level $covLevel
+            }
             if (-not $folderOk -and $folderRow) {
                 Write-Log ("           - directory verb gap at: " + $folderRow.regPath) -Level "error"
             }
@@ -516,9 +561,11 @@ function Invoke-PostOpVerification {
         }
     }
 
-    Write-Log "" -Level "info"
+    if ($atLeastNormal) { Write-Log "" -Level "info" }
+    # Totals always print -- this is the bottom-line CI signal.
     $sumLevel = if ($failCount -eq 0) { 'success' } else { 'error' }
-    Write-Log ("Verification totals: PASS=" + $passCount + ", FAIL=" + $failCount) -Level $sumLevel
+    Write-Log ("Verification totals (scope=" + $ResolvedScope + ", action=" + $Action +
+               "): PASS=" + $passCount + ", FAIL=" + $failCount) -Level $sumLevel
 
     return [pscustomobject]@{
         action  = $Action
@@ -536,6 +583,11 @@ function Write-RegistryAuditReport {
         user can see at a glance every key the script ADDED, REMOVED,
         SKIPPED (already absent), or FAILED on -- without opening the
         JSONL file.
+    .NOTES
+        Verbosity-aware (helpers/verbosity.ps1):
+          Quiet   -- only totals + failures (no banner, no per-row dump).
+          Normal  -- banner + per-row added/removed/skipped + failures.
+          Debug   -- everything Normal shows + raw record counts header.
     #>
     [CmdletBinding()]
     param(
@@ -543,34 +595,58 @@ function Write-RegistryAuditReport {
         [Parameter(Mandatory)] [ValidateSet('install','uninstall')] [string] $Action
     )
 
-    Write-Log "" -Level "info"
-    Write-Log "------------------------------------------------------------" -Level "info"
-    Write-Log " REGISTRY CHANGE REPORT" -Level "info"
+    # Resolve once; default to "Normal" if verbosity helper isn't loaded.
+    $atLeastNormal = $true
+    $atLeastDebug  = $false
+    if (Get-Command Test-VerbosityAtLeast -ErrorAction SilentlyContinue) {
+        $atLeastNormal = Test-VerbosityAtLeast -Level 'Normal'
+        $atLeastDebug  = Test-VerbosityAtLeast -Level 'Debug'
+    }
+
+    if ($atLeastNormal) {
+        Write-Log "" -Level "info"
+        Write-Log "------------------------------------------------------------" -Level "info"
+        Write-Log " REGISTRY CHANGE REPORT" -Level "info"
+    }
     $scopeLabel = if ($Summary.PSObject.Properties.Name -contains 'scope' -and $Summary.scope) { $Summary.scope } else { 'unknown' }
-    Write-Log (" Resolved scope: " + $scopeLabel + "  (hive actually touched this run)") -Level "info"
-    Write-Log "------------------------------------------------------------" -Level "info"
+    if ($atLeastNormal) {
+        Write-Log (" Resolved scope: " + $scopeLabel + "  (hive actually touched this run)") -Level "info"
+        Write-Log "------------------------------------------------------------" -Level "info"
+    }
+    if ($atLeastDebug) {
+        Write-Log (" [debug] raw record counts: added=" + $Summary.totalAdded +
+                   ", removed=" + $Summary.totalRemoved +
+                   ", skipped=" + $Summary.totalSkipped +
+                   ", failed="  + $Summary.totalFailed) -Level "info"
+    }
 
     if ($Summary.totalAdded -gt 0) {
-        Write-Log ("Added ({0}):" -f $Summary.totalAdded) -Level "success"
-        foreach ($a in $Summary.added) {
-            $rowScope = if ($a.PSObject.Properties.Name -contains 'scope' -and $a.scope) { $a.scope } else { $scopeLabel }
-            Write-Log ("  + [{0}/{1}/{2}] {3}" -f $rowScope, $a.edition, $a.target, $a.regPath) -Level "success"
+        if ($atLeastNormal) {
+            Write-Log ("Added ({0}):" -f $Summary.totalAdded) -Level "success"
+            foreach ($a in $Summary.added) {
+                $rowScope = if ($a.PSObject.Properties.Name -contains 'scope' -and $a.scope) { $a.scope } else { $scopeLabel }
+                Write-Log ("  + [{0}/{1}/{2}] {3}" -f $rowScope, $a.edition, $a.target, $a.regPath) -Level "success"
+            }
         }
     } elseif ($Action -eq 'install') {
+        # Always surface a 0-add install -- this is a real anomaly.
         Write-Log "Added (0): no new keys were written this run." -Level "warn"
     }
 
     if ($Summary.totalRemoved -gt 0) {
-        Write-Log ("Removed ({0}):" -f $Summary.totalRemoved) -Level "success"
-        foreach ($r in $Summary.removed) {
-            $rowScope = if ($r.PSObject.Properties.Name -contains 'scope' -and $r.scope) { $r.scope } else { $scopeLabel }
-            Write-Log ("  - [{0}/{1}/{2}] {3}" -f $rowScope, $r.edition, $r.target, $r.regPath) -Level "success"
+        if ($atLeastNormal) {
+            Write-Log ("Removed ({0}):" -f $Summary.totalRemoved) -Level "success"
+            foreach ($r in $Summary.removed) {
+                $rowScope = if ($r.PSObject.Properties.Name -contains 'scope' -and $r.scope) { $r.scope } else { $scopeLabel }
+                Write-Log ("  - [{0}/{1}/{2}] {3}" -f $rowScope, $r.edition, $r.target, $r.regPath) -Level "success"
+            }
         }
     } elseif ($Action -eq 'uninstall') {
         Write-Log "Removed (0): nothing was actually deleted this run." -Level "warn"
     }
 
-    if ($Summary.totalSkipped -gt 0) {
+    # Skipped rows are noise in Quiet mode.
+    if ($Summary.totalSkipped -gt 0 -and $atLeastNormal) {
         Write-Log ("Skipped / already absent ({0}):" -f $Summary.totalSkipped) -Level "info"
         foreach ($s in $Summary.skipped) {
             $rowScope = if ($s.PSObject.Properties.Name -contains 'scope' -and $s.scope) { $s.scope } else { $scopeLabel }
@@ -578,6 +654,7 @@ function Write-RegistryAuditReport {
         }
     }
 
+    # Failures ALWAYS print regardless of verbosity (per Write-VLog contract).
     if ($Summary.totalFailed -gt 0) {
         Write-Log ("FAILED ({0}):" -f $Summary.totalFailed) -Level "error"
         foreach ($f in $Summary.failed) {
@@ -589,10 +666,11 @@ function Write-RegistryAuditReport {
 
     $hasNoChanges = ($Summary.totalAdded + $Summary.totalRemoved + $Summary.totalFailed + $Summary.totalSkipped) -eq 0
     if ($hasNoChanges) {
+        # Always loud -- a no-op verification run is meaningful info.
         Write-Log "No registry change events were recorded for this run." -Level "warn"
     }
 
-    if ($Summary.auditPath) {
+    if ($Summary.auditPath -and $atLeastNormal) {
         Write-Log ("Full JSONL trail: " + $Summary.auditPath) -Level "info"
     }
 }

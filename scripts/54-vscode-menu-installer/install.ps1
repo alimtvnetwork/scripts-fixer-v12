@@ -9,6 +9,8 @@ param(
     [string]$VsCodePath,
     [ValidateSet('Auto','CurrentUser','AllUsers')]
     [string]$Scope = 'Auto',
+    [ValidateSet('Quiet','Normal','Debug')]
+    [string]$Verbosity = 'Normal',
     [switch]$Help
 )
 
@@ -27,6 +29,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $scriptDir "helpers\audit-log.ps1")
 . (Join-Path $scriptDir "helpers\registry-snapshot.ps1")
 . (Join-Path $scriptDir "helpers\vscode-check.ps1")
+. (Join-Path $scriptDir "helpers\verbosity.ps1")
 
 # -- Load config & log messages -----------------------------------------------
 $configPath = Join-Path $scriptDir "config.json"
@@ -47,6 +50,9 @@ try {
     # -- Disabled check -------------------------------------------------------
     $isDisabled = -not $config.enabled
     if ($isDisabled) { Write-Log $logMessages.messages.scriptDisabled -Level "warn"; return }
+
+    # -- Verbosity (controls verification + audit-report loudness) -----------
+    Set-VerbosityLevel -Level $Verbosity
 
     # -- Open audit log (timestamped, one file per run) ----------------------
     $auditPath = Initialize-RegistryAudit -Action "install" -ScriptDir $scriptDir

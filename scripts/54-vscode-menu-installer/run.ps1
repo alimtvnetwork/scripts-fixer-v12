@@ -12,6 +12,8 @@ param(
     [string]$VsCodePath,
     [ValidateSet('Auto','CurrentUser','AllUsers')]
     [string]$Scope = 'Auto',
+    [ValidateSet('Quiet','Normal','Debug')]
+    [string]$Verbosity = 'Normal',
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest = @(),
@@ -41,6 +43,11 @@ function Show-RouterHelp {
     Write-Host "    CurrentUser  -- writes to HKCU\Software\Classes (only this user)" -ForegroundColor Gray
     Write-Host "    AllUsers     -- writes to HKEY_CLASSES_ROOT (all users; needs admin)" -ForegroundColor Gray
     Write-Host ""
+    Write-Host "  Verbosity (-Verbosity flag, default Normal):" -ForegroundColor Yellow
+    Write-Host "    Quiet   -- only summary totals + failures (best for CI)" -ForegroundColor Gray
+    Write-Host "    Normal  -- full audit + verification report (default)"   -ForegroundColor Gray
+    Write-Host "    Debug   -- everything Normal shows + per-row probe diagnostics" -ForegroundColor Gray
+    Write-Host ""
     Write-Host "  Tip: launch an elevated PowerShell with:" -ForegroundColor Yellow
     Write-Host "    Start-Process pwsh -Verb RunAs -ArgumentList '-NoExit','-Command','cd ""$((Split-Path -Parent (Split-Path -Parent $scriptDir)))""'" -ForegroundColor DarkGray
     Write-Host ""
@@ -53,16 +60,16 @@ if ($Help -or $Command -ieq "help" -or $Command -ieq "--help" -or $Command -ieq 
 
 switch ($Command.ToLower()) {
     "uninstall" {
-        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope
+        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope -Verbosity $Verbosity
     }
     "repair" {
-        & (Join-Path $scriptDir "repair.ps1") -Edition $Edition -VsCodePath $VsCodePath -Scope $Scope
+        & (Join-Path $scriptDir "repair.ps1") -Edition $Edition -VsCodePath $VsCodePath -Scope $Scope -Verbosity $Verbosity
     }
     "sync" {
         # Auto-detect current VS Code path and rewrite drifted \command
         # values. Pass --dry-run via $Rest to preview changes.
         $isDryRun = ($Rest -contains '-DryRun') -or ($Rest -contains '--dry-run')
-        $syncArgs = @{ Edition = $Edition; VsCodePath = $VsCodePath; Scope = $Scope }
+        $syncArgs = @{ Edition = $Edition; VsCodePath = $VsCodePath; Scope = $Scope; Verbosity = $Verbosity }
         if ($isDryRun) { $syncArgs['DryRun'] = $true }
         & (Join-Path $scriptDir "sync.ps1") @syncArgs
     }
@@ -88,7 +95,7 @@ switch ($Command.ToLower()) {
             Write-Host "  Proceeding with surgical removal of keys we created." -ForegroundColor Gray
             Write-Host ""
         }
-        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope
+        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope -Verbosity $Verbosity
     }
     "check" {
         # Quick read-only registry verification for folder + background +
@@ -108,6 +115,8 @@ switch ($Command.ToLower()) {
         . (Join-Path $scriptDir "helpers\vscode-repair-check.ps1")
         # vscode-install.ps1 brings Resolve-MenuScope + Convert-EditionPathsForScope.
         . (Join-Path $scriptDir "helpers\vscode-install.ps1")
+        . (Join-Path $scriptDir "helpers\verbosity.ps1")
+        Set-VerbosityLevel -Level $Verbosity
 
         $configPath = Join-Path $scriptDir "config.json"
         $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -191,6 +200,6 @@ switch ($Command.ToLower()) {
         exit $LASTEXITCODE
     }
     default {
-        & (Join-Path $scriptDir "install.ps1") -Edition $Edition -VsCodePath $VsCodePath -Scope $Scope
+        & (Join-Path $scriptDir "install.ps1") -Edition $Edition -VsCodePath $VsCodePath -Scope $Scope -Verbosity $Verbosity
     }
 }

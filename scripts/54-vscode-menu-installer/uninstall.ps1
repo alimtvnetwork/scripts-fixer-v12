@@ -9,6 +9,8 @@ param(
     [string]$Edition,
     [ValidateSet('Auto','CurrentUser','AllUsers')]
     [string]$Scope = 'Auto',
+    [ValidateSet('Quiet','Normal','Debug')]
+    [string]$Verbosity = 'Normal',
     [switch]$Help
 )
 
@@ -27,6 +29,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 # Pull in scope helpers (Resolve-MenuScope, Convert-EditionPathsForScope).
 . (Join-Path $scriptDir "helpers\vscode-install.ps1")
 . (Join-Path $scriptDir "helpers\vscode-check.ps1")
+. (Join-Path $scriptDir "helpers\verbosity.ps1")
 
 $configPath = Join-Path $scriptDir "config.json"
 $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -43,6 +46,9 @@ Write-Banner -Title ($logMessages.scriptName + " -- uninstall")
 Initialize-Logging -ScriptName ($logMessages.scriptName + " -- uninstall")
 
 try {
+    # -- Verbosity (controls verification + audit-report loudness) -----------
+    Set-VerbosityLevel -Level $Verbosity
+
     # -- Resolve scope + admin gate ------------------------------------------
     # Uninstall mirrors install's scope rules: AllUsers needs admin,
     # CurrentUser does not. Auto = AllUsers when admin, else CurrentUser.

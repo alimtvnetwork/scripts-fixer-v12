@@ -13,6 +13,8 @@ param(
     [string]$VsCodePath,
     [ValidateSet('Auto','CurrentUser','AllUsers')]
     [string]$Scope = 'Auto',
+    [ValidateSet('Quiet','Normal','Debug')]
+    [string]$Verbosity = 'Normal',
     [switch]$Help
 )
 
@@ -30,6 +32,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $scriptDir "helpers\vscode-repair.ps1")
 . (Join-Path $scriptDir "helpers\audit-log.ps1")
 . (Join-Path $scriptDir "helpers\registry-snapshot.ps1")
+. (Join-Path $scriptDir "helpers\verbosity.ps1")
 
 $configPath = Join-Path $scriptDir "config.json"
 $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -46,6 +49,9 @@ Write-Banner -Title ($logMessages.scriptName + " -- repair")
 Initialize-Logging -ScriptName ($logMessages.scriptName + " -- repair")
 
 try {
+    # -- Verbosity (controls verification + audit-report loudness) -----------
+    Set-VerbosityLevel -Level $Verbosity
+
     # -- Resolve scope + admin gate (repair mirrors install/uninstall) -------
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
     $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
