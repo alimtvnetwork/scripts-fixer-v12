@@ -229,11 +229,18 @@ function Invoke-VsCodeMenuCheck {
     $totalPass = 0
     $totalMiss = 0
     $hasScope  = -not [string]::IsNullOrWhiteSpace($Scope)
-    if ($hasScope) {
+    # Verbosity gating (Test-VerbosityAtLeast may be absent for unit tests).
+    $atLeastNormal = $true
+    $atLeastDebug  = $false
+    if (Get-Command Test-VerbosityAtLeast -ErrorAction SilentlyContinue) {
+        $atLeastNormal = Test-VerbosityAtLeast -Level 'Normal'
+        $atLeastDebug  = Test-VerbosityAtLeast -Level 'Debug'
+    }
+    if ($hasScope -and $atLeastNormal) {
         Write-Log ("Check scope: '" + $Scope + "' -- probing " +
             $(if ($Scope -eq 'AllUsers') { 'HKEY_CLASSES_ROOT (machine-wide)' }
               else                       { 'HKCU\Software\Classes (per-user)' })) -Level "info"
-    } else {
+    } elseif ($atLeastNormal) {
         Write-Log "Check scope: not supplied -- probing original config paths (HKCR merged view)." -Level "info"
     }
 
@@ -258,8 +265,10 @@ function Invoke-VsCodeMenuCheck {
             $ed = Convert-EditionPathsForScope -EditionConfig $ed -Scope $Scope
         }
 
-        Write-Log "" -Level "info"
-        Write-Log ("Checking edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
+        if ($atLeastNormal) {
+            Write-Log "" -Level "info"
+            Write-Log ("Checking edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
+        }
 
         $perTarget = @()
         foreach ($targetName in @('file','directory','background')) {
@@ -277,7 +286,15 @@ function Invoke-VsCodeMenuCheck {
                    else { 'file      ' }
             $line = "  [{0}] {1}  {2}" -f $st.verdict, $tag, $regPath
             $level = if ($st.verdict -eq 'PASS') { 'success' } else { 'error' }
-            Write-Log $line -Level $level
+            # PASS rows are noise in Quiet mode; misses always print.
+            if ($st.verdict -ne 'PASS' -or $atLeastNormal) {
+                Write-Log $line -Level $level
+            }
+            if ($atLeastDebug) {
+                Write-Log ("           [debug] hive=" + $st.hive +
+                           ", keyExists=" + $st.keyExists +
+                           ", missingSubkeys=" + ($st.missingSubkeys -join ',')) -Level "info"
+            }
             if ($st.verdict -ne 'PASS' -and $st.reason) {
                 Write-Log ("           reason: " + $st.reason + " (failure path: " + $regPath + ")") -Level "error"
             }
@@ -320,8 +337,10 @@ function Invoke-VsCodeMenuCheck {
         $coverageOk    = $folderPresent -and $bgPresent
         $coverageLevel = if ($coverageOk) { 'success' } else { 'error' }
         $coverageTag   = if ($coverageOk) { 'OK  ' } else { 'GAP ' }
-        Write-Log ("  [{0}] folder+background coverage in {1}: folder={2}, background={3}" -f `
-            $coverageTag, $hiveLabel, $folderTag, $bgTag) -Level $coverageLevel
+        if (-not $coverageOk -or $atLeastNormal) {
+            Write-Log ("  [{0}] folder+background coverage in {1}: folder={2}, background={3}" -f `
+                $coverageTag, $hiveLabel, $folderTag, $bgTag) -Level $coverageLevel
+        }
         if (-not $folderPresent) {
             $missPath = if ($folderResult) { $folderResult.registryPath } else { '(no registryPaths.directory entry in config)' }
             Write-Log ("           - directory verb MISSING at: " + $missPath + " (failure: folder right-click won't show this entry)") -Level "error"
@@ -330,7 +349,9 @@ function Invoke-VsCodeMenuCheck {
             $missPath = if ($bgResult) { $bgResult.registryPath } else { '(no registryPaths.background entry in config)' }
             Write-Log ("           - background verb MISSING at: " + $missPath + " (failure: empty-folder right-click won't show this entry)") -Level "error"
         }
-        Write-Log ("  summary: folder=" + $folderTag + ", background=" + $bgTag) -Level "info"
+        if ($atLeastNormal) {
+            Write-Log ("  summary: folder=" + $folderTag + ", background=" + $bgTag) -Level "info"
+        }
 
         $editionResults += [pscustomobject]@{
             edition   = $edName
@@ -344,7 +365,8 @@ function Invoke-VsCodeMenuCheck {
         }
     }
 
-    Write-Log "" -Level "info"
+    if ($atLeastNormal) { Write-Log "" -Level "info" }
+    # Totals always print.
     Write-Log ("Verification totals: PASS=" + $totalPass + ", MISS=" + $totalMiss) -Level $(if ($totalMiss -eq 0) { 'success' } else { 'error' })
 
     return [pscustomobject]@{
