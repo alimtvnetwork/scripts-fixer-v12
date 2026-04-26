@@ -73,9 +73,11 @@ component_wordpress_install() {
       ALTER USER '${db_user}'@'localhost' IDENTIFIED BY '${db_pass}';
       GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';
       FLUSH PRIVILEGES;"
-    local sql_out; sql_out="$(_wp_mysql_run "$create_db_sql")"
-    if [ $? -ne 0 ] || echo "$sql_out" | grep -qiE 'ERROR'; then
-        log_err "[70][wp] MySQL grant/create failed: ${sql_out}"
+    local sql_out sql_rc
+    sql_out="$(_wp_mysql_run "$create_db_sql")"
+    sql_rc=$?
+    if [ "$sql_rc" -ne 0 ] || echo "$sql_out" | grep -qiE 'ERROR'; then
+        log_err "[70][wp] MySQL grant/create failed (rc=${sql_rc}): ${sql_out}"
         return 1
     fi
 
@@ -105,13 +107,15 @@ component_wordpress_install() {
     if [ -n "$salts" ]; then
         local tmp; tmp="$(mktemp)"
         # Drop existing AUTH_KEY..NONCE_SALT lines, append fresh ones.
+        # The redirect runs with the operator's uid (mktemp is operator-writable),
+        # so plain `awk ... > "$tmp"` is correct -- no sudo on the redirect.
         sudo awk '!/define\(.*(AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT).*\);$/' \
             "$cfg" > "$tmp"
         printf '\n%s\n' "$salts" >> "$tmp"
-        sudo mv "$tmp" "$cfg" || {
-            log_file_error "$cfg" "mv of salted wp-config.php failed"
+        if ! sudo mv "$tmp" "$cfg"; then
+            log_file_error "$cfg" "mv of salted wp-config.php failed (source: $tmp)"
             return 1
-        }
+        fi
         sudo chown www-data:www-data "$cfg" || true
         sudo chmod 640 "$cfg" || true
         log_ok "[70][wp] wp-config.php written with fresh API salts"
