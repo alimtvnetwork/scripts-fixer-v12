@@ -56,8 +56,22 @@ that is Script 54's job.
 #### `scripts/54-vscode-menu-installer install`
 Adds the "Open with Code" / "Open with Code - Insiders" entries to the
 Windows shell context menu. Scope is `Auto` (HKLM via HKCR when elevated,
-else HKCU). The exact registry keys it writes — and the **only** keys
-`uninstall` will ever delete — are:
+else HKCU). Scope is honored end-to-end across **install / uninstall /
+repair / sync / check** — every verb resolves `-Scope` (Auto / CurrentUser
+/ AllUsers) and rewrites the config paths via `Convert-EditionPathsForScope`
+so reads and writes hit the EXACT hive that matches the requested mode:
+
+| Resolved scope | Hive written / probed                                     | Admin? |
+|----------------|-----------------------------------------------------------|--------|
+| `AllUsers`     | `HKEY_CLASSES_ROOT\…` (physically `HKLM\Software\Classes`) | yes    |
+| `CurrentUser`  | `HKEY_CURRENT_USER\Software\Classes\…`                    | no     |
+
+The `check` verb in particular probes the resolved hive directly instead of
+the merged HKCR view, so per-user installs are diagnosed independently of
+anything that may also exist in HKLM.
+
+The exact registry keys `install` writes — and the **only** keys
+`uninstall` will ever delete (after the same scope rewrite) — are:
 
 | Edition           | Surface       | Registry key (deleted by `uninstall`)                                                  |
 |-------------------|---------------|-----------------------------------------------------------------------------------------|
@@ -68,7 +82,8 @@ else HKCU). The exact registry keys it writes — and the **only** keys
 | Insiders          | Folder        | `HKEY_CLASSES_ROOT\Directory\shell\VSCodeInsiders`                                      |
 | Insiders          | Folder bg     | `HKEY_CLASSES_ROOT\Directory\Background\shell\VSCodeInsiders`                           |
 
-These six keys are the entire allow-list. Sibling keys are never enumerated.
+These six keys (after the per-scope rewrite) are the entire allow-list.
+Sibling keys are never enumerated.
 
 ### 2.2 What gets cleaned
 
