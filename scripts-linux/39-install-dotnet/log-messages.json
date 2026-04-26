@@ -1,0 +1,12 @@
+{ "description": "Log messages for 39-install-dotnet",
+  "messages": {
+    "start":            "[39] Starting .NET SDK installer",
+    "addingMsRepo":     "[39] Adding Microsoft apt repo for ubuntu {version}",
+    "msRepoFailed":     "[39] Microsoft repo setup failed",
+    "installing":       "[39] Installing dotnet-sdk-8.0",
+    "installSuccess":   "[39] .NET SDK installed",
+    "verifyOk":         "[39] dotnet detected: {detail}",
+    "verifyFail":       "[39] dotnet not on PATH",
+    "noMethod":         "[39] apt required"
+  }
+}

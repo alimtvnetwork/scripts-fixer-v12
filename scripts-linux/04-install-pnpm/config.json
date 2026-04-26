@@ -1,0 +1,1 @@
+{ "install": { "tarball": "https://get.pnpm.io/install.sh" }, "notes": "Official curl|sh installer; per-user PATH update via ~/.local/share/pnpm" }

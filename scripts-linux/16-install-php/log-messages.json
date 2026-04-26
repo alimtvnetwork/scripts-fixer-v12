@@ -1,0 +1,12 @@
+{ "description": "Log messages for 16-install-php",
+  "messages": {
+    "start":           "[16] Starting PHP CLI + FPM installer",
+    "alreadyInstalled":"[16] Already installed",
+    "installing":      "[16] Installing via apt: {pkg}",
+    "installSuccess":  "[16] Installed",
+    "installFailed":   "[16] Install failed: {err}",
+    "verifyOk":        "[16] Verify OK: {detail}",
+    "verifyFail":      "[16] Verify FAILED",
+    "noMethod":        "[16] apt not available -- consider tarball method"
+  }
+}

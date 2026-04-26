@@ -1,0 +1,1 @@
+{ "install": { "tarball": "https://sh.rustup.rs" }, "notes": "Official rustup installer; per-user ~/.cargo/bin" }

@@ -1,0 +1,12 @@
+{ "description": "Log messages for 06-install-golang",
+  "messages": {
+    "start":           "[06] Starting Go (golang-go) installer",
+    "alreadyInstalled":"[06] Already installed",
+    "installing":      "[06] Installing via apt: {pkg}",
+    "installSuccess":  "[06] Installed",
+    "installFailed":   "[06] Install failed: {err}",
+    "verifyOk":        "[06] Verify OK: {detail}",
+    "verifyFail":      "[06] Verify FAILED",
+    "noMethod":        "[06] apt not available -- consider tarball method"
+  }
+}

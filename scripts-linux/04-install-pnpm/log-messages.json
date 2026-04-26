@@ -1,0 +1,13 @@
+{ "description": "Log messages for 04-install-pnpm",
+  "messages": {
+    "start":            "[04] Starting pnpm installer",
+    "alreadyInstalled": "[04] pnpm already installed: {detail}",
+    "downloading":      "[04] Downloading pnpm install script",
+    "running":          "[04] Running pnpm install script",
+    "installSuccess":   "[04] pnpm installed",
+    "installFailed":    "[04] pnpm install failed: {err}",
+    "verifyOk":         "[04] pnpm detected: {detail}",
+    "verifyFail":       "[04] pnpm not on PATH",
+    "noMethod":         "[04] curl required for pnpm installer"
+  }
+}

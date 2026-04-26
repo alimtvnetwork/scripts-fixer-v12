@@ -1,0 +1,1 @@
+{ "install": { "apt": "dotnet-sdk-8.0", "msRepo": true }, "notes": "Microsoft apt repo required" }

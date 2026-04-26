@@ -1,0 +1,12 @@
+{ "description": "Log messages for 40-install-java",
+  "messages": {
+    "start":           "[40] Starting OpenJDK 21 installer",
+    "alreadyInstalled":"[40] Already installed",
+    "installing":      "[40] Installing via apt: {pkg}",
+    "installSuccess":  "[40] Installed",
+    "installFailed":   "[40] Install failed: {err}",
+    "verifyOk":        "[40] Verify OK: {detail}",
+    "verifyFail":      "[40] Verify FAILED",
+    "noMethod":        "[40] apt not available -- consider tarball method"
+  }
+}

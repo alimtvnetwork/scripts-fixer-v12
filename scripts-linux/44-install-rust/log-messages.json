@@ -1,0 +1,12 @@
+{ "description": "Log messages for 44-install-rust",
+  "messages": {
+    "start":            "[44] Starting Rust installer",
+    "alreadyInstalled": "[44] rustc already installed",
+    "running":          "[44] Running rustup -y",
+    "installSuccess":   "[44] Rust toolchain installed",
+    "installFailed":    "[44] rustup failed: {err}",
+    "verifyOk":         "[44] rustc detected: {detail}",
+    "verifyFail":       "[44] rustc not on PATH",
+    "noMethod":         "[44] curl required"
+  }
+}
