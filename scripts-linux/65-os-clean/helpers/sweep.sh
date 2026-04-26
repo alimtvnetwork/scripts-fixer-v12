@@ -252,6 +252,12 @@ sweep_command() {
   local size_path="$1"; shift
   local before after rc out
   before=$(sweep_size_bytes "$size_path" 2>/dev/null || echo 0)
+  local cmd_kind="$1"
+  local target_label="cmd:$*"
+  if [ "${SW_DRY_RUN:-0}" = "1" ]; then
+    _sw_emit_target "would" "$cmd_kind" "$target_label" "$before" "command-driven cleanup; size_path=${size_path:-?}"
+    return 0
+  fi
   out=$("$@" 2>&1); rc=$?
   after=$(sweep_size_bytes "$size_path" 2>/dev/null || echo 0)
   local freed=$((before - after))
@@ -260,10 +266,12 @@ sweep_command() {
   if [ "$rc" -eq 0 ]; then
     # Success: count the call as 1 logical "item" for parity with sweep counts.
     [ "$freed" -gt 0 ] && _SW_COUNT=$((_SW_COUNT + 1))
+    _sw_emit_target "removed" "$cmd_kind" "$target_label" "$freed" "exit=0 freed=${freed}B size_path=${size_path:-?}"
   else
     _SW_LOCKED=$((_SW_LOCKED + 1))
     _SW_LOCKS="${_SW_LOCKS}cmd:$*|exit=${rc}: $(printf '%s' "$out" | head -c 200)
 "
+    _sw_emit_target "failed" "$cmd_kind" "$target_label" 0 "exit=${rc}: $(printf '%s' "$out" | head -c 80)"
   fi
   printf '%s' "$out"
   return "$rc"
