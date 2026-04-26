@@ -6,6 +6,6 @@
     "keyUrl": "https://www.mongodb.org/static/pgp/server-7.0.asc",
     "keyring": "/usr/share/keyrings/mongodb-server-7.0.gpg",
     "repoListPath": "/etc/apt/sources.list.d/22-install-mongodb.list",
-    "repoLine": "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu /mongodb-org/7.0 multiverse"
+    "repoLine": "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu {UBUNTU_CODENAME}/mongodb-org/7.0 multiverse"
   }
 }

@@ -17,6 +17,8 @@ KEY_URL=$(jq -r '.thirdPartyRepo.keyUrl' "$CONFIG")
 KEYRING=$(jq -r '.thirdPartyRepo.keyring' "$CONFIG")
 REPO_LIST=$(jq -r '.thirdPartyRepo.repoListPath' "$CONFIG")
 REPO_LINE=$(jq -r '.thirdPartyRepo.repoLine' "$CONFIG")
+UBUNTU_CODENAME_RESOLVED=$( . /etc/os-release 2>/dev/null && echo "${UBUNTU_CODENAME:-${VERSION_CODENAME:-jammy}}" )
+REPO_LINE="${REPO_LINE//\{UBUNTU_CODENAME\}/$UBUNTU_CODENAME_RESOLVED}"
 INSTALLED_MARK="$ROOT/.installed/22.ok"
 
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
