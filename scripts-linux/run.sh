@@ -63,6 +63,8 @@ while [ $# -gt 0 ]; do
         VERB="vsclin-passthrough"; VSCLIN_SUB="run";    shift; VSCLIN_REST=("$@"); break ;;
     vscode-clean-linux-detect|vscode-linux-clean-detect)
         VERB="vsclin-passthrough"; VSCLIN_SUB="detect"; shift; VSCLIN_REST=("$@"); break ;;
+    vscode-clean-linux-resolve|vscode-linux-clean-resolve|vscode-resolve-linux|vscode-linux-resolve)
+        VERB="vsclin-passthrough"; VSCLIN_SUB="resolve"; shift; VSCLIN_REST=("$@"); break ;;
     vscode-clean-linux-list|vscode-linux-clean-list)
         VERB="vsclin-passthrough"; VSCLIN_SUB="list";   shift; VSCLIN_REST=("$@"); break ;;
     vscode-clean-linux-help|vscode-linux-clean-help)
