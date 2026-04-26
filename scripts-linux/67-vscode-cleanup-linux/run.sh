@@ -557,5 +557,14 @@ if [ "${VERIFY_FAILS:-0}" -gt 0 ] && [ "$DRY_RUN" -eq 0 ]; then
   log_warn "Apply finished, but post-cleanup verification reported ${VERIFY_FAILS} target(s) still present. See verify report above and verify.tsv: $VERIFY_TSV"
   exit 3
 fi
+# Independent context-menu / MIME surface scan: if anything still references
+# code/code-insiders in desktop entries, mimeapps.list, file-manager scripts
+# directories, or live xdg-mime defaults, the user-visible right-click
+# integration is NOT actually gone. Surface that as a distinct exit code so
+# CI / wrapper scripts can branch on it.
+if [ "${VERIFY_CTX_FAILS:-0}" -gt 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+  log_warn "Apply finished, but context-menu/MIME scan found ${VERIFY_CTX_FAILS} VS Code wiring entry(ies) still present. See ctx-menu report above and ${VERIFY_CTX_TSV}"
+  exit 4
+fi
 log_ok "Done."
 exit 0
