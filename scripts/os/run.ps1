@@ -162,6 +162,14 @@ function Show-OsHelp {
     Write-Host "    flp                                                    Enable Win32 long-path support" -ForegroundColor Green
     Write-Host "    add-user <name> <pass> [pin] [email]                   Create local Windows user" -ForegroundColor Green
     Write-Host ""
+    Write-Host "  STARTUP MANAGEMENT (cross-OS feature, Windows side)" -ForegroundColor Cyan
+    Write-Host "    startup-add app <path> [--method M] [--name N] [--args ...] [--interactive] [--elevated]" -ForegroundColor Green
+    Write-Host "      Methods: startup-folder (default, no admin) | hkcu-run | hklm-run [ADMIN] | task [ADMIN for HIGHEST]" -ForegroundColor DarkGray
+    Write-Host "    startup-add env KEY=VALUE [--scope user|machine] [--method registry|setx]" -ForegroundColor Green
+    Write-Host "      Default: HKCU Environment + WM_SETTINGCHANGE broadcast (no logoff needed)" -ForegroundColor DarkGray
+    Write-Host "    startup-list [--scope user|machine|all]                Enumerate managed entries (tag: lovable-startup-*)" -ForegroundColor Green
+    Write-Host "    startup-remove <name> [--method ...]                   Remove a managed entry from one or all methods" -ForegroundColor Green
+    Write-Host ""
     Write-Host "  CLEAN-* SUBCOMMANDS (each accepts --dry-run / --yes / --days N)" -ForegroundColor Cyan
     $currentBucket = ""
     $bucketLabels = @{
@@ -323,6 +331,18 @@ switch ($normalizedAction) {
     }
     { $_ -in @("add-user", "adduser", "new-user") } {
         & (Join-Path $scriptDir "helpers\add-user.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("startup-add", "startupadd") } {
+        & (Join-Path $scriptDir "helpers\startup-add.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("startup-list", "startuplist") } {
+        & (Join-Path $scriptDir "helpers\startup-list.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("startup-remove", "startupremove", "startup-rm") } {
+        & (Join-Path $scriptDir "helpers\startup-remove.ps1") @Rest
         exit $LASTEXITCODE
     }
     { $_ -in @("help", "--help", "-h", "") } {
