@@ -1,0 +1,27 @@
+{
+  "scriptName": "67-vscode-cleanup-linux",
+  "description": "Linux/Ubuntu VS Code cleanup: detects install method (apt | snap | deb | tarball | user-config) and removes ONLY the matching files, packages, and config — never enumerative.",
+  "messages": {
+    "scriptDisabled":   "Script disabled in config.json (set 'enabled': true to run).",
+    "wrongOs":          "This script targets Linux only. Detected OS: {os}. Aborting (no changes made).",
+    "scopeResolved":    "Resolved scope: requested='{requested}', resolved='{resolved}' (root={isRoot}).",
+    "detectStart":      "===== detect phase (read-only) =====",
+    "detectMethod":     "  detected '{method}' via {probeKind}: {detail}",
+    "detectMissing":    "  '{method}' not detected on this system",
+    "detectSummary":    "Detect summary: {detected}/{total} methods present -> [{methods}]",
+    "applyStart":       "===== apply phase ({mode}, scope={scope}) =====",
+    "stepRun":          "  [{method}] {kind}: {target}",
+    "stepDryRun":       "  [{method}] [dry-run] would {kind}: {target}",
+    "stepRemoved":      "  [{method}] removed {kind}: {target}",
+    "stepMissing":      "  [{method}] not present ({kind}): {target}",
+    "stepFailed":       "  [{method}] FAILED {kind}: {target} ({reason})",
+    "stepSkipped":      "  [{method}] skipped {kind}: {target} ({reason})",
+    "needsSudo":        "  [{method}] step '{kind}' for '{target}' requires sudo. Re-run with sudo, or pass --scope user. SKIPPING.",
+    "modeApply":        "APPLY mode: changes will be made. Pass --dry-run to preview only.",
+    "modeDryRun":       "DRY-RUN mode: no changes will be made.",
+    "summary":          "Cleanup summary -- removed: {removed}, would-remove: {would}, missing: {missing}, skipped: {skipped}, failed: {failed} (mode={mode}, scope={scope}).",
+    "manifestWritten":  "Manifest written: {path}",
+    "noMethods":        "No VS Code install methods detected on this machine. Nothing to do.",
+    "rerunWithDryRun":  "Tip: re-run with --dry-run first to preview the exact set of packages/paths that will be removed."
+  }
+}

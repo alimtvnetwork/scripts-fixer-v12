@@ -1,0 +1,114 @@
+{
+  "_comment": "Allow-list for the Linux/Ubuntu VS Code cleanup. The script first DETECTS which install methods are present on this machine (apt | snap | deb | tarball | user-config), then removes ONLY the matching artifacts. Nothing outside this file is ever touched (CODE RED safety: surgical, never enumerative). Add or remove entries here to tune scope.",
+  "enabled": true,
+  "_safetyComment": "Apply by default. Pass --dry-run to preview every targeted package/path before any deletion. A manifest is written either way under .logs/67/<TS>/manifest.json mirroring scripts 65 & 66.",
+  "_scopeComment": "Default scope when --scope is omitted. 'auto' = system if running as root, else user. 'user' limits removal to ~/.config, ~/.vscode, ~/.vscode-server, and per-user shims. 'system' adds apt/snap/dpkg removal + /usr/bin shims + /etc/apt sources (needs sudo).",
+  "defaultScope": "auto",
+  "editions": {
+    "stable":   { "appName": "Visual Studio Code",          "aptPkg": "code",          "snapPkg": "code",          "dpkgPkg": "code",          "shimNames": ["code"] },
+    "insiders": { "appName": "Visual Studio Code - Insiders","aptPkg": "code-insiders","snapPkg": "code-insiders","dpkgPkg": "code-insiders","shimNames": ["code-insiders"] }
+  },
+  "detectors": {
+    "_comment": "How we decide a method was used. A method is 'detected' if ANY of its probes return a non-empty match. Detection runs read-only -- no changes are made during the detect phase.",
+    "apt": {
+      "label": "apt + Microsoft repository",
+      "probes": [
+        { "kind": "dpkg-status",  "pkg": "code"          },
+        { "kind": "dpkg-status",  "pkg": "code-insiders" },
+        { "kind": "file-exists",  "path": "/etc/apt/sources.list.d/vscode.list" },
+        { "kind": "file-exists",  "path": "/usr/share/keyrings/packages.microsoft.gpg" }
+      ]
+    },
+    "snap": {
+      "label": "snap (classic)",
+      "probes": [
+        { "kind": "snap-list", "pkg": "code"          },
+        { "kind": "snap-list", "pkg": "code-insiders" }
+      ]
+    },
+    "deb": {
+      "label": "deb (manual dpkg -i, no MS repo)",
+      "probes": [
+        { "kind": "dpkg-status-no-source", "pkg": "code"          },
+        { "kind": "dpkg-status-no-source", "pkg": "code-insiders" }
+      ]
+    },
+    "tarball": {
+      "label": "tarball / portable extract",
+      "probes": [
+        { "kind": "dir-exists", "path": "/opt/VSCode-linux-x64" },
+        { "kind": "dir-exists", "path": "/opt/VSCode-linux-arm64" },
+        { "kind": "dir-exists", "path": "/opt/visual-studio-code" },
+        { "kind": "dir-exists", "path": "$HOME/VSCode-linux-x64" },
+        { "kind": "dir-exists", "path": "$HOME/.local/share/code" }
+      ]
+    },
+    "user-config": {
+      "label": "user config / extensions / remote server",
+      "probes": [
+        { "kind": "dir-exists", "path": "$HOME/.config/Code" },
+        { "kind": "dir-exists", "path": "$HOME/.config/Code - Insiders" },
+        { "kind": "dir-exists", "path": "$HOME/.vscode" },
+        { "kind": "dir-exists", "path": "$HOME/.vscode-insiders" },
+        { "kind": "dir-exists", "path": "$HOME/.vscode-server" },
+        { "kind": "dir-exists", "path": "$HOME/.vscode-server-insiders" }
+      ]
+    }
+  },
+  "actions": {
+    "_comment": "Per-method removal recipes. Only methods reported by the detect phase will execute. Each action lists explicit packages/paths -- nothing globbed beyond what is named here.",
+    "apt": {
+      "scope": "system",
+      "requiresSudo": true,
+      "steps": [
+        { "kind": "apt-purge",  "pkgs": ["code", "code-insiders"] },
+        { "kind": "rm-file",    "path": "/etc/apt/sources.list.d/vscode.list" },
+        { "kind": "rm-file",    "path": "/usr/share/keyrings/packages.microsoft.gpg" },
+        { "kind": "apt-update", "note": "refresh apt lists after repo removal" }
+      ]
+    },
+    "snap": {
+      "scope": "system",
+      "requiresSudo": true,
+      "steps": [
+        { "kind": "snap-remove", "pkgs": ["code", "code-insiders"] }
+      ]
+    },
+    "deb": {
+      "scope": "system",
+      "requiresSudo": true,
+      "steps": [
+        { "kind": "dpkg-remove", "pkgs": ["code", "code-insiders"] }
+      ]
+    },
+    "tarball": {
+      "scope": "mixed",
+      "steps": [
+        { "kind": "rm-dir",    "path": "/opt/VSCode-linux-x64",         "requiresSudo": true },
+        { "kind": "rm-dir",    "path": "/opt/VSCode-linux-arm64",       "requiresSudo": true },
+        { "kind": "rm-dir",    "path": "/opt/visual-studio-code",       "requiresSudo": true },
+        { "kind": "rm-dir",    "path": "$HOME/VSCode-linux-x64"                              },
+        { "kind": "rm-dir",    "path": "$HOME/.local/share/code"                             },
+        { "kind": "rm-shim",   "path": "/usr/local/bin/code",           "requiresSudo": true },
+        { "kind": "rm-shim",   "path": "/usr/local/bin/code-insiders",  "requiresSudo": true },
+        { "kind": "rm-shim",   "path": "$HOME/.local/bin/code"                               },
+        { "kind": "rm-shim",   "path": "$HOME/.local/bin/code-insiders"                      },
+        { "kind": "rm-file",   "path": "/usr/share/applications/code.desktop",          "requiresSudo": true },
+        { "kind": "rm-file",   "path": "/usr/share/applications/code-insiders.desktop", "requiresSudo": true },
+        { "kind": "rm-file",   "path": "$HOME/.local/share/applications/code.desktop"                       },
+        { "kind": "rm-file",   "path": "$HOME/.local/share/applications/code-insiders.desktop"              }
+      ]
+    },
+    "user-config": {
+      "scope": "user",
+      "steps": [
+        { "kind": "rm-dir", "path": "$HOME/.config/Code"                  },
+        { "kind": "rm-dir", "path": "$HOME/.config/Code - Insiders"       },
+        { "kind": "rm-dir", "path": "$HOME/.vscode"                       },
+        { "kind": "rm-dir", "path": "$HOME/.vscode-insiders"              },
+        { "kind": "rm-dir", "path": "$HOME/.vscode-server"                },
+        { "kind": "rm-dir", "path": "$HOME/.vscode-server-insiders"       }
+      ]
+    }
+  }
+}
