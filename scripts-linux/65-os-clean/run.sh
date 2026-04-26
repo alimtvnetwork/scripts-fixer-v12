@@ -257,7 +257,7 @@ _run_category() {
             while IFS= read -r pat; do
               [ -z "$pat" ] && continue
               sweep_glob "$pat" --root "$pp"
-            done < <(_osc_query ".categories.$cat.globPatterns[]" 2>/dev/null)
+            done < <(_osc_query ".categories.\"$cat\".globPatterns[]" 2>/dev/null)
           else
             sweep_glob "$pp"
           fi
