@@ -323,6 +323,10 @@ function Invoke-ScopeCase {
         } else {
             Write-C "    [FAIL] MISSING: $($row.PsPath) (failure: install did not create the expected key)" "Red"
             $missingAfterInstall += $row.PsPath
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target $row.Target -Class 'MISSING-AFTER-INSTALL' `
+                -Hive 'this' -PsPath $row.PsPath `
+                -Detail "install completed but the expected key did not appear"
         }
     }
     if ($missingAfterInstall.Count -gt 0) {
@@ -337,6 +341,10 @@ function Invoke-ScopeCase {
     } else {
         foreach ($p in $bleedAfterInstall) {
             Write-C "    [FAIL] BLEED: install created '$p' in $oppositeScope hive (failure: scope routing leak)" "Red"
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target '-' -Class 'BLEED-INSTALL' `
+                -Hive 'opposite' -PsPath $p `
+                -Detail "install created a key in the $oppositeScope hive (scope routing leak)"
         }
         Add-ScopeFail -Scope $Scope -Phase bleed -Reason ("install created keys in $oppositeScope hive: " + ($bleedAfterInstall -join '; '))
     }
@@ -367,6 +375,10 @@ function Invoke-ScopeCase {
         } else {
             Write-C "    [FAIL] RESIDUE: $($row.PsPath) (failure: uninstall left the key behind)" "Red"
             $stillThere += $row.PsPath
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target $row.Target -Class 'RESIDUE' `
+                -Hive 'this' -PsPath $row.PsPath `
+                -Detail "uninstall completed but the key is still present (expected to be removed)"
         }
     }
     if ($stillThere.Count -gt 0) {
@@ -381,6 +393,10 @@ function Invoke-ScopeCase {
     } else {
         foreach ($p in $bleedAfterUninstall) {
             Write-C "    [FAIL] BLEED (post-uninstall): '$p' was created in $oppositeScope hive (failure: scope routing leak)" "Red"
+            Add-ResidueRow -Scope $Scope -EditionName $EditionName `
+                -Target '-' -Class 'BLEED-UNINSTALL' `
+                -Hive 'opposite' -PsPath $p `
+                -Detail "post-uninstall: a key appeared in the $oppositeScope hive (scope routing leak)"
         }
         Add-ScopeFail -Scope $Scope -Phase bleed -Reason ("post-uninstall keys in $oppositeScope hive: " + ($bleedAfterUninstall -join '; '))
     }
