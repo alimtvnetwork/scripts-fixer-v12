@@ -269,6 +269,82 @@ if [ "$VERB" = "detect" ]; then
   exit 0
 fi
 
+# --------------------------------------------------------------------- subverb: resolve
+# Print a single classification line + structured exit code so callers (CI,
+# other scripts, the toolkit's `vscode-resolve-linux` shortcut) can branch
+# without having to parse the full detect output.
+if [ "$VERB" = "resolve" ]; then
+  # Specificity order: most-specific install method wins when several match.
+  # apt > deb (apt implies an MS source file; deb is the bare dpkg case)
+  # snap is independent
+  # tarball > binary (a tarball root present implies tarball; a bare shim is binary)
+  # user-config is auxiliary -- never the primary classification
+  resolve_pick=""
+  _has() { local x="$1" y; for y in "${DETECTED_METHODS[@]:-}"; do [ "$x" = "$y" ] && return 0; done; return 1; }
+  if   _has apt;     then resolve_pick="apt"
+  elif _has snap;    then resolve_pick="snap"
+  elif _has deb;     then resolve_pick="deb"
+  elif _has tarball; then resolve_pick="tarball"
+  elif _has binary;  then resolve_pick="binary"
+  elif _has user-config; then resolve_pick="user-config"
+  fi
+
+  # Edition: union of editions seen across all hits (parsed from probe detail).
+  edition_seen=""
+  if [ -s "$DETECT_HITS_TSV" ]; then
+    if   grep -q 'code-insiders' "$DETECT_HITS_TSV" && grep -q -E '(pkg=code\b|cmd=code\b|path=.*Code[^-])' "$DETECT_HITS_TSV"; then
+      edition_seen="both"
+    elif grep -q 'code-insiders' "$DETECT_HITS_TSV"; then
+      edition_seen="insiders"
+    else
+      edition_seen="stable"
+    fi
+  fi
+
+  # First detail line for the picked method (for human context).
+  resolve_detail=""
+  if [ -n "$resolve_pick" ] && [ -s "$DETECT_HITS_TSV" ]; then
+    resolve_detail=$(awk -F'\t' -v m="$resolve_pick" '$1==m {print $3; exit}' "$DETECT_HITS_TSV")
+  fi
+
+  # Manifest mirrors the 'detect' verb shape but adds a 'resolved' field.
+  manifest="$RUN_DIR/manifest.json"
+  {
+    printf '{"script":"67-vscode-cleanup-linux","os":"Linux","mode":"resolve","scope":"%s","timestamp":"%s","resolved":"%s","edition":"%s","detected":[' \
+      "$RESOLVED_SCOPE" "$TS" "${resolve_pick:-none}" "${edition_seen:-unknown}"
+    first=1
+    for m in "${DETECTED_METHODS[@]:-}"; do
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      printf '"%s"' "$m"
+    done
+    printf ']}\n'
+  } > "$manifest" 2>/dev/null || log_file_error "$manifest" "manifest write failed"
+
+  # Single-line stdout output so callers can `read` it directly.
+  if [ -z "$resolve_pick" ]; then
+    printf "method=none  edition=unknown  detail='no VS Code install detected'\n"
+    log_info "Manifest written: $manifest"
+    exit 2
+  fi
+
+  printf "method=%s  edition=%s  detail='%s'\n" \
+    "$resolve_pick" "${edition_seen:-unknown}" "${resolve_detail:-(no detail)}"
+  log_info "Manifest written: $manifest"
+
+  # Count primary methods (excluding user-config which is auxiliary) to decide
+  # between exit 0 (single) and exit 1 (multiple coexisting installs).
+  primary_count=0
+  for m in "${DETECTED_METHODS[@]:-}"; do
+    case "$m" in user-config) ;; *) primary_count=$((primary_count+1)) ;; esac
+  done
+  if [ "$primary_count" -gt 1 ]; then
+    log_warn "Multiple primary install methods present (${primary_count}): [${joined}]. Picked '$resolve_pick' as the most specific. Exit code 1."
+    exit 1
+  fi
+  exit 0
+fi
+
 if [ "${#DETECTED_METHODS[@]}" -eq 0 ]; then
   log_ok "No VS Code install methods detected on this machine. Nothing to do."
   exit 0
