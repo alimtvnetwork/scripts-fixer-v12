@@ -22,6 +22,6 @@ Tracks every point of unclear requirement or inference made during the
 
 | #  | File | Task / Topic | Inference used | Status |
 |----|------|--------------|----------------|--------|
-| -- | --   | (none yet)   | --             | open   |
+| 01 | [01-add-group-shell-scripts.md](./01-add-group-shell-scripts.md) | Add separate shell scripts for Unix group creation (JSON + CLI) and wire into root | **Option B** — kept the existing `68-user-mgmt/add-group*.sh` pair; added `add-group` / `add-groups-from-json` shortcuts (+ aliases) to `scripts-linux/run.sh`; no new script slot or registry entry. | open |
 
 _Append new rows here as ambiguities are logged._
