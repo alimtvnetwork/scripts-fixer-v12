@@ -53,10 +53,10 @@ EOF
 main() {
   local sub="${1:-}"; shift || true
   case "$sub" in
-    app)    ensure_run_dir; cmd_app    "$@"; exit $? ;;
-    env)    ensure_run_dir; cmd_env    "$@"; exit $? ;;
-    list)   cmd_list   "$@"; exit $? ;;
-    remove) ensure_run_dir; cmd_remove "$@"; exit $? ;;
+    app|startup-app)               ensure_run_dir; cmd_app    "$@"; exit $? ;;
+    env|startup-env)               ensure_run_dir; cmd_env    "$@"; exit $? ;;
+    list|startup-list|ls)          cmd_list   "$@"; exit $? ;;
+    remove|startup-remove|rm|del)  ensure_run_dir; cmd_remove "$@"; exit $? ;;
     ""|help|-h|--help) usage; exit 0 ;;
     *) log_warn "[64] Unknown subverb: '$sub'"; usage; exit 1 ;;
   esac
