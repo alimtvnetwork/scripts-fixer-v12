@@ -59,7 +59,7 @@ choose_backup_dir() {
   local sel="${1:-latest}"
   if [ -z "$sel" ] || [ "$sel" = "latest" ]; then
     if [ ! -d "$BACKUP_ROOT" ]; then
-      log_warn "[62] Backup root $BACKUP_ROOT does not exist -- nothing to restore"
+      log_warn "[62] Backup root $BACKUP_ROOT does not exist -- nothing to restore" >&2
       return 1
     fi
     # Newest non-pre-clear dir
@@ -68,7 +68,7 @@ choose_backup_dir() {
               ! -name 'pre-clear-*' -printf '%f\n' 2>/dev/null \
              | sort -r | head -n1)
     if [ -z "$picked" ]; then
-      log_warn "[62] No timestamped backups found under $BACKUP_ROOT"
+      log_warn "[62] No timestamped backups found under $BACKUP_ROOT" >&2
       return 1
     fi
     echo "$BACKUP_ROOT/$picked"
@@ -76,7 +76,7 @@ choose_backup_dir() {
   fi
   if [ -d "$sel" ]; then echo "$sel"; return 0; fi
   if [ -d "$BACKUP_ROOT/$sel" ]; then echo "$BACKUP_ROOT/$sel"; return 0; fi
-  log_file_error "$sel" "backup selector did not resolve to a directory"
+  log_file_error "$sel" "backup selector did not resolve to a directory" >&2
   return 1
 }
 
