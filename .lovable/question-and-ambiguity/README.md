@@ -32,3 +32,4 @@ Tracks every point of unclear requirement or inference made during the
 | 11 | [11-script54-residue-report.md](./11-script54-residue-report.md) | Add detailed residue report listing missing/leftover keys per scope to script 54 scope matrix | **Option B** — extended `tests/run-scope-matrix.ps1` (single-source-of-truth for expected paths). Added `$residueRows` ledger with 4 classes (`RESIDUE` / `MISSING-AFTER-INSTALL` / `BLEED-INSTALL` / `BLEED-UNINSTALL`), `Write-ResidueReport` table renderer, and optional `-ReportPath` JSON dump (schema v1). Existing exit-code semantics preserved. Worked around two pwsh 7.5+ `Argument types do not match` quirks (nested `[ordered]`, `@($genericList)`). Parse + JSON dump verified under pwsh 7.5.4. | open |
 
 _Append new rows here as ambiguities are logged._
+- [12 — Script 54 CI: elevation-gated AllUsers job](./12-script54-ci-elevation-gate.md)

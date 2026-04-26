@@ -1,0 +1,122 @@
+name: Test Script 54 (vscode-menu-installer)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs the script 54 scope matrix on every push and PR. Two independent jobs:
+#
+#   1. matrix-currentuser : always runs, exercises -OnlyScope CurrentUser
+#                           (HKCU writes, no elevation required).
+#
+#   2. matrix-allusers    : probes for admin elevation FIRST. If the runner
+#                           is elevated, runs -OnlyScope AllUsers (HKLM\Software\
+#                           Classes writes). If NOT elevated, the job exits
+#                           cleanly with a [SKIPPED] marker -- it does NOT fail
+#                           the workflow. This keeps self-hosted / non-admin
+#                           runners green while still covering AllUsers when
+#                           the host supports it (windows-latest hosted runners
+#                           do run as admin by default).
+#
+# Exit codes honored from run-scope-matrix.ps1:
+#   0  = pass     2  = pre-flight failure
+#   3  = AllUsers requested but harness not elevated (only the AllUsers job
+#        treats this as "skipped" -- everywhere else it's a hard fail)
+#   10/11/12 = CurrentUser scope failures
+#   20/21/22 = AllUsers    scope failures
+#   30 = unexpected error
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/54-vscode-menu-installer/**'
+      - '.github/workflows/test-script-54.yml'
+  pull_request:
+    paths:
+      - 'scripts/54-vscode-menu-installer/**'
+      - '.github/workflows/test-script-54.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix-currentuser:
+    name: scope matrix -OnlyScope CurrentUser
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run scope matrix (CurrentUser only)
+        shell: pwsh
+        run: |
+          $matrix = "scripts/54-vscode-menu-installer/tests/run-scope-matrix.ps1"
+          if (-not (Test-Path -LiteralPath $matrix)) {
+            Write-Error "FILE NOT FOUND: $matrix -- the scope matrix harness is missing from the checkout."
+            exit 2
+          }
+          & $matrix -OnlyScope CurrentUser -ReportPath "$env:RUNNER_TEMP\script-54-currentuser-report.json"
+          Write-Host "Exit code: $LASTEXITCODE"
+          exit $LASTEXITCODE
+
+      - name: Upload CurrentUser residue report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-54-currentuser-report
+          path: ${{ runner.temp }}/script-54-currentuser-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  matrix-allusers:
+    name: scope matrix -OnlyScope AllUsers (elevation-gated)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Probe for admin BEFORE invoking the matrix. If the runner is not
+      #    elevated, we skip the matrix instead of failing the workflow. The
+      #    probe sets a step-output that gates the next two steps.
+      - name: Probe elevation
+        id: elevation
+        shell: pwsh
+        run: |
+          $id   = [System.Security.Principal.WindowsIdentity]::GetCurrent()
+          $prin = New-Object System.Security.Principal.WindowsPrincipal($id)
+          $isAdmin = $prin.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Host "Identity      : $($id.Name)"
+          Write-Host "IsAdmin       : $isAdmin"
+          "is_admin=$($isAdmin.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Skip notice (runner not elevated)
+        if: steps.elevation.outputs.is_admin != 'true'
+        shell: pwsh
+        run: |
+          Write-Host "::notice title=Script 54 AllUsers matrix skipped::Runner is not elevated; -OnlyScope AllUsers requires admin to write HKLM\Software\Classes. The CurrentUser job already covers HKCU."
+          Write-Host "[SKIPPED] scope matrix -OnlyScope AllUsers -- runner not elevated."
+
+      - name: Run scope matrix (AllUsers only)
+        if: steps.elevation.outputs.is_admin == 'true'
+        shell: pwsh
+        run: |
+          $matrix = "scripts/54-vscode-menu-installer/tests/run-scope-matrix.ps1"
+          if (-not (Test-Path -LiteralPath $matrix)) {
+            Write-Error "FILE NOT FOUND: $matrix -- the scope matrix harness is missing from the checkout."
+            exit 2
+          }
+          & $matrix -OnlyScope AllUsers -ReportPath "$env:RUNNER_TEMP\script-54-allusers-report.json"
+          Write-Host "Exit code: $LASTEXITCODE"
+          # Defensive: exit 3 means "AllUsers requested but not elevated".
+          # We already gated on elevation above, so seeing 3 here is a real bug
+          # in the probe -- surface it as a failure, don't silently swallow.
+          exit $LASTEXITCODE
+
+      - name: Upload AllUsers residue report
+        if: always() && steps.elevation.outputs.is_admin == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-54-allusers-report
+          path: ${{ runner.temp }}/script-54-allusers-report.json
+          if-no-files-found: warn
+          retention-days: 30
