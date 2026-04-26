@@ -55,6 +55,7 @@
     "52": "52-vscode-folder-repair",
     "53": "53-script-fixer-context-menu",
     "54": "54-vscode-menu-installer",
-    "55": "55-install-jenkins"
+    "55": "55-install-jenkins",
+    "56": "56-vscode-folder-reregister"
   }
 }
