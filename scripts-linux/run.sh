@@ -451,6 +451,11 @@ case "${VERB:-help}" in
         log_err "internal: unknown usr sub '$USR_SUB'"; exit 64 ;;
     esac
     ;;
+  useradm-help)
+    # One-page cheat-sheet for the direct-CLI surface of script 68.
+    # Pure stdout dump -- no helpers loaded, no root required.
+    bash "$ROOT/68-user-mgmt/cli-cheatsheet.sh" "${USERADM_SUB:-all}"
+    ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then
       run_one "$ONLY_ID" "$VERB"
