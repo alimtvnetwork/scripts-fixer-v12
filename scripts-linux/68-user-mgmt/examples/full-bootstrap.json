@@ -1,0 +1,41 @@
+{
+  "_comment": "Unified --spec shape consumed by orchestrate.sh. Field names map 1:1 to the leaf scripts. Order is enforced by the orchestrator: every entry under 'groups' is created before any entry under 'users', so primaryGroup / groups references resolve cleanly.",
+
+  "groups": [
+    { "name": "devs",  "gid": 2000 },
+    { "name": "build", "gid": 2001, "system": true },
+    { "name": "qa" }
+  ],
+
+  "users": [
+    {
+      "name": "alice",
+      "password": "ChangeMe!1",
+      "primaryGroup": "devs",
+      "groups": ["devs", "sudo", "docker"],
+      "shell": "/bin/bash",
+      "comment": "Alice (admin)",
+      "sudo": true,
+      "sshKeys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleAliceKey1Replace alice@laptop"
+      ]
+    },
+    {
+      "name": "bob",
+      "passwordFile": "/etc/secrets/bob.pw",
+      "primaryGroup": "devs",
+      "groups": ["devs"],
+      "shell": "/bin/zsh",
+      "sshKeyFiles": [
+        "/etc/ssh/keys/bob.pub"
+      ]
+    },
+    {
+      "name": "svc-build",
+      "system": true,
+      "primaryGroup": "build",
+      "shell": "/usr/sbin/nologin",
+      "comment": "Build service account"
+    }
+  ]
+}

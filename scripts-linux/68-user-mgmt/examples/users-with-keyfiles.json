@@ -1,0 +1,27 @@
+[
+  {
+    "name": "deployer",
+    "passwordFile": "/etc/secrets/deployer.pw",
+    "primaryGroup": "deployers",
+    "groups": ["deployers", "docker"],
+    "shell": "/bin/bash",
+    "comment": "CI deploy account",
+    "sshKeyFiles": [
+      "/etc/ssh/keys/deployer-ci.pub",
+      "/etc/ssh/keys/deployer-backup.pub"
+    ]
+  },
+  {
+    "name": "ops",
+    "passwordFile": "/etc/secrets/ops.pw",
+    "groups": ["sudo"],
+    "shell": "/bin/bash",
+    "sudo": true,
+    "sshKeys": [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleOpsInlineKeyReplaceMe ops@bastion"
+    ],
+    "sshKeyFiles": [
+      "/etc/ssh/keys/ops-team.pub"
+    ]
+  }
+]
