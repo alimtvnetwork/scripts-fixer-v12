@@ -48,7 +48,7 @@ done
 
 show_help() {
   cat <<EOF
-Linux Installer Toolkit (v0.123.0)
+Linux Installer Toolkit (v0.127.0)
 
 Per-script verbs:
   install              Install
@@ -62,6 +62,15 @@ System-wide verbs:
                          --json   emit machine-readable JSON
   repair-all           Run install for every id whose health != ok
                          --only-drift   only repair ids in drift state
+
+Cross-OS startup management (script 64 shortcuts):
+  startup-list                 List startup entries created by this toolkit
+  startup-remove <name> [...]  Remove a tool-created entry (alias: startup-rm)
+      --method M               Limit to one method (autostart|systemd-user|
+                               shell-rc-app|launchagent|login-item|shell-rc-env)
+      --all                    Remove from every method that holds it
+  startup-add <path> [...]     Register an app to run at login
+  startup-env  KEY=VALUE       Persist an env var
 
 Flags:
   -I <id>              Restrict to a single script id
