@@ -1,0 +1,27 @@
+{
+  "scriptName": "66-vscode-menu-cleanup-mac",
+  "description": "Surgical macOS cleanup of VS Code 'context-menu' equivalents: Finder Services workflows, Login Items, LaunchAgents/LaunchDaemons referencing VS Code, code/code-insiders PATH shims, and vscode:// URL handler registrations.",
+  "messages": {
+    "scriptDisabled":   "Script disabled in config.json (set 'enabled': true to run).",
+    "wrongOs":          "This script targets macOS only. Detected OS: {os}. Aborting (no changes made).",
+    "scopeResolved":    "Resolved scope: requested='{requested}', resolved='{resolved}' (root={isRoot}).",
+    "needsSudo":        "Category '{id}' is in 'system' scope and requires sudo. Re-run with sudo, or pass --scope user to limit to ~/Library only.",
+    "modeApply":        "APPLY mode: changes will be made. Pass --dry-run to preview only.",
+    "modeDryRun":       "DRY-RUN mode: no changes will be made.",
+    "categoryStart":    "[{id}] {label} -- scanning",
+    "categorySkip":     "[{id}] skipped ({reason})",
+    "removed":          "  removed: {path}",
+    "wouldRemove":      "  [dry-run] would remove: {path}",
+    "unloaded":         "  launchctl unloaded: {label} ({path})",
+    "wouldUnload":      "  [dry-run] would unload: {label} ({path})",
+    "lsregUnregistered":"  lsregister: removed handler for {bundle} (scheme {scheme})",
+    "wouldLsreg":       "  [dry-run] would unregister handler for {bundle} (scheme {scheme})",
+    "loginItemRemoved": "  login-item removed: {name}",
+    "wouldLoginItem":   "  [dry-run] would remove login-item: {name}",
+    "miss":             "  not present: {path}",
+    "skipReason":       "  skipped: {path} ({reason})",
+    "summary":          "Cleanup summary -- removed: {removed}, would-remove: {would}, missing: {missing}, failed: {failed} (scope={scope}, mode={mode}).",
+    "manifestWritten":  "Manifest written: {path}",
+    "rerunWithDryRun":  "Tip: re-run with --dry-run first to preview the exact set of paths/labels that will be removed."
+  }
+}
