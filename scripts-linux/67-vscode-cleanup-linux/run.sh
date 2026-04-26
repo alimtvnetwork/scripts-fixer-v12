@@ -1,0 +1,350 @@
+#!/usr/bin/env bash
+# 67-vscode-cleanup-linux
+#
+# Detects which method was used to install VS Code on this Linux/Ubuntu
+# machine (apt | snap | deb | tarball | user-config) and removes ONLY the
+# matching files, packages, and configuration. Apply by default; pass
+# --dry-run for a preview. Path/package allow-list lives in config.json --
+# nothing outside that file is ever touched. Manifest is written to
+# .logs/67/<TS>/manifest.json mirroring the schema used by scripts 65 & 66.
+set -u
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+export SCRIPT_ID="67"
+
+. "$ROOT/_shared/logger.sh"
+. "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/pkg-detect.sh"
+. "$SCRIPT_DIR/helpers/detect.sh"
+. "$SCRIPT_DIR/helpers/remove.sh"
+
+CONFIG="$SCRIPT_DIR/config.json"
+LOGS_ROOT="${LOGS_OVERRIDE:-$ROOT/.logs/67}"
+TS="$(date +%Y%m%d-%H%M%S)"
+RUN_DIR="$LOGS_ROOT/$TS"
+ROWS_TSV="$RUN_DIR/rows.tsv"
+export ROWS_TSV
+
+# --------------------------------------------------------------------- args
+VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; SKIP_DETECT=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    run|detect|list|help|--help|-h) [ -z "$VERB" ] && VERB="$1"; shift ;;
+    --dry-run|-n)            DRY_RUN=1; shift ;;
+    --scope)                 SCOPE="$2"; shift 2 ;;
+    --scope=*)               SCOPE="${1#--scope=}"; shift ;;
+    --system)                SCOPE="system"; shift ;;
+    --user)                  SCOPE="user"; shift ;;
+    --only)                  ONLY_CSV="$2"; shift 2 ;;
+    --only=*)                ONLY_CSV="${1#--only=}"; shift ;;
+    --skip-detect)           SKIP_DETECT=1; shift ;;
+    --no-color)              export NO_COLOR=1; shift ;;
+    *) log_warn "Unknown flag: $1"; shift ;;
+  esac
+done
+[ -z "$VERB" ] && VERB="run"
+export DRY_RUN
+
+# --------------------------------------------------------------------- bootstrap
+_jq() {
+  if command -v jq >/dev/null 2>&1; then jq "$@" "$CONFIG"
+  else
+    log_err "jq is required by script 67 but is not installed. Install with: sudo apt-get install -y jq"
+    return 1
+  fi
+}
+
+ensure_run_dir() {
+  if ! mkdir -p "$RUN_DIR" 2>/dev/null; then
+    log_file_error "$RUN_DIR" "mkdir failed (permission or filesystem error)"
+    return 1
+  fi
+  printf '%s\n' "$0 $*" > "$RUN_DIR/command.txt" 2>/dev/null \
+    || log_file_error "$RUN_DIR/command.txt" "write failed"
+  : > "$ROWS_TSV"
+  ln -sfn "$TS" "$LOGS_ROOT/latest" 2>/dev/null || true
+}
+
+if [ ! -f "$CONFIG" ]; then
+  log_file_error "$CONFIG" "config.json missing -- aborting"
+  exit 2
+fi
+
+# --------------------------------------------------------------------- subverb: help
+if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
+  cat <<'EOF'
+
+  vscode-cleanup-linux (script 67) -- detect & remove VS Code on Linux
+
+  USAGE
+    scripts-linux/run.sh 67 [run|detect|list|help] [flags]
+
+  VERBS
+    run        Detect install methods, then remove the matching artifacts (default).
+    detect     Detect-only: print which install methods are present, no changes.
+    list       Print the catalog of methods + their detection probes + removal steps.
+    help       This help.
+
+  FLAGS
+    --dry-run, -n         Preview every targeted package/path. No deletions.
+    --scope user|system   user   = ~/.config, ~/.vscode, ~/.vscode-server, per-user shims only.
+                          system = + apt/snap/dpkg removal + /usr/bin shims + /etc/apt sources.
+                          Default: 'auto' = system if root, else user.
+    --system, --user      Shortcuts for --scope system / --scope user.
+    --only A,B,C          Limit to comma-separated method ids:
+                            apt, snap, deb, tarball, user-config
+    --skip-detect         Run all methods listed in --only without first probing.
+                          (Use only when you know which method was used.)
+    --no-color            Disable ANSI colour output.
+
+  EXAMPLES
+    scripts-linux/run.sh 67 detect
+    scripts-linux/run.sh 67 --dry-run
+    scripts-linux/run.sh 67 --only user-config
+    sudo scripts-linux/run.sh 67 --system
+
+EOF
+  exit 0
+fi
+
+# --------------------------------------------------------------------- subverb: list
+if [ "$VERB" = "list" ]; then
+  printf '\n  vscode-cleanup-linux :: catalog\n'
+  printf '  %s\n' "$(printf '=%.0s' {1..70})"
+  while IFS= read -r m; do
+    [ -z "$m" ] && continue
+    label=$(_jq -r ".detectors.\"$m\".label")
+    printf '  -- method: %-12s  %s\n' "$m" "$label"
+    printf '     probes:\n'
+    _jq -r ".detectors.\"$m\".probes[] | \"       \" + .kind + \"  \" + (.pkg // .path // \"-\")"
+    printf '     actions:\n'
+    _jq -r ".actions.\"$m\".steps[] | \"       \" + .kind + \"  \" + (.path // ((.pkgs // []) | join(\",\")) // \"-\")"
+    printf '\n'
+  done < <(_jq -r '.detectors | keys[]')
+  exit 0
+fi
+
+# --------------------------------------------------------------------- run guards
+ENABLED="$(_jq -r '.enabled')"
+if [ "$ENABLED" != "true" ]; then
+  log_warn "Script disabled in config.json (set 'enabled': true to run). Aborting."
+  exit 0
+fi
+
+OS_NAME="$(uname -s 2>/dev/null || echo unknown)"
+if [ "$OS_NAME" != "Linux" ]; then
+  log_err "This script targets Linux only. Detected OS: $OS_NAME. Aborting (no changes made)."
+  exit 2
+fi
+
+IS_ROOT=0
+[ "$(id -u)" -eq 0 ] && IS_ROOT=1
+export IS_ROOT
+REQUESTED_SCOPE="$SCOPE"
+if [ -z "$REQUESTED_SCOPE" ]; then
+  REQUESTED_SCOPE="$(_jq -r '.defaultScope // "auto"')"
+fi
+RESOLVED_SCOPE="$REQUESTED_SCOPE"
+case "$REQUESTED_SCOPE" in
+  auto)
+    if [ "$IS_ROOT" -eq 1 ]; then RESOLVED_SCOPE="system"; else RESOLVED_SCOPE="user"; fi ;;
+  user|system) ;;
+  *)
+    log_err "Invalid --scope value '$REQUESTED_SCOPE'. Use one of: auto, user, system."
+    exit 2 ;;
+esac
+
+ensure_run_dir
+
+log_info "===== vscode-cleanup-linux (script 67) ====="
+log_info "Resolved scope: requested='$REQUESTED_SCOPE', resolved='$RESOLVED_SCOPE' (root=$IS_ROOT)."
+if [ "$VERB" != "detect" ]; then
+  if [ "$DRY_RUN" -eq 1 ]; then
+    log_info "DRY-RUN mode: no changes will be made."
+  else
+    log_info "APPLY mode: changes will be made. Pass --dry-run to preview only."
+  fi
+fi
+
+# --------------------------------------------------------------------- detect phase
+ALL_METHODS=()
+while IFS= read -r m; do [ -n "$m" ] && ALL_METHODS+=("$m"); done < <(_jq -r '.detectors | keys[]')
+
+# --only filter (intersection with detector keys)
+ONLY_IDS=()
+if [ -n "$ONLY_CSV" ]; then
+  IFS=',' read -r -a ONLY_IDS <<<"$ONLY_CSV"
+fi
+_in_only() {
+  [ "${#ONLY_IDS[@]}" -eq 0 ] && return 0
+  local x="$1" y
+  for y in "${ONLY_IDS[@]}"; do [ "$x" = "$y" ] && return 0; done
+  return 1
+}
+
+log_info "===== detect phase (read-only) ====="
+DETECTED_METHODS=()
+DETECT_HITS_TSV="$RUN_DIR/detect-hits.tsv"
+: > "$DETECT_HITS_TSV"
+
+for m in "${ALL_METHODS[@]}"; do
+  if ! _in_only "$m"; then
+    log_info "  [$m] skipped (not in --only)"
+    continue
+  fi
+  hit_count=0
+  N=$(_jq -r ".detectors.\"$m\".probes | length")
+  i=0
+  while [ "$i" -lt "$N" ]; do
+    kind=$(_jq -r ".detectors.\"$m\".probes[$i].kind")
+    arg=$(_jq  -r ".detectors.\"$m\".probes[$i].pkg // .detectors.\"$m\".probes[$i].path // empty")
+    if line=$(detect_run_probe "$m" "$kind" "$arg"); then
+      printf '%s\n' "$line" >> "$DETECT_HITS_TSV"
+      detail=$(printf '%s' "$line" | awk -F'\t' '{print $3}')
+      log_ok "  detected '$m' via $kind: $detail"
+      hit_count=$((hit_count+1))
+    fi
+    i=$((i+1))
+  done
+  if [ "$hit_count" -gt 0 ]; then
+    DETECTED_METHODS+=("$m")
+  else
+    if [ "$SKIP_DETECT" -eq 1 ] && [ "${#ONLY_IDS[@]}" -gt 0 ]; then
+      log_warn "  '$m' not detected, but --skip-detect is set with --only -> queued for removal anyway"
+      DETECTED_METHODS+=("$m")
+    else
+      log_info "  '$m' not detected on this system"
+    fi
+  fi
+done
+
+joined="$(IFS=,; printf '%s' "${DETECTED_METHODS[*]:-}")"
+log_info "Detect summary: ${#DETECTED_METHODS[@]}/${#ALL_METHODS[@]} method(s) present -> [${joined}]"
+
+if [ "$VERB" = "detect" ]; then
+  # Write a small detect-only manifest and exit.
+  manifest="$RUN_DIR/manifest.json"
+  {
+    printf '{"script":"67-vscode-cleanup-linux","os":"Linux","mode":"detect-only","scope":"%s","timestamp":"%s","detected":[' \
+      "$RESOLVED_SCOPE" "$TS"
+    first=1
+    for m in "${DETECTED_METHODS[@]:-}"; do
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      printf '"%s"' "$m"
+    done
+    printf ']}\n'
+  } > "$manifest" 2>/dev/null || log_file_error "$manifest" "manifest write failed"
+  log_info "Manifest written: $manifest"
+  exit 0
+fi
+
+if [ "${#DETECTED_METHODS[@]}" -eq 0 ]; then
+  log_ok "No VS Code install methods detected on this machine. Nothing to do."
+  exit 0
+fi
+
+# --------------------------------------------------------------------- apply phase
+log_info "===== apply phase ($([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply), scope=$RESOLVED_SCOPE) ====="
+
+_run_step() {
+  local method="$1" idx="$2"
+  local kind path pkgs req
+  kind=$(_jq -r ".actions.\"$method\".steps[$idx].kind")
+  path=$(_jq -r ".actions.\"$method\".steps[$idx].path // empty")
+  pkgs=$(_jq -r ".actions.\"$method\".steps[$idx].pkgs // [] | join(\",\")")
+  req=$(_jq  -r ".actions.\"$method\".steps[$idx].requiresSudo // false")
+
+  # Method-level requiresSudo applied as default if step doesn't override.
+  if [ "$req" = "false" ]; then
+    local mreq; mreq=$(_jq -r ".actions.\"$method\".requiresSudo // false")
+    [ "$mreq" = "true" ] && req="true"
+  fi
+
+  # Skip system-scope steps when user scope was requested.
+  if [ "$RESOLVED_SCOPE" = "user" ] && [ "$req" = "true" ]; then
+    _emit_row "skipped" "$method" "$kind" "${path:-${pkgs:-(n/a)}}" "system step skipped (scope=user)"
+    log_info "  [$method] skipped $kind (scope=user, step needs sudo): ${path:-$pkgs}"
+    return 0
+  fi
+
+  case "$kind" in
+    rm-file)     action_rm_file     "$method" "$path" "$req" ;;
+    rm-shim)    action_rm_shim     "$method" "$path" "$req" ;;
+    rm-dir)      action_rm_dir      "$method" "$path" "$req" ;;
+    apt-purge)   action_apt_purge   "$method" "$pkgs" ;;
+    apt-update)  action_apt_update  "$method" "$(_jq -r ".actions.\"$method\".steps[$idx].note // \"\"")" ;;
+    snap-remove) action_snap_remove "$method" "$pkgs" ;;
+    dpkg-remove) action_dpkg_remove "$method" "$pkgs" ;;
+    *)
+      _emit_row "skipped" "$method" "$kind" "(unknown)" "unknown action kind"
+      log_warn "  [$method] unknown action kind '$kind' -- skipping (config.json bug?)"
+      ;;
+  esac
+}
+
+for m in "${DETECTED_METHODS[@]}"; do
+  N=$(_jq -r ".actions.\"$m\".steps | length")
+  log_info "[$m] running $N step(s)"
+  i=0
+  while [ "$i" -lt "$N" ]; do
+    _run_step "$m" "$i"
+    i=$((i+1))
+  done
+done
+
+# --------------------------------------------------------------------- summary
+REMOVED=0; WOULD=0; MISSING=0; FAILED=0; SKIPPED=0
+while IFS=$'\t' read -r s _; do
+  case "$s" in
+    removed) REMOVED=$((REMOVED+1)) ;;
+    would)   WOULD=$((WOULD+1)) ;;
+    missing) MISSING=$((MISSING+1)) ;;
+    failed)  FAILED=$((FAILED+1)) ;;
+    skipped) SKIPPED=$((SKIPPED+1)) ;;
+  esac
+done < "$ROWS_TSV"
+
+printf '\n  ===== summary (%s, scope=%s) =====\n' "$([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply)" "$RESOLVED_SCOPE"
+printf '  %-9s  %-12s  %-12s  %s\n' "STATUS" "METHOD" "KIND" "TARGET"
+printf '  %s\n' "$(printf '%.0s-' {1..95})"
+while IFS=$'\t' read -r s id kind target detail; do
+  printf '  %-9s  %-12s  %-12s  %s\n' "$s" "$id" "$kind" "$target"
+done < "$ROWS_TSV"
+printf '  %s\n' "$(printf '%.0s-' {1..95})"
+printf '  TOTALS: removed=%d  would-remove=%d  missing=%d  skipped=%d  failed=%d\n\n' \
+  "$REMOVED" "$WOULD" "$MISSING" "$SKIPPED" "$FAILED"
+
+# --------------------------------------------------------------------- manifest
+manifest="$RUN_DIR/manifest.json"
+{
+  printf '{"script":"67-vscode-cleanup-linux","os":"Linux","mode":"%s","scope":"%s","timestamp":"%s","detected":[' \
+    "$([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply)" "$RESOLVED_SCOPE" "$TS"
+  first=1
+  for m in "${DETECTED_METHODS[@]}"; do
+    [ "$first" -eq 1 ] || printf ','
+    first=0
+    printf '"%s"' "$m"
+  done
+  printf '],"totals":{"removed":%d,"would":%d,"missing":%d,"skipped":%d,"failed":%d},"rows":[' \
+    "$REMOVED" "$WOULD" "$MISSING" "$SKIPPED" "$FAILED"
+  first=1
+  while IFS=$'\t' read -r s id kind target detail; do
+    [ "$first" -eq 1 ] || printf ','
+    first=0
+    t_esc=$(printf '%s' "$target" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    d_esc=$(printf '%s' "$detail" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    printf '{"status":"%s","method":"%s","kind":"%s","target":"%s","detail":"%s"}' \
+      "$s" "$id" "$kind" "$t_esc" "$d_esc"
+  done < "$ROWS_TSV"
+  printf ']}\n'
+} > "$manifest" 2>/dev/null \
+  || log_file_error "$manifest" "manifest write failed"
+
+log_info "Manifest written: $manifest"
+if [ "$FAILED" -gt 0 ]; then
+  log_warn "Completed with $FAILED failure(s). See manifest for details."
+  exit 1
+fi
+log_ok "Done."
+exit 0
