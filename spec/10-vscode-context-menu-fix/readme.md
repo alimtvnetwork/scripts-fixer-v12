@@ -251,6 +251,17 @@ The install-state checks ("is the entry registered?") are **always** enforced re
 
 **Key rule:** Script 10 has **only** `config.repair.enforceInvariants`. There is no `-SkipRepairInvariants` switch (that lives in Script 54's `verify` harness). The tree above is the complete picture for Script 10.
 
+For comparison, Script 54's `verify` harness uses **both** flags. Here is the two-flag interaction matrix:
+
+| `enforceInvariants` | `-SkipRepairInvariants` | Result |
+|---|---|---|
+| `true`  | **Not present** (default) | Invariants **enforced** — `[MISS]` → exit 1 |
+| `true`  | **Present** (`-SkipRepairInvariants`) | Invariants **skipped** — warning only → exit 0 |
+| `false` | **Not present** (default) | Invariants **skipped** — warning only → exit 0 |
+| `false` | **Present** (`-SkipRepairInvariants`) | Invariants **skipped** — warning only → exit 0 |
+
+**Script 10 simplified rule:** Since `-SkipRepairInvariants` does not exist here, only the first column matters. Set `enforceInvariants` to `false` if you want invariant violations to be warnings rather than failures.
+
 | Verb | Reads `enforceInvariants`? | Notes |
 |---|---|---|
 | `check`                                | **Yes** | Only verb that consults the flag. |
