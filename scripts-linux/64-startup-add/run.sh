@@ -38,6 +38,7 @@ Subverbs:
   app  <path>     [--method M] [--name N] [--args "..."] [--interactive]
   env  KEY=VALUE  [--scope user] [--method shell-rc|systemd-env|launchctl]
   list            [--method M] [--json|--csv|--format=table|json|csv] [--output FILE]
+  duplicates      [--json|--csv] [--output FILE]
   remove <name>   [--method ...]
 
 Linux methods : autostart | systemd-user | shell-rc
@@ -56,6 +57,7 @@ main() {
     app|startup-app)               ensure_run_dir; cmd_app    "$@"; exit $? ;;
     env|startup-env)               ensure_run_dir; cmd_env    "$@"; exit $? ;;
     list|startup-list|ls)          cmd_list   "$@"; exit $? ;;
+    duplicates|dupes|dups)         cmd_duplicates "$@"; exit $? ;;
     remove|startup-remove|rm|del)  ensure_run_dir; cmd_remove "$@"; exit $? ;;
     prune|startup-prune|purge)     ensure_run_dir; cmd_prune  "$@"; exit $? ;;
     ""|help|-h|--help) usage; exit 0 ;;
