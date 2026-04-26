@@ -54,7 +54,7 @@ bash run.sh add-user carol --password 'x' --sudo --dry-run
 
 ## JSON examples
 
-The JSON loaders accept three shapes:
+The JSON loaders accept three shapes (auto-detected by the leaf scripts):
 
 1. **Single object**
    ```json
@@ -79,6 +79,36 @@ Run a batch:
 sudo bash run.sh add-user-json  examples/users.json
 sudo bash run.sh add-group-json examples/groups.json --dry-run
 ```
+
+The orchestrator (`useradm-bootstrap`) also accepts a fourth shape, the
+**unified `--spec`** file:
+
+```json
+{
+  "groups": [ { "name": "devs", "gid": 2000 } ],
+  "users":  [ { "name": "alice", "password": "...", "primaryGroup": "devs" } ]
+}
+```
+
+Run it via the bootstrap shortcut (groups are always created before users
+so `primaryGroup` / `groups` references resolve):
+
+```bash
+sudo bash ../run.sh useradm-bootstrap --spec examples/full-bootstrap.json --dry-run
+```
+
+### Bundled example files
+
+| File                              | Shape                          | Used by                                |
+|-----------------------------------|--------------------------------|----------------------------------------|
+| `examples/group-single.json`      | single object (group)          | `add-group-json`                       |
+| `examples/groups.json`            | array of groups                | `add-group-json`                       |
+| `examples/groups-wrapped.json`    | wrapped `{ "groups": [...] }`  | `add-group-json`                       |
+| `examples/user-single.json`       | single object (user)           | `add-user-json`                        |
+| `examples/users.json`             | array of users (mixed keys)    | `add-user-json`                        |
+| `examples/users-wrapped.json`     | wrapped `{ "users": [...] }`   | `add-user-json`                        |
+| `examples/users-with-keyfiles.json` | array, exercises `sshKeyFiles` + mixed `sshKeys` | `add-user-json` |
+| `examples/full-bootstrap.json`    | unified `{ "groups": [...], "users": [...] }` | `useradm-bootstrap --spec` |
 
 ### User record fields
 
