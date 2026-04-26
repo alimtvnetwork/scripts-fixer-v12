@@ -199,3 +199,190 @@ function Invoke-VsCodeMenuCheck {
         totalMiss = $totalMiss
     }
 }
+
+function Test-RegistryKeyExists {
+    <#
+    .SYNOPSIS
+        Lightweight HKCR/HKCU existence probe used by post-op verification.
+        Accepts the same "Registry::HKEY_*\..." path format the rest of
+        the script uses; returns $true/$false. Never throws.
+    #>
+    param([Parameter(Mandatory)] [string] $RegistryPath)
+    try {
+        return [bool](Test-Path -LiteralPath $RegistryPath -ErrorAction Stop)
+    } catch {
+        Write-Log "Failed to probe registry path: $RegistryPath (failure: $($_.Exception.Message))" -Level "warn"
+        return $false
+    }
+}
+
+function Invoke-PostOpVerification {
+    <#
+    .SYNOPSIS
+        Dedicated post-install / post-uninstall verification step.
+
+    .DESCRIPTION
+        For every enabled edition + target listed in $Config (already
+        rewritten for the resolved scope by the caller), confirms the
+        registry key is in the expected state:
+          Action='install'   -> key MUST exist + label/icon/command sane
+          Action='uninstall' -> key MUST NOT exist
+
+        Prints a clear human-readable report block, then returns a summary
+        object so the caller can fold the verification result into its
+        own exit status / final log line.
+
+    .OUTPUTS
+        PSCustomObject:
+          .action        ('install' | 'uninstall')
+          .scope         (resolved scope string)
+          .pass / .fail  (per-target counts across all editions)
+          .details       array of @{ edition; target; regPath; expected; actual; ok; reason }
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [ValidateSet('install','uninstall')] [string] $Action,
+        [Parameter(Mandatory)] $Config,
+        [Parameter(Mandatory)] [string] $ResolvedScope,
+        [Parameter(Mandatory)] $LogMsgs,
+        # Pre-rewritten edition configs keyed by edition name. The caller
+        # has already passed each through Convert-EditionPathsForScope so
+        # the paths point at the right hive (HKCR vs HKCU\Software\Classes).
+        [Parameter(Mandatory)] [hashtable] $ScopedEditions
+    )
+
+    Write-Log "" -Level "info"
+    Write-Log "============================================================" -Level "info"
+    Write-Log (" POST-{0} VERIFICATION (scope={1})" -f $Action.ToUpper(), $ResolvedScope) -Level "info"
+    Write-Log "============================================================" -Level "info"
+
+    $details = @()
+    $passCount = 0
+    $failCount = 0
+
+    foreach ($editionName in $ScopedEditions.Keys) {
+        $ed = $ScopedEditions[$editionName]
+        $hasPaths = $ed.PSObject.Properties.Name -contains 'registryPaths'
+        if (-not $hasPaths) {
+            Write-Log ("  [skip] edition '" + $editionName + "' has no registryPaths block") -Level "warn"
+            continue
+        }
+
+        Write-Log ("Edition: " + $editionName + " (" + $ed.label + ")") -Level "info"
+
+        foreach ($target in @('file','directory','background')) {
+            $hasTarget = $ed.registryPaths.PSObject.Properties.Name -contains $target
+            if (-not $hasTarget) { continue }
+            $regPath = $ed.registryPaths.$target
+            $exists  = Test-RegistryKeyExists -RegistryPath $regPath
+
+            if ($Action -eq 'install') {
+                $expected = 'present'
+                $isOk = $exists
+                $actual = $(if ($exists) { 'present' } else { 'MISSING' })
+            } else {
+                $expected = 'absent'
+                $isOk = -not $exists
+                $actual = $(if ($exists) { 'STILL PRESENT' } else { 'absent' })
+            }
+
+            $reason = $null
+            if (-not $isOk) {
+                $reason = "expected=$expected, actual=$actual at $regPath"
+            }
+
+            $tag   = if ($isOk) { 'OK  ' } else { 'FAIL' }
+            $level = if ($isOk) { 'success' } else { 'error' }
+            $line  = "  [{0}] {1,-10} expected={2,-7} actual={3,-13} {4}" -f $tag, $target, $expected, $actual, $regPath
+            Write-Log $line -Level $level
+            if (-not $isOk) {
+                Write-Log ("        failure path: " + $regPath + " (reason: " + $reason + ")") -Level "error"
+            }
+
+            $details += [pscustomobject]@{
+                edition  = $editionName
+                target   = $target
+                regPath  = $regPath
+                expected = $expected
+                actual   = $actual
+                ok       = $isOk
+                reason   = $reason
+            }
+            if ($isOk) { $passCount++ } else { $failCount++ }
+        }
+    }
+
+    Write-Log "" -Level "info"
+    $sumLevel = if ($failCount -eq 0) { 'success' } else { 'error' }
+    Write-Log ("Verification totals: PASS=" + $passCount + ", FAIL=" + $failCount) -Level $sumLevel
+
+    return [pscustomobject]@{
+        action  = $Action
+        scope   = $ResolvedScope
+        pass    = $passCount
+        fail    = $failCount
+        details = $details
+    }
+}
+
+function Write-RegistryAuditReport {
+    <#
+    .SYNOPSIS
+        Render the audit summary as a clear, grouped log block so the
+        user can see at a glance every key the script ADDED, REMOVED,
+        SKIPPED (already absent), or FAILED on -- without opening the
+        JSONL file.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Summary,
+        [Parameter(Mandatory)] [ValidateSet('install','uninstall')] [string] $Action
+    )
+
+    Write-Log "" -Level "info"
+    Write-Log "------------------------------------------------------------" -Level "info"
+    Write-Log " REGISTRY CHANGE REPORT" -Level "info"
+    Write-Log "------------------------------------------------------------" -Level "info"
+
+    if ($Summary.totalAdded -gt 0) {
+        Write-Log ("Added ({0}):" -f $Summary.totalAdded) -Level "success"
+        foreach ($a in $Summary.added) {
+            Write-Log ("  + [{0}/{1}] {2}" -f $a.edition, $a.target, $a.regPath) -Level "success"
+        }
+    } elseif ($Action -eq 'install') {
+        Write-Log "Added (0): no new keys were written this run." -Level "warn"
+    }
+
+    if ($Summary.totalRemoved -gt 0) {
+        Write-Log ("Removed ({0}):" -f $Summary.totalRemoved) -Level "success"
+        foreach ($r in $Summary.removed) {
+            Write-Log ("  - [{0}/{1}] {2}" -f $r.edition, $r.target, $r.regPath) -Level "success"
+        }
+    } elseif ($Action -eq 'uninstall') {
+        Write-Log "Removed (0): nothing was actually deleted this run." -Level "warn"
+    }
+
+    if ($Summary.totalSkipped -gt 0) {
+        Write-Log ("Skipped / already absent ({0}):" -f $Summary.totalSkipped) -Level "info"
+        foreach ($s in $Summary.skipped) {
+            Write-Log ("  ~ [{0}/{1}] {2}" -f $s.edition, $s.target, $s.regPath) -Level "info"
+        }
+    }
+
+    if ($Summary.totalFailed -gt 0) {
+        Write-Log ("FAILED ({0}):" -f $Summary.totalFailed) -Level "error"
+        foreach ($f in $Summary.failed) {
+            $reason = if ($f.reason) { $f.reason } else { "no reason captured" }
+            Write-Log ("  ! [{0}/{1}] {2} (failure: {3})" -f $f.edition, $f.target, $f.regPath, $reason) -Level "error"
+        }
+    }
+
+    $hasNoChanges = ($Summary.totalAdded + $Summary.totalRemoved + $Summary.totalFailed + $Summary.totalSkipped) -eq 0
+    if ($hasNoChanges) {
+        Write-Log "No registry change events were recorded for this run." -Level "warn"
+    }
+
+    if ($Summary.auditPath) {
+        Write-Log ("Full JSONL trail: " + $Summary.auditPath) -Level "info"
+    }
+}
