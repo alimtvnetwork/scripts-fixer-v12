@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 46-install-kubernetes",
+  "messages": {
+    "start":           "[46] Starting Kubernetes (kubectl, kubeadm, kubelet) v1.30 installer",
+    "alreadyInstalled":"[46] Already installed",
+    "addingKey":       "[46] Fetching GPG key from {url}",
+    "writingRepo":     "[46] Writing apt repo: {path}",
+    "installing":      "[46] Installing via apt: {pkg}",
+    "installSuccess":  "[46] Installed",
+    "installFailed":   "[46] Install failed: {err}",
+    "verifyOk":        "[46] Verify OK",
+    "verifyFail":      "[46] Verify FAILED",
+    "noMethod":        "[46] apt + curl required"
+  }
+}

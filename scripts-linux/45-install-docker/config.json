@@ -1,0 +1,11 @@
+{
+  "install": {
+    "apt": "docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin"
+  },
+  "thirdPartyRepo": {
+    "keyUrl": "https://download.docker.com/linux/ubuntu/gpg",
+    "keyring": "/usr/share/keyrings/docker.gpg",
+    "repoListPath": "/etc/apt/sources.list.d/45-install-docker.list",
+    "repoLine": "deb [arch={ARCH} signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {UBUNTU_CODENAME} stable"
+  }
+}

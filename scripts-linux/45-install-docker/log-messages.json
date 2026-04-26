@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 45-install-docker",
+  "messages": {
+    "start":           "[45] Starting Docker CE + CLI + Compose plugin installer",
+    "alreadyInstalled":"[45] Already installed",
+    "addingKey":       "[45] Fetching GPG key from {url}",
+    "writingRepo":     "[45] Writing apt repo: {path}",
+    "installing":      "[45] Installing via apt: {pkg}",
+    "installSuccess":  "[45] Installed",
+    "installFailed":   "[45] Install failed: {err}",
+    "verifyOk":        "[45] Verify OK",
+    "verifyFail":      "[45] Verify FAILED",
+    "noMethod":        "[45] apt + curl required"
+  }
+}
