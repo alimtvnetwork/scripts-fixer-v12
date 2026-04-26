@@ -191,7 +191,12 @@ vrf_get_gid() {
   if [ "$UM_OS" = "macos" ]; then
     dscl . -read "/Groups/$n" PrimaryGroupID 2>/dev/null | awk '{print $2}'
   else
-    getent group "$n" 2>/dev/null | awk -F: '{print $3}'
+    if command -v getent >/dev/null 2>&1; then
+      getent group "$n" 2>/dev/null | awk -F: '{print $3}'
+    else
+      # /etc/group fallback for minimal containers without nss tools.
+      awk -F: -v n="$n" '$1==n {print $3; exit}' /etc/group 2>/dev/null
+    fi
   fi
 }
 
@@ -218,7 +223,11 @@ vrf_get_shell() {
   if [ "$UM_OS" = "macos" ]; then
     dscl . -read "/Users/$n" UserShell 2>/dev/null | awk '{print $2}'
   else
-    getent passwd "$n" 2>/dev/null | awk -F: '{print $7}'
+    if command -v getent >/dev/null 2>&1; then
+      getent passwd "$n" 2>/dev/null | awk -F: '{print $7}'
+    else
+      awk -F: -v n="$n" '$1==n {print $7; exit}' /etc/passwd 2>/dev/null
+    fi
   fi
 }
 
@@ -227,7 +236,11 @@ vrf_get_home() {
   if [ "$UM_OS" = "macos" ]; then
     dscl . -read "/Users/$n" NFSHomeDirectory 2>/dev/null | awk '{print $2}'
   else
-    getent passwd "$n" 2>/dev/null | awk -F: '{print $6}'
+    if command -v getent >/dev/null 2>&1; then
+      getent passwd "$n" 2>/dev/null | awk -F: '{print $6}'
+    else
+      awk -F: -v n="$n" '$1==n {print $6; exit}' /etc/passwd 2>/dev/null
+    fi
   fi
 }
 
