@@ -1,0 +1,23 @@
+[
+  {
+    "name": "alice",
+    "password": "ChangeMe!1",
+    "groups": ["sudo", "docker"],
+    "shell": "/bin/bash",
+    "comment": "Alice (admin)",
+    "sudo": true
+  },
+  {
+    "name": "bob",
+    "passwordFile": "/etc/secrets/bob.pw",
+    "primaryGroup": "devs",
+    "groups": ["devs"],
+    "shell": "/bin/zsh"
+  },
+  {
+    "name": "svc-build",
+    "system": true,
+    "shell": "/usr/sbin/nologin",
+    "comment": "Build service account"
+  }
+]

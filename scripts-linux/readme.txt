@@ -2,6 +2,19 @@ Linux Installer Toolkit
 =======================
 let's start now 2026-04-26 (Asia/Kuala_Lumpur)
 
+v0.127.0 milestone: Script 68 (cross-OS user/group management) COMPLETE.
+  - Root run.sh dispatcher + 4 leaves: add-user, add-group,
+    add-user-from-json, add-group-from-json (Linux + macOS).
+  - JSON loader auto-detects single object, array, or {users:[]} / {groups:[]}.
+  - Plain --password CLI/JSON allowed (mirrors Windows os add-user risk),
+    plus --password-file with 0600 mode check. Passwords never logged;
+    console echo masked.
+  - Linux uses useradd/groupadd/chpasswd/usermod; macOS uses dscl with
+    automatic UID/GID allocation from 510.
+  - CODE RED file/path errors: exact path + reason on every failure.
+  - Smoke test: 9/9 PASS in dry-run (no root, no host mutation).
+  - Full docs: scripts-linux/68-user-mgmt/readme.md
+
 v0.126.0 milestone: Script 64 (cross-OS startup-add) COMPLETE.
   - 6 methods: autostart, systemd-user, shell-rc-app, launchagent, login-item, shell-rc-env
   - Subverbs: app | env | list | remove (all wired through dispatcher)

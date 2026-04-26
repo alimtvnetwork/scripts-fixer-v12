@@ -1,0 +1,5 @@
+[
+  { "name": "devs",  "gid": 2000 },
+  { "name": "build", "gid": 2001, "system": true },
+  { "name": "qa" }
+]

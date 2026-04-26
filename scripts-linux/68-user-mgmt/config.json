@@ -1,0 +1,32 @@
+{
+  "_comment": "Configuration for 68-user-mgmt: cross-OS user/group creation. Linux uses useradd/groupadd, macOS uses dscl. CODE RED: every file/path error must include exact path + reason.",
+  "defaults": {
+    "linux": {
+      "shell": "/bin/bash",
+      "homeBase": "/home",
+      "createHome": true,
+      "userGroup": "users",
+      "sudoGroup": "sudo"
+    },
+    "macos": {
+      "shell": "/bin/zsh",
+      "homeBase": "/Users",
+      "createHome": true,
+      "userGroup": "staff",
+      "sudoGroup": "admin",
+      "uidStart": 510
+    }
+  },
+  "password": {
+    "_comment": "Plain-text passwords accepted via CLI/JSON to mirror the Windows side. Always prefer --password-file (chmod 600) for non-throwaway accounts. Logs NEVER record passwords.",
+    "minLength": 1,
+    "maskChar": "*",
+    "maskMaxLen": 8,
+    "passwordFileModeMax": "0600"
+  },
+  "json": {
+    "_comment": "JSON inputs may be a single object or an array. Both shapes auto-detected at parse time.",
+    "userKeys":  ["name", "password", "passwordFile", "uid", "groups", "primaryGroup", "shell", "home", "comment", "sudo", "system"],
+    "groupKeys": ["name", "gid", "system"]
+  }
+}

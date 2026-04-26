@@ -1,0 +1,27 @@
+{
+  "_comment": "Centralised log strings for 68-user-mgmt. Keep wording consistent across leaves so log scraping stays simple.",
+  "messages": {
+    "osDetectFail":        "could not detect OS: uname returned '%s' (failure: only Linux and macOS are supported)",
+    "needRoot":            "this operation needs root; re-run with sudo (failure: useradd/dscl require elevation)",
+    "missingTool":         "required tool not found: '%s' (failure: install it then retry)",
+    "userCreated":         "created user '%s' (uid=%s, primary group=%s)",
+    "userExists":          "user '%s' already exists -- skipping create (idempotent)",
+    "userCreateFail":      "failed to create user '%s' (failure: %s)",
+    "groupCreated":        "created group '%s' (gid=%s)",
+    "groupExists":         "group '%s' already exists -- skipping create (idempotent)",
+    "groupCreateFail":     "failed to create group '%s' (failure: %s)",
+    "groupAdded":          "added user '%s' to group '%s'",
+    "groupAddFail":        "failed to add user '%s' to group '%s' (failure: %s)",
+    "passwordSet":         "set password for user '%s' (masked: %s)",
+    "passwordSetFail":     "failed to set password for user '%s' (failure: %s)",
+    "passwordFileBadMode": "password file '%s' has mode '%s' (failure: must be 0600 or stricter; refusing to read)",
+    "passwordFileMissing": "password file '%s' not found (failure: cannot read)",
+    "jsonParseFail":       "JSON file '%s' is not valid JSON (failure: %s)",
+    "jsonShapeUnknown":    "JSON file '%s' is neither an object nor an array (failure: top-level must be {} or [])",
+    "jsonRecordBad":       "JSON record #%s in '%s' is missing required field '%s' (failure: skipping record)",
+    "noNameField":         "record has no 'name' field (failure: cannot identify target)",
+    "dryRunBanner":        "DRY RUN -- no changes will be applied",
+    "summaryHeader":       "=== 68-user-mgmt summary ===",
+    "summaryRow":          "  %-8s %-20s %s"
+  }
+}

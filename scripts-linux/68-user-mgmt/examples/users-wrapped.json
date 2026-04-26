@@ -1,0 +1,5 @@
+{
+  "users": [
+    { "name": "carol", "password": "Hunter2!", "groups": ["sudo"] }
+  ]
+}

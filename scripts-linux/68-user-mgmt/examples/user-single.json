@@ -1,0 +1,6 @@
+{
+  "name": "dan",
+  "password": "Welcome1!",
+  "shell": "/bin/bash",
+  "groups": ["sudo"]
+}
