@@ -405,10 +405,21 @@ function Invoke-PostOpVerification {
         [Parameter(Mandatory)] [hashtable] $ScopedEditions
     )
 
-    Write-Log "" -Level "info"
-    Write-Log "============================================================" -Level "info"
-    Write-Log (" POST-{0} VERIFICATION (scope={1})" -f $Action.ToUpper(), $ResolvedScope) -Level "info"
-    Write-Log "============================================================" -Level "info"
+    # Verbosity gating: Quiet hides banner + per-row PASS lines, keeps
+    # FAIL rows + totals. Debug adds raw exists/cmdExists probes.
+    $atLeastNormal = $true
+    $atLeastDebug  = $false
+    if (Get-Command Test-VerbosityAtLeast -ErrorAction SilentlyContinue) {
+        $atLeastNormal = Test-VerbosityAtLeast -Level 'Normal'
+        $atLeastDebug  = Test-VerbosityAtLeast -Level 'Debug'
+    }
+
+    if ($atLeastNormal) {
+        Write-Log "" -Level "info"
+        Write-Log "============================================================" -Level "info"
+        Write-Log (" POST-{0} VERIFICATION (scope={1})" -f $Action.ToUpper(), $ResolvedScope) -Level "info"
+        Write-Log "============================================================" -Level "info"
+    }
 
     $details = @()
     $passCount = 0
@@ -422,7 +433,9 @@ function Invoke-PostOpVerification {
             continue
         }
 
-        Write-Log ("Edition: " + $editionName + " (" + $ed.label + ")") -Level "info"
+        if ($atLeastNormal) {
+            Write-Log ("Edition: " + $editionName + " (" + $ed.label + ")") -Level "info"
+        }
 
         foreach ($target in @('file','directory','background')) {
             $hasTarget = $ed.registryPaths.PSObject.Properties.Name -contains $target
@@ -436,6 +449,10 @@ function Invoke-PostOpVerification {
             $missingChildren = @()
             $cmdPath         = $regPath + '\command'
             $cmdExists       = Test-RegistryKeyExists -RegistryPath $cmdPath
+            if ($atLeastDebug) {
+                Write-Log ("  [debug] probe: parent exists=" + $exists +
+                           ", \command exists=" + $cmdExists + " at " + $regPath) -Level "info"
+            }
             if ($Action -eq 'install') {
                 if (-not $exists)     { $missingChildren += '(parent key)' }
                 if (-not $cmdExists)  { $missingChildren += 'command' }
@@ -464,7 +481,10 @@ function Invoke-PostOpVerification {
             $tag   = if ($isOk) { 'OK  ' } else { 'FAIL' }
             $level = if ($isOk) { 'success' } else { 'error' }
             $line  = "  [{0}] {1,-10} expected={2,-25} actual={3,-30} {4}" -f $tag, $target, $expected, $actual, $regPath
-            Write-Log $line -Level $level
+            # PASS rows are noise in Quiet mode; FAIL rows always print.
+            if (-not $isOk -or $atLeastNormal) {
+                Write-Log $line -Level $level
+            }
             if (-not $isOk) {
                 Write-Log ("        failure path: " + $regPath + " (reason: " + $reason + ")") -Level "error"
                 # Per-sub-key breakdown so the operator sees exactly which
@@ -503,10 +523,13 @@ function Invoke-PostOpVerification {
             $covOk     = $folderOk -and $bgOk
             $covTag    = if ($covOk) { 'OK  ' } else { 'GAP ' }
             $covLevel  = if ($covOk) { 'success' } else { 'error' }
-            Write-Log ("  [{0}] folder+background coverage under scope='{1}': folder={2}, background={3}" -f `
-                $covTag, $ResolvedScope, `
-                $(if ($folderOk) { 'OK' } else { 'GAP' }), `
-                $(if ($bgOk)     { 'OK' } else { 'GAP' })) -Level $covLevel
+            # In Quiet mode, only print the coverage line when it's a GAP.
+            if (-not $covOk -or $atLeastNormal) {
+                Write-Log ("  [{0}] folder+background coverage under scope='{1}': folder={2}, background={3}" -f `
+                    $covTag, $ResolvedScope, `
+                    $(if ($folderOk) { 'OK' } else { 'GAP' }), `
+                    $(if ($bgOk)     { 'OK' } else { 'GAP' })) -Level $covLevel
+            }
             if (-not $folderOk -and $folderRow) {
                 Write-Log ("           - directory verb gap at: " + $folderRow.regPath) -Level "error"
             }
@@ -516,9 +539,11 @@ function Invoke-PostOpVerification {
         }
     }
 
-    Write-Log "" -Level "info"
+    if ($atLeastNormal) { Write-Log "" -Level "info" }
+    # Totals always print -- this is the bottom-line CI signal.
     $sumLevel = if ($failCount -eq 0) { 'success' } else { 'error' }
-    Write-Log ("Verification totals: PASS=" + $passCount + ", FAIL=" + $failCount) -Level $sumLevel
+    Write-Log ("Verification totals (scope=" + $ResolvedScope + ", action=" + $Action +
+               "): PASS=" + $passCount + ", FAIL=" + $failCount) -Level $sumLevel
 
     return [pscustomobject]@{
         action  = $Action
