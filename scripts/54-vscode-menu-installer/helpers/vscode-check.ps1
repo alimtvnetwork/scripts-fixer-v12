@@ -183,18 +183,41 @@ function Invoke-VsCodeMenuCheck {
     <#
     .SYNOPSIS
         Run quick verification across every enabled edition + target.
+
+    .DESCRIPTION
+        When -Scope is supplied (CurrentUser | AllUsers), every config path
+        is first rewritten via Convert-EditionPathsForScope so the probe
+        targets the EXACT hive that install/uninstall would have used:
+
+          AllUsers    -> Registry::HKEY_CLASSES_ROOT\...
+                         (machine-wide; physically lives in HKLM\Software\Classes)
+          CurrentUser -> Registry::HKEY_CURRENT_USER\Software\Classes\...
+                         (this user only; never observed in HKLM)
+
+        Without this rewrite, a per-user install would still appear to
+        "pass" via the merged HKCR view, masking drift between hives.
     .OUTPUTS
         PSCustomObject with .editions[], .totalPass, .totalMiss
     #>
     param(
         [Parameter(Mandatory)] $Config,
         [Parameter(Mandatory)] $LogMsgs,
-        [string] $EditionFilter = ""
+        [string] $EditionFilter = "",
+        [ValidateSet('CurrentUser','AllUsers')]
+        [string] $Scope = $null
     )
 
     $editionResults = @()
     $totalPass = 0
     $totalMiss = 0
+    $hasScope  = -not [string]::IsNullOrWhiteSpace($Scope)
+    if ($hasScope) {
+        Write-Log ("Check scope: '" + $Scope + "' -- probing " +
+            $(if ($Scope -eq 'AllUsers') { 'HKEY_CLASSES_ROOT (machine-wide)' }
+              else                       { 'HKCU\Software\Classes (per-user)' })) -Level "info"
+    } else {
+        Write-Log "Check scope: not supplied -- probing original config paths (HKCR merged view)." -Level "info"
+    }
 
     $editions = @($Config.enabledEditions)
     $hasFilter = -not [string]::IsNullOrWhiteSpace($EditionFilter)
@@ -209,6 +232,13 @@ function Invoke-VsCodeMenuCheck {
             continue
         }
         $ed = $Config.editions.$edName
+        # When the caller supplied a scope, rewrite every registryPaths.<target>
+        # so subsequent probes hit the right hive. Convert-EditionPathsForScope
+        # is a no-op for AllUsers (returns input unchanged) so this is safe to
+        # run unconditionally when $hasScope.
+        if ($hasScope -and (Get-Command Convert-EditionPathsForScope -ErrorAction SilentlyContinue)) {
+            $ed = Convert-EditionPathsForScope -EditionConfig $ed -Scope $Scope
+        }
 
         Write-Log "" -Level "info"
         Write-Log ("Checking edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
