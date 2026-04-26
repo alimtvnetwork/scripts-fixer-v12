@@ -172,10 +172,35 @@ cmd_remove() {
     log_warn "[64] remove: <name> required"; usage; return 1
   fi
 
+  # Primary defense: reject obviously hostile names BEFORE we touch anything.
+  # The deeper guard inside remove_startup_entry is a backstop; this catches
+  # callers that bypass enumerate-then-match and surfaces a clear non-zero
+  # exit so scripts/tests can detect the rejection.
+  case "$name" in
+    */*|*..*)
+      log_file_error "(name=$name)" "name contains path separators or traversal -- refusing"
+      return 1 ;;
+  esac
+
+  # Method alias map: user types `shell-rc`, enumerators emit `shell-rc-app`
+  # for app blocks and `shell-rc-env` for env blocks. Treat `shell-rc` as
+  # "either of those". `ALL`/empty means "no filter".
+  _method_matches() {
+    local want="$1" got="$2"
+    [ -z "$want" ] && return 0
+    [ "$want" = "ALL" ] && return 0
+    [ "$want" = "$got" ] && return 0
+    if [ "$want" = "shell-rc" ]; then
+      [ "$got" = "shell-rc-app" ] && return 0
+      [ "$got" = "shell-rc-env" ] && return 0
+    fi
+    return 1
+  }
+
   local rc=0 hits=0
   while IFS=$'\t' read -r m n _p _scope; do
     [ -z "${m:-}" ] && continue
-    if [ "$n" = "$name" ] && { [ -z "$method" ] || [ "$method" = "ALL" ] || [ "$method" = "$m" ]; }; then
+    if [ "$n" = "$name" ] && _method_matches "$method" "$m"; then
       hits=$((hits+1))
       remove_startup_entry "$m" "$n" || rc=1
     fi
@@ -183,6 +208,9 @@ cmd_remove() {
 
   if [ $hits -eq 0 ]; then
     log_warn "[64] no entries matched name='$name' method='${method:-any}'"
+    # Idempotent no-op when caller didn't pin a method (sweep-style usage).
+    # When a method WAS specified and nothing matched, it's still a no-op
+    # by design (callers can re-run remove safely after prune).
   else
     log_ok "[64] removed $hits entr$([ $hits -eq 1 ] && echo y || echo ies) for '$name'"
   fi
