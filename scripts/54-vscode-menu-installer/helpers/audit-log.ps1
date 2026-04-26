@@ -21,12 +21,14 @@
           "edition":   "stable",
           "target":    "file" | "directory" | "background",
           "regPath":   "HKCR\\Directory\\shell\\VSCode",
+          "scope":     "CurrentUser" | "AllUsers" | "unknown",
           "values":    { "(Default)": "...", "Icon": "...", "command": "..." },
           "reason":    "<failure message>"   // only on operation=fail
         }
 
     The helper exposes:
       Initialize-RegistryAudit  -- opens the run-scoped log file
+      Set-RegistryAuditScope    -- late-bind the resolved scope after init
       Write-RegistryAuditEvent  -- append one event
       Get-RegistryAuditPath     -- current run's audit file path
 
@@ -46,6 +48,10 @@ if ((Test-Path $_loggingPath) -and -not (Get-Command Write-Log -ErrorAction Sile
 # Module-scope state -- one audit file per script run.
 $script:AuditFilePath = $null
 $script:AuditAction   = $null
+# Resolved Windows registry scope for THIS run (CurrentUser | AllUsers | unknown).
+# Stamped on every event so an auditor can tell which hive was actually touched
+# without cross-referencing the log file.
+$script:AuditScope    = "unknown"
 
 function Initialize-RegistryAudit {
     <#
@@ -53,6 +59,11 @@ function Initialize-RegistryAudit {
         Decides the audit file path for this run and ensures the .audit/
         directory exists. Safe to call more than once -- subsequent calls
         in the same run keep the original file path.
+    .PARAMETER Scope
+        Resolved Windows registry scope (CurrentUser | AllUsers). Optional
+        because some callers resolve scope AFTER opening the audit file --
+        in that case, follow up with Set-RegistryAuditScope so every event
+        and the summary still report the correct hive.
     #>
     [CmdletBinding()]
     param(
@@ -61,11 +72,21 @@ function Initialize-RegistryAudit {
         [string] $Action,
 
         [Parameter(Mandatory)]
-        [string] $ScriptDir
+        [string] $ScriptDir,
+
+        [ValidateSet('CurrentUser','AllUsers','unknown')]
+        [string] $Scope = 'unknown'
     )
 
     $isAlreadyInitialized = -not [string]::IsNullOrWhiteSpace($script:AuditFilePath)
-    if ($isAlreadyInitialized) { return $script:AuditFilePath }
+    if ($isAlreadyInitialized) {
+        # Allow callers that initialize audit BEFORE scope resolution to
+        # back-fill the scope on a second call. Without this, every event
+        # would be stamped 'unknown'.
+        $isUpgradingScope = ($script:AuditScope -eq 'unknown') -and ($Scope -ne 'unknown')
+        if ($isUpgradingScope) { $script:AuditScope = $Scope }
+        return $script:AuditFilePath
+    }
 
     $auditDir = Join-Path $ScriptDir ".audit"
     $isDirMissing = -not (Test-Path -LiteralPath $auditDir)
@@ -81,12 +102,14 @@ function Initialize-RegistryAudit {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $script:AuditFilePath = Join-Path $auditDir ("audit-{0}-{1}.jsonl" -f $Action, $stamp)
     $script:AuditAction   = $Action
+    $script:AuditScope    = $Scope
 
     # Write a header record so empty / corrupt files are easy to spot.
     $header = [ordered]@{
         ts        = (Get-Date -Format "o")
         action    = $Action
         operation = "session-start"
+        scope     = $script:AuditScope
         host      = $env:COMPUTERNAME
         user      = $env:USERNAME
         pid       = $PID
@@ -94,9 +117,44 @@ function Initialize-RegistryAudit {
     }
     $isHeaderOk = _Append-AuditLine -Record $header
     if ($isHeaderOk) {
-        Write-Log "Audit log opened: $script:AuditFilePath" -Level "info"
+        Write-Log ("Audit log opened (scope=" + $script:AuditScope + "): " + $script:AuditFilePath) -Level "info"
     }
     return $script:AuditFilePath
+}
+
+function Set-RegistryAuditScope {
+    <#
+    .SYNOPSIS
+        Late-bind the resolved Windows registry scope after the audit file
+        was already opened. Every subsequent Write-RegistryAuditEvent will
+        include this scope, and Get-RegistryAuditSummary will surface it.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('CurrentUser','AllUsers','unknown')]
+        [string] $Scope
+    )
+    $isInitialized = -not [string]::IsNullOrWhiteSpace($script:AuditFilePath)
+    if (-not $isInitialized) {
+        Write-Log "Set-RegistryAuditScope called before Initialize-RegistryAudit -- ignored." -Level "warn"
+        return
+    }
+    $script:AuditScope = $Scope
+    # Drop a marker line so the JSONL itself records WHEN the scope became
+    # known. Forensics > silence.
+    $marker = [ordered]@{
+        ts        = (Get-Date -Format "o")
+        action    = $script:AuditAction
+        operation = "scope-set"
+        scope     = $script:AuditScope
+    }
+    $null = _Append-AuditLine -Record $marker
+    Write-Log ("Audit scope set to: " + $script:AuditScope) -Level "info"
+}
+
+function Get-RegistryAuditScope {
+    return $script:AuditScope
 }
 
 function Get-RegistryAuditPath {
@@ -164,6 +222,7 @@ function Write-RegistryAuditEvent {
         ts        = (Get-Date -Format "o")
         action    = $script:AuditAction
         operation = $Operation
+        scope     = $script:AuditScope
         edition   = $Edition
         target    = $Target
         regPath   = $RegPath
@@ -200,6 +259,7 @@ function Get-RegistryAuditSummary {
 
     $result = [pscustomobject]@{
         auditPath    = $script:AuditFilePath
+        scope        = $script:AuditScope
         added        = @()
         removed      = @()
         skipped      = @()
