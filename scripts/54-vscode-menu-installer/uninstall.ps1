@@ -9,6 +9,8 @@ param(
     [string]$Edition,
     [ValidateSet('Auto','CurrentUser','AllUsers')]
     [string]$Scope = 'Auto',
+    [ValidateSet('Quiet','Normal','Debug')]
+    [string]$Verbosity = 'Normal',
     [switch]$Help
 )
 
@@ -27,6 +29,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 # Pull in scope helpers (Resolve-MenuScope, Convert-EditionPathsForScope).
 . (Join-Path $scriptDir "helpers\vscode-install.ps1")
 . (Join-Path $scriptDir "helpers\vscode-check.ps1")
+. (Join-Path $scriptDir "helpers\verbosity.ps1")
 
 $configPath = Join-Path $scriptDir "config.json"
 $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
