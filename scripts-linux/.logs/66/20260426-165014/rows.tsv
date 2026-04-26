@@ -1,0 +1,13 @@
+removed	services	workflow	/tmp/scr66.RakKgi/home/Library/Services/Open with Code.workflow	matches '*Code*.workflow'
+missing	services	workflow	/tmp/scr66.RakKgi/home/Library/Services/*VSCode*.workflow	no matches
+removed	services	workflow	Studio	matches '*Visual Studio Code*.workflow'
+removed	launchagents-user	launchctl	/tmp/scr66.RakKgi/home/Library/LaunchAgents/com.example.vscode-keepalive.plist	label=com.example.vscode-keepalive,domain=gui
+missing	loginitems	loginitem	Visual Studio Code - Insiders	no login item with this name
+missing	loginitems	loginitem	Visual Studio Code	no login item with this name
+skipped	shims-user	shim	/tmp/scr66.RakKgi/home/.local/bin/code-insiders	not a vscode shim (target=#!/usr/bin/env bash
+echo "this is not vscode")
+removed	shims-user	shim	/tmp/scr66.RakKgi/home/.local/bin/code	#!/usr/bin/env bash
+exec "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code" "$@"
+missing	shims-user	shim	/tmp/scr66.RakKgi/home/bin/code-insiders	absent
+missing	shims-user	shim	/tmp/scr66.RakKgi/home/bin/code	absent
+skipped	url-handlers-user	lsregister	/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister	lsregister not found at expected path
