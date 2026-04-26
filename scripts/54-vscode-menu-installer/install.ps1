@@ -82,16 +82,11 @@ try {
     # AND the change-report banner show which hive was actually touched.
     Set-RegistryAuditScope -Scope $resolvedScope
 
-    # Fail fast: AllUsers explicitly requested but caller is NOT elevated.
-    $isAllUsersRequested = ($Scope -ieq 'AllUsers' -or $Scope -ieq 'Machine' -or $Scope -ieq 'HKLM')
-    if ($isAllUsersRequested -and -not $isAdmin) {
-        Write-Log "Scope=AllUsers requires Administrator. Re-run from an elevated PowerShell, or pass -Scope CurrentUser to install for the current user only." -Level "error"
-        return
-    }
-    # Defensive: if Auto chose AllUsers, admin must hold (it does, by definition).
-    if ($resolvedScope -eq 'AllUsers' -and -not $isAdmin) {
-        Write-Log $logMessages.messages.notAdmin -Level "error"; return
-    }
+    # Centralized elevation guidance (BLOCK + actionable rerun commands +
+    # CurrentUser fallback). Returns $false when the run cannot proceed.
+    $mayProceed = Write-ScopeAdminGuidance -Action 'install' -RequestedScope $Scope `
+        -ResolvedScope $resolvedScope -IsAdmin $isAdmin
+    if (-not $mayProceed) { return }
 
     # -- Decide editions ------------------------------------------------------
     $editions = if ([string]::IsNullOrWhiteSpace($Edition)) {

@@ -57,14 +57,9 @@ try {
     $resolvedScope = Resolve-MenuScope -Requested $Scope -IsAdmin $isAdmin
     Write-Log ("Resolved scope: requested='" + $Scope + "', resolved='" + $resolvedScope + "'") -Level "info"
 
-    $isAllUsersRequested = ($Scope -ieq 'AllUsers' -or $Scope -ieq 'Machine' -or $Scope -ieq 'HKLM')
-    if ($isAllUsersRequested -and -not $isAdmin) {
-        Write-Log "Scope=AllUsers requires Administrator. Re-run from an elevated PowerShell, or pass -Scope CurrentUser to repair the current user's entries only." -Level "error"
-        return
-    }
-    if ($resolvedScope -eq 'AllUsers' -and -not $isAdmin) {
-        Write-Log $logMessages.messages.notAdmin -Level "error"; return
-    }
+    $mayProceed = Write-ScopeAdminGuidance -Action 'repair' -RequestedScope $Scope `
+        -ResolvedScope $resolvedScope -IsAdmin $isAdmin
+    if (-not $mayProceed) { return }
 
     # -- Audit log + pre-repair snapshot -------------------------------------
     # Repair resolves scope BEFORE opening the audit, so we can stamp it

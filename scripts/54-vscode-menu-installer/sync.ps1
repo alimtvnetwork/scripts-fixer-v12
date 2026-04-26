@@ -71,14 +71,9 @@ try {
     # so every event and the change report show the correct hive.
     Set-RegistryAuditScope -Scope $resolvedScope
 
-    $isAllUsersRequested = ($Scope -ieq 'AllUsers' -or $Scope -ieq 'Machine' -or $Scope -ieq 'HKLM')
-    if ($isAllUsersRequested -and -not $isAdmin) {
-        Write-Log "Scope=AllUsers requires Administrator. Re-run elevated, or pass -Scope CurrentUser to sync just this user's entries." -Level "error"
-        return
-    }
-    if ($resolvedScope -eq 'AllUsers' -and -not $isAdmin) {
-        Write-Log $logMessages.messages.notAdmin -Level "error"; return
-    }
+    $mayProceed = Write-ScopeAdminGuidance -Action 'sync' -RequestedScope $Scope `
+        -ResolvedScope $resolvedScope -IsAdmin $isAdmin
+    if (-not $mayProceed) { return }
 
     Write-Log ("Sync mode: " + $(if ($DryRun) { 'DRY-RUN (no writes)' } else { 'apply changes when drift detected' })) -Level $(if ($DryRun) { 'warn' } else { 'info' })
 
