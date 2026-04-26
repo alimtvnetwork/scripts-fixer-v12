@@ -1,0 +1,5 @@
+ms-python.python
+dbaeumer.vscode-eslint
+esbenp.prettier-vscode
+eamodio.gitlens
+ms-azuretools.vscode-docker

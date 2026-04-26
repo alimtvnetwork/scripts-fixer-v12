@@ -1,0 +1,17 @@
+{
+  "description": "Log messages for 11-install-vscode-settings-sync",
+  "messages": {
+    "start":            "[11] Starting VS Code settings sync",
+    "noVscode":         "[11] VS Code not detected (missing 'code' on PATH and missing user dir) — skipping",
+    "ensureDir":        "[11] Ensuring VS Code user dir exists: {path}",
+    "backup":           "[11] Backing up existing settings to {path}",
+    "backupFailed":     "[11] Backup failed at {path}",
+    "deploy":           "[11] Deploying {file} -> {path}",
+    "deployFailed":     "[11] Deploy failed for {file} -> {path}",
+    "extInstall":       "[11] Installing extensions from {path}",
+    "extSkip":          "[11] Skipping extensions (no 'code' CLI on PATH)",
+    "verifyOk":         "[11] Verify OK (settings + keybindings present)",
+    "verifyFail":       "[11] Verify FAILED",
+    "alreadyInstalled": "[11] Already deployed (files match payload)"
+  }
+}

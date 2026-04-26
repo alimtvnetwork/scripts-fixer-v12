@@ -1,0 +1,13 @@
+{
+  "description": "Log messages for 35-install-gitmap",
+  "messages": {
+    "start":            "[35] Starting gitmap installer",
+    "depsInstall":      "[35] Installing deps: {pkgs}",
+    "depsFailed":       "[35] dep install failed",
+    "deploy":           "[35] Installing gitmap to {path}",
+    "deployFailed":     "[35] Deploy failed at {path}",
+    "verifyOk":         "[35] Verify OK (gitmap --version)",
+    "verifyFail":       "[35] Verify FAILED",
+    "alreadyInstalled": "[35] Already installed"
+  }
+}

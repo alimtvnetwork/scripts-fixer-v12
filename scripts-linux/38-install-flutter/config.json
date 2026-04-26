@@ -1,0 +1,19 @@
+{
+  "install": {
+    "method":     "snapPreferred",
+    "snapName":   "flutter",
+    "snapClassic": true,
+    "fallback": {
+      "method":   "tarball",
+      "channel":  "stable",
+      "baseUrl":  "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux",
+      "indexUrl": "https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json",
+      "destDir":  "${HOME}/.local/share/flutter",
+      "binDir":   "${HOME}/.local/bin"
+    },
+    "aptDeps":    ["curl", "git", "unzip", "xz-utils", "zip", "libglu1-mesa"]
+  },
+  "verify": {
+    "binary": "flutter --version"
+  }
+}

@@ -1,0 +1,4 @@
+[
+  { "key": "ctrl+shift+d", "command": "editor.action.copyLinesDownAction", "when": "editorTextFocus" },
+  { "key": "ctrl+k ctrl+t", "command": "workbench.action.selectTheme" }
+]

@@ -1,0 +1,12 @@
+{
+  "install": {
+    "method":      "deployBinary",
+    "scriptName":  "gitmap",
+    "scriptSrc":   "payload/gitmap.sh",
+    "binDir":      "${HOME}/.local/bin",
+    "deps":        ["git", "tree"]
+  },
+  "verify": {
+    "binary": "${HOME}/.local/bin/gitmap --version"
+  }
+}

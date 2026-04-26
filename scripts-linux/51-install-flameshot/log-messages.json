@@ -1,0 +1,12 @@
+{
+  "description": "Log messages for 51-install-flameshot",
+  "messages": {
+    "start":            "[51] Starting Flameshot installer",
+    "installing":       "[51] Installing via apt: {pkg}",
+    "installFailed":    "[51] apt install failed",
+    "verifyOk":         "[51] Verify OK (flameshot --version)",
+    "verifyFail":       "[51] Verify FAILED",
+    "alreadyInstalled": "[51] Already installed",
+    "uninstall":        "[51] Removing flameshot"
+  }
+}

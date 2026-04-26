@@ -1,0 +1,14 @@
+{
+  "install": {
+    "method":         "deployPayload",
+    "vscodeUserDir":  "${HOME}/.config/Code/User",
+    "payloadDir":     "payload",
+    "files":          ["settings.json", "keybindings.json"],
+    "extensionsList": "extensions.txt",
+    "backupDir":      "${HOME}/.config/Code/User/.backup-{TIMESTAMP}"
+  },
+  "verify": {
+    "settings":     "test -f ${HOME}/.config/Code/User/settings.json",
+    "keybindings":  "test -f ${HOME}/.config/Code/User/keybindings.json"
+  }
+}

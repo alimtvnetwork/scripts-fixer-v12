@@ -1,0 +1,4 @@
+{
+  "install": { "apt": "flameshot" },
+  "verify":  { "binary": "flameshot --version" }
+}

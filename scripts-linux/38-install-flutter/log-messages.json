@@ -1,0 +1,20 @@
+{
+  "description": "Log messages for 38-install-flutter",
+  "messages": {
+    "start":            "[38] Starting Flutter installer",
+    "snapTry":          "[38] Trying snap install (classic): {name}",
+    "snapFailed":       "[38] snap install failed — falling back to tarball method",
+    "depsInstall":      "[38] Installing apt deps: {pkgs}",
+    "fetchIndex":       "[38] Fetching Flutter release index: {url}",
+    "fetchIndexFailed": "[38] Failed to fetch release index from {url}",
+    "downloading":      "[38] Downloading Flutter SDK: {url}",
+    "downloadFailed":   "[38] Download failed from {url}",
+    "extracting":       "[38] Extracting SDK into {path}",
+    "extractFailed":    "[38] Extract failed at {path}",
+    "linking":          "[38] Symlinking flutter into {bin}",
+    "linkFailed":       "[38] Symlink failed at {bin}",
+    "verifyOk":         "[38] Verify OK (flutter --version)",
+    "verifyFail":       "[38] Verify FAILED",
+    "alreadyInstalled": "[38] Already installed"
+  }
+}
