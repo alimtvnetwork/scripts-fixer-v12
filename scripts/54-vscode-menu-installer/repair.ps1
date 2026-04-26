@@ -11,6 +11,8 @@
 param(
     [string]$Edition,
     [string]$VsCodePath,
+    [ValidateSet('Auto','CurrentUser','AllUsers')]
+    [string]$Scope = 'Auto',
     [switch]$Help
 )
 
@@ -44,14 +46,25 @@ Write-Banner -Title ($logMessages.scriptName + " -- repair")
 Initialize-Logging -ScriptName ($logMessages.scriptName + " -- repair")
 
 try {
-    # -- Admin (repair writes + deletes; ALWAYS requires admin) --------------
+    # -- Resolve scope + admin gate (repair mirrors install/uninstall) -------
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
     $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     $isAdmin   = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     Write-Log ($logMessages.messages.currentUser    -replace '\{name\}',  $identity.Name) -Level "info"
-    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $isAdmin)       -Level $(if ($isAdmin) { "success" } else { "error" })
-    if (-not $isAdmin) { Write-Log $logMessages.messages.notAdmin -Level "error"; return }
+    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $isAdmin)       -Level $(if ($isAdmin) { "success" } else { "warn" })
+
+    $resolvedScope = Resolve-MenuScope -Requested $Scope -IsAdmin $isAdmin
+    Write-Log ("Resolved scope: requested='" + $Scope + "', resolved='" + $resolvedScope + "'") -Level "info"
+
+    $isAllUsersRequested = ($Scope -ieq 'AllUsers' -or $Scope -ieq 'Machine' -or $Scope -ieq 'HKLM')
+    if ($isAllUsersRequested -and -not $isAdmin) {
+        Write-Log "Scope=AllUsers requires Administrator. Re-run from an elevated PowerShell, or pass -Scope CurrentUser to repair the current user's entries only." -Level "error"
+        return
+    }
+    if ($resolvedScope -eq 'AllUsers' -and -not $isAdmin) {
+        Write-Log $logMessages.messages.notAdmin -Level "error"; return
+    }
 
     # -- Audit log + pre-repair snapshot -------------------------------------
     $auditPath = Initialize-RegistryAudit -Action "install" -ScriptDir $scriptDir
@@ -67,7 +80,7 @@ try {
 
     $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
     $stats = Invoke-VsCodeMenuRepair -Config $config -LogMsgs $logMessages `
-        -RepoRoot $repoRoot -EditionFilter $Edition -VsCodePathOverride $VsCodePath
+        -RepoRoot $repoRoot -EditionFilter $Edition -VsCodePathOverride $VsCodePath -Scope $resolvedScope
 
     if ($auditPath) {
         Write-Log ($logMessages.messages.auditWritten -replace '\{path\}', $auditPath) -Level "info"

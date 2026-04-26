@@ -2,6 +2,8 @@
   "_comment": "VS Code context menu installer/uninstaller. The 'registryPaths' values per edition form the STRICT path allow-list used by uninstall.ps1 -- only these exact keys are deleted, never their siblings.",
   "enabled": true,
   "enabledEditions": ["stable", "insiders"],
+  "_scopeComment": "Default scope when -Scope is omitted. 'Auto' picks AllUsers (HKLM via HKCR) when running elevated, else CurrentUser (HKCU\\Software\\Classes). Override per-call with -Scope CurrentUser|AllUsers.",
+  "defaultScope": "Auto",
   "repair": {
     "_comment": "Allow-list for the 'repair' verb. Repair only deletes named child keys that EXACTLY match one of these names under HKCR\\*\\shell, HKCR\\Directory\\shell, and HKCR\\Directory\\Background\\shell. Add/remove names here to tune cleanup -- never enumerates siblings outside this list.",
     "_enforceComment": "When true (default), the 'check' command and the test harness (Cases 6/7/8) FAIL if the repair invariants are violated: file-target key still present, suppression values present on directory/background, or any legacy duplicate child key present. Set to false to opt out (e.g. on a machine where the file-target entry is intentionally kept).",

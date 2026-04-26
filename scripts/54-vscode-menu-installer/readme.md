@@ -30,7 +30,30 @@ Implementation folder for **Script 54 — Vscode Menu Installer**. The full desi
 ```powershell
 # From repo root
 .\run.ps1 -I 54 install
+
+# Install for the current user only (no admin needed)
+.\run.ps1 -I 54 install -Scope CurrentUser
+
+# Install machine-wide (requires elevated PowerShell)
+.\run.ps1 -I 54 install -Scope AllUsers
+
+# Default is -Scope Auto: AllUsers when elevated, else CurrentUser.
+# Same flag applies to uninstall and repair so the right hive is targeted.
+.\run.ps1 -I 54 uninstall -Scope CurrentUser
+.\run.ps1 -I 54 repair    -Scope AllUsers
 ```
+
+### Scope reference
+
+| `-Scope`      | Hive written                                 | Admin? |
+|---------------|----------------------------------------------|--------|
+| `Auto` (default) | AllUsers if elevated, else CurrentUser    | as needed |
+| `CurrentUser` | `HKCU\Software\Classes\...`                  | no     |
+| `AllUsers`    | `HKEY_CLASSES_ROOT\...` (HKLM under the hood)| **yes** |
+
+If `-Scope AllUsers` is requested without admin rights the script
+**fails fast** with a clear "re-run elevated, or pass -Scope CurrentUser"
+message — it never silently downgrades.
 
 ## Layout
 

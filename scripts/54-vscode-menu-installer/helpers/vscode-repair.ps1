@@ -190,7 +190,8 @@ function Invoke-VsCodeMenuRepair {
         [Parameter(Mandatory)] $LogMsgs,
         [Parameter(Mandatory)] [string] $RepoRoot,
         [string] $EditionFilter = "",
-        [string] $VsCodePathOverride = ""
+        [string] $VsCodePathOverride = "",
+        [ValidateSet('CurrentUser','AllUsers')] [string] $Scope = 'AllUsers'
     )
 
     $stats = [ordered]@{
@@ -221,6 +222,10 @@ function Invoke-VsCodeMenuRepair {
             continue
         }
         $ed = $Config.editions.$edName
+        # Rewrite registryPaths for the resolved scope so the per-target
+        # writes/deletes/sweeps below land in the correct hive without
+        # touching the loaded config object.
+        $ed = Convert-EditionPathsForScope -EditionConfig $ed -Scope $Scope
         Write-Log ("--- Repairing edition '" + $edName + "' (" + $ed.label + ") ---") -Level "info"
 
         # Resolve exe (needed to (re-)write folder + background entries)

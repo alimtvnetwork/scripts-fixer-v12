@@ -31,6 +31,107 @@ function ConvertTo-RegExePath {
     return ($p -replace '^HKEY_CLASSES_ROOT', 'HKCR')
 }
 
+function Resolve-MenuScope {
+    <#
+    .SYNOPSIS
+        Decides the install scope when the caller passes -Scope (or omits it).
+
+    .DESCRIPTION
+        Returns one of: 'CurrentUser', 'AllUsers'.
+
+        - 'AllUsers'    -> writes to HKLM via the HKEY_CLASSES_ROOT view.
+                          Requires admin. CALLER must enforce that.
+        - 'CurrentUser' -> writes to HKCU\Software\Classes\... so no admin
+                          rights are needed and the entries only affect the
+                          user who ran the script.
+        - 'Auto' (default) -> 'AllUsers' when running elevated, else
+                              'CurrentUser'. This matches the user's stated
+                              expectation and never silently downgrades a
+                              caller who explicitly asked for AllUsers.
+
+        Inputs are case-insensitive. Unknown values are rejected with a
+        clear error that names the offending value -- no silent default.
+    #>
+    param(
+        [string]$Requested,
+        [bool]  $IsAdmin
+    )
+
+    $value = if ([string]::IsNullOrWhiteSpace($Requested)) { 'Auto' } else { $Requested.Trim() }
+    switch ($value.ToLowerInvariant()) {
+        'currentuser' { return 'CurrentUser' }
+        'user'        { return 'CurrentUser' }
+        'hkcu'        { return 'CurrentUser' }
+        'allusers'    { return 'AllUsers' }
+        'machine'     { return 'AllUsers' }
+        'hklm'        { return 'AllUsers' }
+        'auto'        {
+            if ($IsAdmin) { return 'AllUsers' } else { return 'CurrentUser' }
+        }
+        default {
+            throw "Invalid -Scope value '$Requested'. Use one of: Auto (default), CurrentUser, AllUsers."
+        }
+    }
+}
+
+function Convert-MenuPathForScope {
+    <#
+    .SYNOPSIS
+        Translates a Registry::HKEY_CLASSES_ROOT\... path to the equivalent
+        per-user path under HKCU\Software\Classes when Scope='CurrentUser'.
+        For Scope='AllUsers' the path is returned unchanged so the existing
+        HKCR-via-HKLM behavior is preserved bit-for-bit.
+
+    .NOTES
+        HKCR is a merged view: writes through HKCR land in HKLM (machine
+        scope, requires admin). To install an entry for the current user
+        only, we must write to HKCU\Software\Classes directly. Reads from
+        HKCR will still see HKCU entries because Windows merges both hives.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $PsPath,
+        [Parameter(Mandatory)] [ValidateSet('CurrentUser','AllUsers')] [string] $Scope
+    )
+
+    if ($Scope -eq 'AllUsers') { return $PsPath }
+
+    # CurrentUser: rewrite the hive segment only; everything after stays put.
+    $rewritten = $PsPath -replace '^Registry::HKEY_CLASSES_ROOT\\', 'Registry::HKEY_CURRENT_USER\Software\Classes\'
+    return $rewritten
+}
+
+function Convert-EditionPathsForScope {
+    <#
+    .SYNOPSIS
+        Returns a copy of $EditionConfig with every registryPaths.<target>
+        rewritten for the given Scope. The original config object is left
+        untouched so subsequent edition iterations see the same baseline.
+    #>
+    param(
+        [Parameter(Mandatory)] $EditionConfig,
+        [Parameter(Mandatory)] [ValidateSet('CurrentUser','AllUsers')] [string] $Scope
+    )
+
+    if ($Scope -eq 'AllUsers') { return $EditionConfig }
+
+    # Build a shallow clone, then replace the registryPaths sub-object.
+    $rewritten = [PSCustomObject]@{}
+    foreach ($prop in $EditionConfig.PSObject.Properties) {
+        $rewritten | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value
+    }
+
+    $newPaths = [PSCustomObject]@{}
+    foreach ($t in @('file','directory','background')) {
+        $hasT = $EditionConfig.registryPaths.PSObject.Properties.Name -contains $t
+        if (-not $hasT) { continue }
+        $orig = $EditionConfig.registryPaths.$t
+        if ([string]::IsNullOrWhiteSpace($orig)) { continue }
+        $newPaths | Add-Member -NotePropertyName $t -NotePropertyValue (Convert-MenuPathForScope -PsPath $orig -Scope $Scope)
+    }
+    $rewritten.registryPaths = $newPaths
+    return $rewritten
+}
+
 function Resolve-ConfirmShellExe {
     <#
     .SYNOPSIS

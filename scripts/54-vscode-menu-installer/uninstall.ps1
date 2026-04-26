@@ -7,6 +7,8 @@
 # --------------------------------------------------------------------------
 param(
     [string]$Edition,
+    [ValidateSet('Auto','CurrentUser','AllUsers')]
+    [string]$Scope = 'Auto',
     [switch]$Help
 )
 
@@ -22,6 +24,8 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 
 . (Join-Path $scriptDir "helpers\vscode-uninstall.ps1")
 . (Join-Path $scriptDir "helpers\audit-log.ps1")
+# Pull in scope helpers (Resolve-MenuScope, Convert-EditionPathsForScope).
+. (Join-Path $scriptDir "helpers\vscode-install.ps1")
 
 $configPath = Join-Path $scriptDir "config.json"
 $isConfigMissing = -not (Test-Path -LiteralPath $configPath)
@@ -38,14 +42,27 @@ Write-Banner -Title ($logMessages.scriptName + " -- uninstall")
 Initialize-Logging -ScriptName ($logMessages.scriptName + " -- uninstall")
 
 try {
-    # -- Assert admin (uninstall ALWAYS requires admin -- ignores 'enabled') -
+    # -- Resolve scope + admin gate ------------------------------------------
+    # Uninstall mirrors install's scope rules: AllUsers needs admin,
+    # CurrentUser does not. Auto = AllUsers when admin, else CurrentUser.
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
     $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     $isAdmin   = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     Write-Log ($logMessages.messages.currentUser -replace '\{name\}', $identity.Name) -Level "info"
-    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $isAdmin) -Level $(if ($isAdmin) { "success" } else { "error" })
-    if (-not $isAdmin) { Write-Log $logMessages.messages.notAdmin -Level "error"; return }
+    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $isAdmin) -Level $(if ($isAdmin) { "success" } else { "warn" })
+
+    $resolvedScope = Resolve-MenuScope -Requested $Scope -IsAdmin $isAdmin
+    Write-Log ("Resolved scope: requested='" + $Scope + "', resolved='" + $resolvedScope + "'") -Level "info"
+
+    $isAllUsersRequested = ($Scope -ieq 'AllUsers' -or $Scope -ieq 'Machine' -or $Scope -ieq 'HKLM')
+    if ($isAllUsersRequested -and -not $isAdmin) {
+        Write-Log "Scope=AllUsers requires Administrator. Re-run from an elevated PowerShell, or pass -Scope CurrentUser to uninstall the current user's entries only." -Level "error"
+        return
+    }
+    if ($resolvedScope -eq 'AllUsers' -and -not $isAdmin) {
+        Write-Log $logMessages.messages.notAdmin -Level "error"; return
+    }
 
     Write-Log $logMessages.messages.uninstallStart -Level "info"
 
@@ -69,6 +86,10 @@ try {
             Write-Log ($logMessages.messages.editionUnknown -replace '\{name\}', $editionName) -Level "warn"
             continue
         }
+
+        # Apply the scope rewrite BEFORE the allow-list is built so the
+        # surgical removal targets the right hive.
+        $editionCfg = Convert-EditionPathsForScope -EditionConfig $editionCfg -Scope $resolvedScope
 
         Write-Log ($logMessages.messages.uninstallEdition -replace '\{name\}', $editionName) -Level "info"
 
