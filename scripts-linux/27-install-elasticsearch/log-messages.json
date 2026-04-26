@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 27-install-elasticsearch",
+  "messages": {
+    "start":           "[27] Starting Elasticsearch 8.x installer",
+    "alreadyInstalled":"[27] Already installed",
+    "addingKey":       "[27] Fetching GPG key from {url}",
+    "writingRepo":     "[27] Writing apt repo: {path}",
+    "installing":      "[27] Installing via apt: {pkg}",
+    "installSuccess":  "[27] Installed",
+    "installFailed":   "[27] Install failed: {err}",
+    "verifyOk":        "[27] Verify OK",
+    "verifyFail":      "[27] Verify FAILED",
+    "noMethod":        "[27] apt + curl required"
+  }
+}

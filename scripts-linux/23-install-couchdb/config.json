@@ -1,0 +1,11 @@
+{
+  "install": {
+    "apt": "couchdb"
+  },
+  "thirdPartyRepo": {
+    "keyUrl": "https://couchdb.apache.org/repo/keys.asc",
+    "keyring": "/usr/share/keyrings/couchdb-archive-keyring.gpg",
+    "repoListPath": "/etc/apt/sources.list.d/23-install-couchdb.list",
+    "repoLine": "deb [signed-by=/usr/share/keyrings/couchdb-archive-keyring.gpg] https://apache.jfrog.io/artifactory/couchdb-deb/  main"
+  }
+}

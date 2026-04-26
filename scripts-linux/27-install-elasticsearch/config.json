@@ -1,0 +1,11 @@
+{
+  "install": {
+    "apt": "elasticsearch"
+  },
+  "thirdPartyRepo": {
+    "keyUrl": "https://artifacts.elastic.co/GPG-KEY-elasticsearch",
+    "keyring": "/usr/share/keyrings/elasticsearch-keyring.gpg",
+    "repoListPath": "/etc/apt/sources.list.d/27-install-elasticsearch.list",
+    "repoLine": "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main"
+  }
+}

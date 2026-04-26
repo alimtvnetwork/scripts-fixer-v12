@@ -1,0 +1,11 @@
+{
+  "install": {
+    "apt": "neo4j"
+  },
+  "thirdPartyRepo": {
+    "keyUrl": "https://debian.neo4j.com/neotechnology.gpg.key",
+    "keyring": "/usr/share/keyrings/neo4j-keyring.gpg",
+    "repoListPath": "/etc/apt/sources.list.d/26-install-neo4j.list",
+    "repoLine": "deb [signed-by=/usr/share/keyrings/neo4j-keyring.gpg] https://debian.neo4j.com stable latest"
+  }
+}

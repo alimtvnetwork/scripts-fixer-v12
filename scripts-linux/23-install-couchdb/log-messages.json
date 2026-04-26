@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 23-install-couchdb",
+  "messages": {
+    "start":           "[23] Starting Apache CouchDB installer",
+    "alreadyInstalled":"[23] Already installed",
+    "addingKey":       "[23] Fetching GPG key from {url}",
+    "writingRepo":     "[23] Writing apt repo: {path}",
+    "installing":      "[23] Installing via apt: {pkg}",
+    "installSuccess":  "[23] Installed",
+    "installFailed":   "[23] Install failed: {err}",
+    "verifyOk":        "[23] Verify OK",
+    "verifyFail":      "[23] Verify FAILED",
+    "noMethod":        "[23] apt + curl required"
+  }
+}

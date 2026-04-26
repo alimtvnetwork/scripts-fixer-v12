@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 25-install-cassandra",
+  "messages": {
+    "start":           "[25] Starting Apache Cassandra 4.1 installer",
+    "alreadyInstalled":"[25] Already installed",
+    "addingKey":       "[25] Fetching GPG key from {url}",
+    "writingRepo":     "[25] Writing apt repo: {path}",
+    "installing":      "[25] Installing via apt: {pkg}",
+    "installSuccess":  "[25] Installed",
+    "installFailed":   "[25] Install failed: {err}",
+    "verifyOk":        "[25] Verify OK",
+    "verifyFail":      "[25] Verify FAILED",
+    "noMethod":        "[25] apt + curl required"
+  }
+}

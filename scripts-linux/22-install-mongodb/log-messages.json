@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 22-install-mongodb",
+  "messages": {
+    "start":           "[22] Starting MongoDB Community 7.0 installer",
+    "alreadyInstalled":"[22] Already installed",
+    "addingKey":       "[22] Fetching GPG key from {url}",
+    "writingRepo":     "[22] Writing apt repo: {path}",
+    "installing":      "[22] Installing via apt: {pkg}",
+    "installSuccess":  "[22] Installed",
+    "installFailed":   "[22] Install failed: {err}",
+    "verifyOk":        "[22] Verify OK",
+    "verifyFail":      "[22] Verify FAILED",
+    "noMethod":        "[22] apt + curl required"
+  }
+}

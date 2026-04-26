@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 26-install-neo4j",
+  "messages": {
+    "start":           "[26] Starting Neo4j Community installer",
+    "alreadyInstalled":"[26] Already installed",
+    "addingKey":       "[26] Fetching GPG key from {url}",
+    "writingRepo":     "[26] Writing apt repo: {path}",
+    "installing":      "[26] Installing via apt: {pkg}",
+    "installSuccess":  "[26] Installed",
+    "installFailed":   "[26] Install failed: {err}",
+    "verifyOk":        "[26] Verify OK",
+    "verifyFail":      "[26] Verify FAILED",
+    "noMethod":        "[26] apt + curl required"
+  }
+}

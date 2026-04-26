@@ -1,0 +1,11 @@
+{
+  "install": {
+    "apt": "cassandra"
+  },
+  "thirdPartyRepo": {
+    "keyUrl": "https://downloads.apache.org/cassandra/KEYS",
+    "keyring": "/usr/share/keyrings/apache-cassandra-keyring.gpg",
+    "repoListPath": "/etc/apt/sources.list.d/25-install-cassandra.list",
+    "repoLine": "deb [signed-by=/usr/share/keyrings/apache-cassandra-keyring.gpg] https://debian.cassandra.apache.org 41x main"
+  }
+}
