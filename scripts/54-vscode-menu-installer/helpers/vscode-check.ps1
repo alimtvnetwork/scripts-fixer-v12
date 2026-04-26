@@ -107,11 +107,19 @@ function Get-VsCodeMenuEntryStatus {
         exePath         = $null
         verdict         = "MISS"
         reason          = $null
+        # Sub-keys/values we EXPECT to find under $RegistryPath. Populated
+        # below so callers can report exactly what is missing instead of
+        # bailing on the first failure -- the user explicitly asked for
+        # "report any missing sub-keys".
+        expectedSubkeys = @('(Default)', 'Icon', 'command', 'command\(Default)')
+        missingSubkeys  = @()
     }
 
     $hiveInfo = Get-HiveAndSubFromRegistryPath -PsPath $RegistryPath
     if ($null -eq $hiveInfo) {
         $status.reason = "unrecognised hive in registry path: $RegistryPath"
+        # Whole key is unreadable -- everything under it is "missing".
+        $status.missingSubkeys = @($status.expectedSubkeys)
         return [pscustomobject]$status
     }
     $sub          = $hiveInfo.Sub
@@ -122,6 +130,7 @@ function Get-VsCodeMenuEntryStatus {
     $isKeyMissing = $null -eq $key
     if ($isKeyMissing) {
         $status.reason = "registry key not found in $($hiveInfo.Hive): $RegistryPath"
+        $status.missingSubkeys = @($status.expectedSubkeys)
         return [pscustomobject]$status
     }
     $status.keyExists = $true
@@ -131,6 +140,8 @@ function Get-VsCodeMenuEntryStatus {
         $status.actualLabel = [string]$defaultVal
         $status.iconPresent = -not [string]::IsNullOrWhiteSpace([string]$iconVal)
         $status.labelOk     = ($status.actualLabel -eq $ExpectedLabel)
+        if ([string]::IsNullOrWhiteSpace([string]$defaultVal)) { $status.missingSubkeys += '(Default)' }
+        if (-not $status.iconPresent)                          { $status.missingSubkeys += 'Icon' }
     } finally {
         $key.Close()
     }
@@ -138,15 +149,19 @@ function Get-VsCodeMenuEntryStatus {
     $cmdKey = $root.OpenSubKey("$sub\command")
     $isCmdMissing = $null -eq $cmdKey
     if ($isCmdMissing) {
-        $status.reason = "missing \\command subkey in $($hiveInfo.Hive) under: $RegistryPath"
-        return [pscustomobject]$status
-    }
-    try {
-        $cmdLine = [string]$cmdKey.GetValue("")
-        $status.commandValue   = $cmdLine
-        $status.commandPresent = -not [string]::IsNullOrWhiteSpace($cmdLine)
-    } finally {
-        $cmdKey.Close()
+        $status.missingSubkeys += 'command'
+        $status.missingSubkeys += 'command\(Default)'
+        # Don't early-return -- collect every missing piece so the report
+        # tells the operator the whole story in one pass.
+    } else {
+        try {
+            $cmdLine = [string]$cmdKey.GetValue("")
+            $status.commandValue   = $cmdLine
+            $status.commandPresent = -not [string]::IsNullOrWhiteSpace($cmdLine)
+            if (-not $status.commandPresent) { $status.missingSubkeys += 'command\(Default)' }
+        } finally {
+            $cmdKey.Close()
+        }
     }
 
     # Extract the first quoted token = exe path
@@ -172,6 +187,9 @@ function Get-VsCodeMenuEntryStatus {
             $reasons += "exe path not on disk: $($status.exePath)"
         } elseif (-not $status.exeResolvable) {
             $reasons += "could not parse exe path from command"
+        }
+        if ($status.missingSubkeys.Count -gt 0) {
+            $reasons += "missing sub-keys/values: " + (($status.missingSubkeys | Select-Object -Unique) -join ', ')
         }
         $status.reason = ($reasons -join "; ")
     }
