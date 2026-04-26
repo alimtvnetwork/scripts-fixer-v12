@@ -1,5 +1,5 @@
 {
-  "version": "0.136.0",
+  "version": "0.137.0",
   "description": "Linux installer registry. Mirrors Windows numbering. Windows-only scripts intentionally absent.",
   "scripts": [
     {
@@ -259,6 +259,12 @@
       "folder": "65-os-clean",
       "phase": "12",
       "title": "Cross-OS cleanup (user temp+caches, trash, package caches, logs+crash dumps)"
+    },
+    {
+      "id": "66",
+      "folder": "66-vscode-menu-cleanup-mac",
+      "phase": "12",
+      "title": "macOS VS Code 'context-menu' cleanup (Services workflows, LaunchAgents/Daemons, Login Items, code/code-insiders shims, vscode:// URL handlers)"
     }
   ]
 }
