@@ -394,7 +394,7 @@ verb_repair() {
 }
 
 verb_uninstall() {
-  log_warn "[60] To remove cleanly, use script 62-install-zsh-clear (when available)"
+  log_warn "[60] To remove cleanly, use script 62-install-zsh-clear (safe restore + strip)"
   log_info "[60] This verb only clears the install marker; it does NOT touch $OMZ_DIR or $ZSHRC."
   rm -f "$INSTALLED_MARK"
 }
