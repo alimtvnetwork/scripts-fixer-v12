@@ -186,20 +186,22 @@ APPLESCRIPT
       [ -f "$rc" ] || { log_warn "[64] shell rc not found: $rc"; return 0; }
       local s="# >>> ${STARTUP_TAG_PREFIX}-env (managed) >>>"
       local e="# <<< ${STARTUP_TAG_PREFIX}-env <<<"
+      # Buffer the WHOLE block in awk before deciding whether to keep it.
+      # If the only line left would be the markers themselves, drop both
+      # markers (and any blank line we naturally inserted before the block).
       if ! awk -v s="$s" -v e="$e" -v key="$name" '
-        BEGIN{ inb=0; remaining=0; buf="" }
-        $0==s { print; inb=1; next }
-        $0==e {
-          # If block is now empty (no exports left), drop the markers entirely.
-          if (remaining>0) { printf "%s", buf; print } else { 
-            # rewind: we already printed s above; we need to suppress it.
-            # Easier: just print the close-marker; the open is tolerated.
-            print
+        BEGIN { inb=0; kept=0; buf="" }
+        $0==s { inb=1; buf=""; kept=0; next }                # swallow open marker
+        inb && $0==e {
+          if (kept>0) {
+            # Re-emit the block verbatim, with markers
+            printf "%s\n%s%s\n", s, buf, e
           }
-          inb=0; buf=""; remaining=0; next
+          # else: block becomes empty -> drop markers entirely
+          inb=0; buf=""; kept=0; next
         }
-        inb && $0 ~ ("^export "key"=") { next }
-        inb { buf = buf $0 ORS; remaining++; next }
+        inb && $0 ~ ("^export "key"=") { next }              # drop the targeted export
+        inb { buf = buf $0 ORS; kept++; next }
         { print }
       ' "$rc" > "$rc.tmp"; then
         log_file_error "$rc.tmp" "awk env-remove failed"

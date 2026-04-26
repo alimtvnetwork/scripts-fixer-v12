@@ -33,13 +33,22 @@ while [ $# -gt 0 ]; do
     --json)        JSON_OUT=1; shift ;;
     --only-drift)  ONLY_DRIFT=1; shift ;;
     -h|--help)     VERB="help"; shift ;;
+    # ---- top-level shortcuts to script 64 (cross-OS startup-add) ----
+    startup-list|startup-ls)
+        VERB="startup-passthrough"; STARTUP_SUB="list"; shift ;;
+    startup-remove|startup-rm|startup-del)
+        VERB="startup-passthrough"; STARTUP_SUB="remove"; shift; STARTUP_REST=("$@"); break ;;
+    startup-add|startup-app)
+        VERB="startup-passthrough"; STARTUP_SUB="app";    shift; STARTUP_REST=("$@"); break ;;
+    startup-env)
+        VERB="startup-passthrough"; STARTUP_SUB="env";    shift; STARTUP_REST=("$@"); break ;;
     *) log_warn "Unknown arg: $1"; shift ;;
   esac
 done
 
 show_help() {
   cat <<EOF
-Linux Installer Toolkit (v0.123.0)
+Linux Installer Toolkit (v0.127.0)
 
 Per-script verbs:
   install              Install
@@ -53,6 +62,15 @@ System-wide verbs:
                          --json   emit machine-readable JSON
   repair-all           Run install for every id whose health != ok
                          --only-drift   only repair ids in drift state
+
+Cross-OS startup management (script 64 shortcuts):
+  startup-list                 List startup entries created by this toolkit
+  startup-remove <name> [...]  Remove a tool-created entry (alias: startup-rm)
+      --method M               Limit to one method (autostart|systemd-user|
+                               shell-rc-app|launchagent|login-item|shell-rc-env)
+      --all                    Remove from every method that holds it
+  startup-add <path> [...]     Register an app to run at login
+  startup-env  KEY=VALUE       Persist an env var
 
 Flags:
   -I <id>              Restrict to a single script id
@@ -181,6 +199,9 @@ case "${VERB:-help}" in
   list) registry_list_all | column -t -s$'\t' ;;
   health)      verb_health ;;
   repair-all)  verb_repair_all ;;
+  startup-passthrough)
+    bash "$ROOT/64-startup-add/run.sh" "$STARTUP_SUB" "${STARTUP_REST[@]:-}"
+    ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then
       run_one "$ONLY_ID" "$VERB"
