@@ -15,6 +15,7 @@ export SCRIPT_ID="67"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
 . "$ROOT/_shared/pkg-detect.sh"
+. "$ROOT/_shared/confirm.sh"
 . "$SCRIPT_DIR/helpers/detect.sh"
 . "$SCRIPT_DIR/helpers/remove.sh"
 
@@ -23,10 +24,11 @@ LOGS_ROOT="${LOGS_OVERRIDE:-$ROOT/.logs/67}"
 TS="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="$LOGS_ROOT/$TS"
 ROWS_TSV="$RUN_DIR/rows.tsv"
+PLAN_TSV="$RUN_DIR/plan.tsv"
 export ROWS_TSV
 
 # --------------------------------------------------------------------- args
-VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; SKIP_DETECT=0
+VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; SKIP_DETECT=0; ASSUME_YES=0
 while [ $# -gt 0 ]; do
   case "$1" in
     run|detect|list|help|--help|-h) [ -z "$VERB" ] && VERB="$1"; shift ;;
@@ -38,6 +40,7 @@ while [ $# -gt 0 ]; do
     --only)                  ONLY_CSV="$2"; shift 2 ;;
     --only=*)                ONLY_CSV="${1#--only=}"; shift ;;
     --skip-detect)           SKIP_DETECT=1; shift ;;
+    --yes|-y)                ASSUME_YES=1; shift ;;
     --no-color)              export NO_COLOR=1; shift ;;
     *) log_warn "Unknown flag: $1"; shift ;;
   esac
@@ -87,6 +90,10 @@ if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
 
   FLAGS
     --dry-run, -n         Preview every targeted package/path. No deletions.
+    --yes, -y             Skip the plan-then-confirm prompt (for CI / scripted use).
+                          In apply mode the script first builds a plan, prints it
+                          as a tree + table, and asks for confirmation. Pass --yes
+                          to bypass the prompt. --dry-run never prompts.
     --scope user|system   user   = ~/.config, ~/.vscode, ~/.vscode-server, per-user shims only.
                           system = + apt/snap/dpkg removal + /usr/bin shims + /etc/apt sources.
                           Default: 'auto' = system if root, else user.
