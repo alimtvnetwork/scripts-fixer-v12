@@ -74,6 +74,140 @@ function Resolve-MenuScope {
     }
 }
 
+function Write-ScopeAdminGuidance {
+    <#
+    .SYNOPSIS
+        Print user-facing guidance about whether the current run needs to
+        be re-launched from an elevated PowerShell, based on the requested
+        and resolved -Scope plus the live admin token.
+
+    .DESCRIPTION
+        Centralizes the four cases every entry-point (install, uninstall,
+        repair, sync) used to log inline:
+
+        1. Requested=AllUsers, IsAdmin=false       -> BLOCK (returns $false)
+           Loud, multi-line action plan: how to elevate, exact commands to
+           re-run with -Scope AllUsers AND a fallback to -Scope CurrentUser
+           that does NOT need admin. Mentions per-action verb so copy-paste
+           is one keystroke away.
+
+        2. Resolved=AllUsers, IsAdmin=false        -> BLOCK (returns $false)
+           (Defensive -- Resolve-MenuScope's Auto branch never gets here,
+           but a future scope mapping bug would surface clearly.)
+
+        3. Resolved=AllUsers, IsAdmin=true         -> proceed (returns $true)
+           One-line confirmation that the elevated session is doing the
+           machine-wide write, including the exact hive (HKLM\Software\Classes).
+
+        4. Resolved=CurrentUser                    -> proceed (returns $true)
+           Friendly nudge: "no admin needed; this only affects YOU. To make
+           the menu visible to every user on the box, re-run elevated with
+           -Scope AllUsers." Skipped when the caller explicitly asked for
+           CurrentUser -- they don't need to be told what they already chose.
+
+        The helper writes via Write-Log so the toolkit's structured JSON
+        log + console rendering both pick it up. Returns a bool the caller
+        uses as the gate ($false -> exit early without doing damage).
+    .PARAMETER Action
+        The verb being run (install | uninstall | repair | sync). Drives
+        the verb-specific text in the rerun command examples so the user
+        can copy-paste without mental translation.
+    .PARAMETER RequestedScope
+        The raw -Scope value the user typed (or '' when omitted -> Auto).
+    .PARAMETER ResolvedScope
+        Output of Resolve-MenuScope: 'CurrentUser' or 'AllUsers'.
+    .PARAMETER IsAdmin
+        Live admin-token check from the entry-point script.
+    .OUTPUTS
+        [bool] $true  -> caller may proceed
+               $false -> caller MUST return without writing the registry
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('install','uninstall','repair','sync')]
+        [string] $Action,
+
+        [Parameter(Mandatory)]
+        [string] $RequestedScope,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('CurrentUser','AllUsers')]
+        [string] $ResolvedScope,
+
+        [Parameter(Mandatory)]
+        [bool]   $IsAdmin
+    )
+
+    $isAllUsersRequested = ($RequestedScope -ieq 'AllUsers' -or
+                            $RequestedScope -ieq 'Machine'  -or
+                            $RequestedScope -ieq 'HKLM')
+    $wasOmitted          = [string]::IsNullOrWhiteSpace($RequestedScope) -or ($RequestedScope -ieq 'Auto')
+    $isAllUsersResolved  = ($ResolvedScope -eq 'AllUsers')
+
+    # ---- BLOCK: AllUsers requested but no admin -------------------------
+    if ($isAllUsersRequested -and -not $IsAdmin) {
+        Write-Log "" -Level "error"
+        Write-Log "============================================================" -Level "error"
+        Write-Log " ELEVATION REQUIRED -- you asked for -Scope AllUsers"        -Level "error"
+        Write-Log "============================================================" -Level "error"
+        Write-Log ("AllUsers writes to HKEY_CLASSES_ROOT (physically " +
+                   "HKLM\Software\Classes), which only Administrators can modify.") -Level "error"
+        Write-Log ("Current process is NOT elevated, so the " + $Action +
+                   " was BLOCKED before any registry change was attempted.") -Level "error"
+        Write-Log "" -Level "info"
+        Write-Log "ACTION REQUIRED -- pick ONE of the two options below:" -Level "warn"
+        Write-Log "" -Level "info"
+        Write-Log "  Option 1) Re-run elevated (machine-wide -- every user sees the menu):" -Level "info"
+        Write-Log "    1. Right-click PowerShell -> 'Run as Administrator'." -Level "info"
+        Write-Log ("    2. cd into the repo root, then run:") -Level "info"
+        Write-Log ("       .\\run.ps1 -I 54 " + $Action + " -Scope AllUsers") -Level "info"
+        Write-Log "" -Level "info"
+        Write-Log "  Option 2) Stay in this NON-admin shell (only YOUR user sees the menu):" -Level "info"
+        Write-Log ("       .\\run.ps1 -I 54 " + $Action + " -Scope CurrentUser") -Level "info"
+        Write-Log "" -Level "info"
+        Write-Log "Tip: -Scope Auto picks AllUsers when elevated, otherwise CurrentUser." -Level "info"
+        return $false
+    }
+
+    # ---- BLOCK (defensive): resolver returned AllUsers but no admin -----
+    if ($isAllUsersResolved -and -not $IsAdmin) {
+        Write-Log "" -Level "error"
+        Write-Log ("Resolved scope is AllUsers but this PowerShell is NOT " +
+                   "elevated -- refusing to attempt machine-wide registry writes.") -Level "error"
+        Write-Log ("ACTION: re-run from an elevated PowerShell:  " +
+                   ".\\run.ps1 -I 54 " + $Action + " -Scope AllUsers") -Level "warn"
+        Write-Log ("Or, if you only want to affect the current user (no admin needed):  " +
+                   ".\\run.ps1 -I 54 " + $Action + " -Scope CurrentUser") -Level "warn"
+        return $false
+    }
+
+    # ---- PROCEED: AllUsers + admin --------------------------------------
+    if ($isAllUsersResolved -and $IsAdmin) {
+        Write-Log ("Proceeding with -Scope AllUsers (elevated session detected). " +
+                   "Writes will land in HKLM\\Software\\Classes and be visible " +
+                   "to EVERY user on this machine.") -Level "success"
+        return $true
+    }
+
+    # ---- PROCEED: CurrentUser -------------------------------------------
+    # Only nudge about elevation when the user did NOT explicitly choose
+    # CurrentUser -- otherwise we're telling them what they already know.
+    if ($wasOmitted) {
+        Write-Log ("Auto-resolved scope to CurrentUser (no admin token). " +
+                   "Writes will land in HKCU\\Software\\Classes and be visible " +
+                   "ONLY to the current user (" + $env:USERNAME + ").") -Level "info"
+        Write-Log ("Want every user on this machine to see the menu? Re-run " +
+                   "from an elevated PowerShell:  .\\run.ps1 -I 54 " + $Action +
+                   " -Scope AllUsers") -Level "info"
+    } else {
+        Write-Log ("Proceeding with -Scope CurrentUser (no admin needed). " +
+                   "Writes will land in HKCU\\Software\\Classes and be visible " +
+                   "ONLY to user '" + $env:USERNAME + "'.") -Level "info"
+    }
+    return $true
+}
+
 function Convert-MenuPathForScope {
     <#
     .SYNOPSIS
