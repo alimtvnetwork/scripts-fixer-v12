@@ -1,0 +1,4 @@
+skip	caches-user	User caches	A	0	0	0
+skip	logs-journal	systemd journal vacuum (>7d)	D	0	0	0
+skip	logs-rotated	Rotated system logs (.gz/.1/.old)	D	0	0	0
+skip	logs-system	System crash + diagnostic dumps	D	0	0	0
