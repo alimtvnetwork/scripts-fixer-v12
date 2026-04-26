@@ -107,11 +107,19 @@ function Get-VsCodeMenuEntryStatus {
         exePath         = $null
         verdict         = "MISS"
         reason          = $null
+        # Sub-keys/values we EXPECT to find under $RegistryPath. Populated
+        # below so callers can report exactly what is missing instead of
+        # bailing on the first failure -- the user explicitly asked for
+        # "report any missing sub-keys".
+        expectedSubkeys = @('(Default)', 'Icon', 'command', 'command\(Default)')
+        missingSubkeys  = @()
     }
 
     $hiveInfo = Get-HiveAndSubFromRegistryPath -PsPath $RegistryPath
     if ($null -eq $hiveInfo) {
         $status.reason = "unrecognised hive in registry path: $RegistryPath"
+        # Whole key is unreadable -- everything under it is "missing".
+        $status.missingSubkeys = @($status.expectedSubkeys)
         return [pscustomobject]$status
     }
     $sub          = $hiveInfo.Sub
@@ -122,6 +130,7 @@ function Get-VsCodeMenuEntryStatus {
     $isKeyMissing = $null -eq $key
     if ($isKeyMissing) {
         $status.reason = "registry key not found in $($hiveInfo.Hive): $RegistryPath"
+        $status.missingSubkeys = @($status.expectedSubkeys)
         return [pscustomobject]$status
     }
     $status.keyExists = $true
@@ -131,6 +140,8 @@ function Get-VsCodeMenuEntryStatus {
         $status.actualLabel = [string]$defaultVal
         $status.iconPresent = -not [string]::IsNullOrWhiteSpace([string]$iconVal)
         $status.labelOk     = ($status.actualLabel -eq $ExpectedLabel)
+        if ([string]::IsNullOrWhiteSpace([string]$defaultVal)) { $status.missingSubkeys += '(Default)' }
+        if (-not $status.iconPresent)                          { $status.missingSubkeys += 'Icon' }
     } finally {
         $key.Close()
     }
@@ -138,15 +149,19 @@ function Get-VsCodeMenuEntryStatus {
     $cmdKey = $root.OpenSubKey("$sub\command")
     $isCmdMissing = $null -eq $cmdKey
     if ($isCmdMissing) {
-        $status.reason = "missing \\command subkey in $($hiveInfo.Hive) under: $RegistryPath"
-        return [pscustomobject]$status
-    }
-    try {
-        $cmdLine = [string]$cmdKey.GetValue("")
-        $status.commandValue   = $cmdLine
-        $status.commandPresent = -not [string]::IsNullOrWhiteSpace($cmdLine)
-    } finally {
-        $cmdKey.Close()
+        $status.missingSubkeys += 'command'
+        $status.missingSubkeys += 'command\(Default)'
+        # Don't early-return -- collect every missing piece so the report
+        # tells the operator the whole story in one pass.
+    } else {
+        try {
+            $cmdLine = [string]$cmdKey.GetValue("")
+            $status.commandValue   = $cmdLine
+            $status.commandPresent = -not [string]::IsNullOrWhiteSpace($cmdLine)
+            if (-not $status.commandPresent) { $status.missingSubkeys += 'command\(Default)' }
+        } finally {
+            $cmdKey.Close()
+        }
     }
 
     # Extract the first quoted token = exe path
@@ -172,6 +187,9 @@ function Get-VsCodeMenuEntryStatus {
             $reasons += "exe path not on disk: $($status.exePath)"
         } elseif (-not $status.exeResolvable) {
             $reasons += "could not parse exe path from command"
+        }
+        if ($status.missingSubkeys.Count -gt 0) {
+            $reasons += "missing sub-keys/values: " + (($status.missingSubkeys | Select-Object -Unique) -join ', ')
         }
         $status.reason = ($reasons -join "; ")
     }
@@ -263,6 +281,24 @@ function Invoke-VsCodeMenuCheck {
             if ($st.verdict -ne 'PASS' -and $st.reason) {
                 Write-Log ("           reason: " + $st.reason + " (failure path: " + $regPath + ")") -Level "error"
             }
+            # CODE RED: when sub-keys/values are missing, list each one on
+            # its own line with the exact registry path it should live under.
+            if ($st.missingSubkeys -and $st.missingSubkeys.Count -gt 0) {
+                $unique = @($st.missingSubkeys | Select-Object -Unique)
+                Write-Log ("           missing sub-keys/values (" + $unique.Count + "):") -Level "error"
+                foreach ($mk in $unique) {
+                    $childPath = if ($mk -eq '(Default)' -or $mk -eq 'Icon') {
+                        $regPath + '  -> value: ' + $mk
+                    } elseif ($mk -eq 'command') {
+                        $regPath + '\command  (subkey missing)'
+                    } elseif ($mk -eq 'command\(Default)') {
+                        $regPath + '\command  -> value: (Default)'
+                    } else {
+                        $regPath + '\' + $mk
+                    }
+                    Write-Log ("             - " + $childPath + " (failure: not present in " + $st.hive + ")") -Level "error"
+                }
+            }
             if ($st.verdict -eq 'PASS') { $totalPass++ } else { $totalMiss++ }
         }
 
@@ -270,6 +306,30 @@ function Invoke-VsCodeMenuCheck {
         $bgResult     = $perTarget | Where-Object { $_.target -eq 'background' } | Select-Object -First 1
         $folderTag    = if ($folderResult) { $folderResult.verdict } else { "n/a" }
         $bgTag        = if ($bgResult)     { $bgResult.verdict     } else { "n/a" }
+
+        # Folder + background COVERAGE line -- the user explicitly asked
+        # for confirmation that BOTH directory + background verbs exist
+        # under the resolved scope.
+        $hiveLabel = if ($hasScope) {
+            if ($Scope -eq 'AllUsers') { 'HKCR (machine-wide)' }
+            else                       { 'HKCU\Software\Classes (per-user)' }
+        } else { 'HKCR (merged view)' }
+
+        $folderPresent = ($folderResult -and $folderResult.keyExists)
+        $bgPresent     = ($bgResult     -and $bgResult.keyExists)
+        $coverageOk    = $folderPresent -and $bgPresent
+        $coverageLevel = if ($coverageOk) { 'success' } else { 'error' }
+        $coverageTag   = if ($coverageOk) { 'OK  ' } else { 'GAP ' }
+        Write-Log ("  [{0}] folder+background coverage in {1}: folder={2}, background={3}" -f `
+            $coverageTag, $hiveLabel, $folderTag, $bgTag) -Level $coverageLevel
+        if (-not $folderPresent) {
+            $missPath = if ($folderResult) { $folderResult.registryPath } else { '(no registryPaths.directory entry in config)' }
+            Write-Log ("           - directory verb MISSING at: " + $missPath + " (failure: folder right-click won't show this entry)") -Level "error"
+        }
+        if (-not $bgPresent) {
+            $missPath = if ($bgResult) { $bgResult.registryPath } else { '(no registryPaths.background entry in config)' }
+            Write-Log ("           - background verb MISSING at: " + $missPath + " (failure: empty-folder right-click won't show this entry)") -Level "error"
+        }
         Write-Log ("  summary: folder=" + $folderTag + ", background=" + $bgTag) -Level "info"
 
         $editionResults += [pscustomobject]@{
@@ -278,6 +338,9 @@ function Invoke-VsCodeMenuCheck {
             targets   = $perTarget
             folderOk  = ($folderTag -eq 'PASS')
             bgOk      = ($bgTag     -eq 'PASS')
+            folderPresent = $folderPresent
+            bgPresent     = $bgPresent
+            coverageOk    = $coverageOk
         }
     }
 
@@ -367,10 +430,23 @@ function Invoke-PostOpVerification {
             $regPath = $ed.registryPaths.$target
             $exists  = Test-RegistryKeyExists -RegistryPath $regPath
 
+            # Sub-key probe: install MUST also leave a \command\(Default) behind.
+            # We collect these in a list so the report can name every missing
+            # piece -- not just the parent key.
+            $missingChildren = @()
+            $cmdPath         = $regPath + '\command'
+            $cmdExists       = Test-RegistryKeyExists -RegistryPath $cmdPath
             if ($Action -eq 'install') {
-                $expected = 'present'
-                $isOk = $exists
-                $actual = $(if ($exists) { 'present' } else { 'MISSING' })
+                if (-not $exists)     { $missingChildren += '(parent key)' }
+                if (-not $cmdExists)  { $missingChildren += 'command' }
+            }
+
+            if ($Action -eq 'install') {
+                $expected = 'present + \\command'
+                $isOk     = $exists -and $cmdExists
+                $actual   = if ($exists -and $cmdExists)        { 'present + \command' }
+                            elseif ($exists -and -not $cmdExists){ 'parent OK, \command MISSING' }
+                            else                                 { 'MISSING' }
             } else {
                 $expected = 'absent'
                 $isOk = -not $exists
@@ -380,14 +456,27 @@ function Invoke-PostOpVerification {
             $reason = $null
             if (-not $isOk) {
                 $reason = "expected=$expected, actual=$actual at $regPath"
+                if ($missingChildren.Count -gt 0) {
+                    $reason += " (missing: " + ($missingChildren -join ', ') + ")"
+                }
             }
 
             $tag   = if ($isOk) { 'OK  ' } else { 'FAIL' }
             $level = if ($isOk) { 'success' } else { 'error' }
-            $line  = "  [{0}] {1,-10} expected={2,-7} actual={3,-13} {4}" -f $tag, $target, $expected, $actual, $regPath
+            $line  = "  [{0}] {1,-10} expected={2,-25} actual={3,-30} {4}" -f $tag, $target, $expected, $actual, $regPath
             Write-Log $line -Level $level
             if (-not $isOk) {
                 Write-Log ("        failure path: " + $regPath + " (reason: " + $reason + ")") -Level "error"
+                # Per-sub-key breakdown so the operator sees exactly which
+                # piece is gone (matches the read-only check verb's output).
+                if ($Action -eq 'install') {
+                    if (-not $exists) {
+                        Write-Log ("        - missing sub-key: " + $regPath + " (failure: parent key not created)") -Level "error"
+                    }
+                    if (-not $cmdExists) {
+                        Write-Log ("        - missing sub-key: " + $cmdPath + " (failure: \\command not created -- the menu would do nothing)") -Level "error"
+                    }
+                }
             }
 
             $details += [pscustomobject]@{
@@ -398,8 +487,32 @@ function Invoke-PostOpVerification {
                 actual   = $actual
                 ok       = $isOk
                 reason   = $reason
+                missingChildren = $missingChildren
             }
             if ($isOk) { $passCount++ } else { $failCount++ }
+        }
+
+        # Folder + background coverage line per edition (install only --
+        # uninstall already wants both gone, so the per-target FAIL/OK
+        # rows above tell the same story without an extra summary).
+        if ($Action -eq 'install') {
+            $folderRow = $details | Where-Object { $_.edition -eq $editionName -and $_.target -eq 'directory'  } | Select-Object -Last 1
+            $bgRow     = $details | Where-Object { $_.edition -eq $editionName -and $_.target -eq 'background' } | Select-Object -Last 1
+            $folderOk  = ($folderRow -and $folderRow.ok)
+            $bgOk      = ($bgRow     -and $bgRow.ok)
+            $covOk     = $folderOk -and $bgOk
+            $covTag    = if ($covOk) { 'OK  ' } else { 'GAP ' }
+            $covLevel  = if ($covOk) { 'success' } else { 'error' }
+            Write-Log ("  [{0}] folder+background coverage under scope='{1}': folder={2}, background={3}" -f `
+                $covTag, $ResolvedScope, `
+                $(if ($folderOk) { 'OK' } else { 'GAP' }), `
+                $(if ($bgOk)     { 'OK' } else { 'GAP' })) -Level $covLevel
+            if (-not $folderOk -and $folderRow) {
+                Write-Log ("           - directory verb gap at: " + $folderRow.regPath) -Level "error"
+            }
+            if (-not $bgOk -and $bgRow) {
+                Write-Log ("           - background verb gap at: " + $bgRow.regPath) -Level "error"
+            }
         }
     }
 
