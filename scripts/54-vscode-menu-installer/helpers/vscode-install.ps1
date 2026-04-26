@@ -266,7 +266,14 @@ function Resolve-VsCodeExecutable {
     <#
     .SYNOPSIS
         Resolves the VS Code exe for an edition.
-        Override > config path expansion.
+        Override > config path expansion > auto-discovery on disk.
+
+    .DESCRIPTION
+        When the configured path no longer points at a real file (VS Code
+        was uninstalled, moved, or upgraded into a different folder), this
+        falls back to Find-VsCodeInstallation so the install/sync flow
+        keeps working. The discovered path is logged with its source so
+        the user can decide whether to update config.json::vsCodePath.
     #>
     param(
         [string]$EditionName,
@@ -292,11 +299,181 @@ function Resolve-VsCodeExecutable {
     $expanded = [System.Environment]::ExpandEnvironmentVariables($ConfigPath)
     Write-Log ($LogMsgs.messages.exeFromConfig -replace '\{path\}', $expanded) -Level "info"
     $isPresent = Test-Path -LiteralPath $expanded
-    if (-not $isPresent) {
-        $msg = ($LogMsgs.messages.exeMissing -replace '\{path\}', $expanded) -replace '\{name\}', $EditionName
-        Write-Log $msg -Level "error"
+    if ($isPresent) {
+        Write-Log ($LogMsgs.messages.exeOk -replace '\{path\}', $expanded) -Level "success"
+        return $expanded
+    }
+
+    # Configured path is gone -- attempt auto-discovery before giving up.
+    Write-Log ("Configured VS Code path not on disk: " + $expanded + " (failure: file missing -- attempting auto-discovery for edition '" + $EditionName + "')") -Level "warn"
+    $discovered = Find-VsCodeInstallation -EditionName $EditionName
+    $hasDiscovered = $null -ne $discovered -and -not [string]::IsNullOrWhiteSpace($discovered.Path)
+    if ($hasDiscovered) {
+        Write-Log ("Auto-discovered VS Code at: " + $discovered.Path + " (source=" + $discovered.Source + ")") -Level "success"
+        Write-Log ("Tip: update config.json::editions." + $EditionName + ".vsCodePath to this path so future runs skip discovery.") -Level "info"
+        return $discovered.Path
+    }
+
+    $msg = ($LogMsgs.messages.exeMissing -replace '\{path\}', $expanded) -replace '\{name\}', $EditionName
+    Write-Log $msg -Level "error"
+    Write-Log ("Auto-discovery also failed: no '" + $EditionName + "' VS Code install found in well-known locations (failure path: see Find-VsCodeInstallation candidate list).") -Level "error"
+    return $null
+}
+
+function Find-VsCodeInstallation {
+    <#
+    .SYNOPSIS
+        Best-effort detection of the current VS Code exe on disk.
+
+    .DESCRIPTION
+        Probes, in order:
+          1. Well-known per-user install     (%LOCALAPPDATA%\Programs\...)
+          2. Well-known machine install      (%ProgramFiles%, %ProgramFiles(x86)%)
+          3. PATH (Get-Command code / code-insiders -> .cmd shim -> .exe)
+          4. Uninstall registry keys (HKLM + HKCU, 32 + 64-bit views)
+
+        Returns a PSCustomObject with .Path and .Source on success, or
+        $null when nothing matches. Pure read-only -- never writes anywhere.
+
+        Source values:
+          'per-user' | 'machine' | 'path-shim' | 'registry-uninstall'
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('stable','insiders')]
+        [string] $EditionName
+    )
+
+    $isInsiders = ($EditionName -eq 'insiders')
+    $exeName    = if ($isInsiders) { 'Code - Insiders.exe' } else { 'Code.exe' }
+    $shimName   = if ($isInsiders) { 'code-insiders'        } else { 'code'    }
+    $folderTail = if ($isInsiders) { 'Microsoft VS Code Insiders' } else { 'Microsoft VS Code' }
+
+    # 1) per-user install
+    $perUser = Join-Path $env:LOCALAPPDATA ("Programs\" + $folderTail + "\" + $exeName)
+    if (Test-Path -LiteralPath $perUser) {
+        return [pscustomobject]@{ Path = $perUser; Source = 'per-user' }
+    }
+
+    # 2) machine install (both Program Files variants)
+    $machineCandidates = @(
+        (Join-Path $env:ProgramFiles            ($folderTail + "\" + $exeName))
+    )
+    if ($env:ProgramW6432) {
+        $machineCandidates += (Join-Path $env:ProgramW6432 ($folderTail + "\" + $exeName))
+    }
+    $pf86 = ${env:ProgramFiles(x86)}
+    if (-not [string]::IsNullOrWhiteSpace($pf86)) {
+        $machineCandidates += (Join-Path $pf86 ($folderTail + "\" + $exeName))
+    }
+    foreach ($c in $machineCandidates) {
+        if (Test-Path -LiteralPath $c) {
+            return [pscustomobject]@{ Path = $c; Source = 'machine' }
+        }
+    }
+
+    # 3) PATH shim -- the 'code' / 'code-insiders' .cmd lives in <install>\bin
+    try {
+        $cmd = Get-Command $shimName -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source) {
+            $shimDir   = Split-Path -Parent $cmd.Source              # ...\bin
+            $installDir = Split-Path -Parent $shimDir                # install root
+            $candidate = Join-Path $installDir $exeName
+            if (Test-Path -LiteralPath $candidate) {
+                return [pscustomobject]@{ Path = $candidate; Source = 'path-shim' }
+            }
+        }
+    } catch {
+        Write-Log ("PATH shim probe failed for '" + $shimName + "' (failure: " + $_.Exception.Message + ")") -Level "warn"
+    }
+
+    # 4) Uninstall registry keys (machine + user, both views)
+    $uninstallRoots = @(
+        'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+        'Registry::HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+    )
+    $matchPattern = if ($isInsiders) { 'Visual Studio Code.*Insiders' } else { '^Microsoft Visual Studio Code( \(User\))?$' }
+    foreach ($root in $uninstallRoots) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        try {
+            $entries = Get-ChildItem -LiteralPath $root -ErrorAction Stop
+        } catch {
+            Write-Log ("Failed to enumerate uninstall root: " + $root + " (failure: " + $_.Exception.Message + ")") -Level "warn"
+            continue
+        }
+        foreach ($entry in $entries) {
+            try {
+                $props = Get-ItemProperty -LiteralPath $entry.PsPath -ErrorAction Stop
+            } catch { continue }
+            $hasName = $props.PSObject.Properties.Name -contains 'DisplayName'
+            if (-not $hasName) { continue }
+            $name = [string]$props.DisplayName
+            if ($name -notmatch $matchPattern) { continue }
+            # InstallLocation is the install root; exe sits at <root>\<exeName>.
+            $hasLoc = $props.PSObject.Properties.Name -contains 'InstallLocation'
+            if ($hasLoc) {
+                $loc = [string]$props.InstallLocation
+                if (-not [string]::IsNullOrWhiteSpace($loc)) {
+                    $candidate = Join-Path $loc $exeName
+                    if (Test-Path -LiteralPath $candidate) {
+                        return [pscustomobject]@{ Path = $candidate; Source = 'registry-uninstall' }
+                    }
+                }
+            }
+            # Fallback: parse DisplayIcon (often points at the exe directly).
+            $hasIcon = $props.PSObject.Properties.Name -contains 'DisplayIcon'
+            if ($hasIcon) {
+                $icon = [string]$props.DisplayIcon
+                if ($icon -match '^"?(.+?\.exe)"?(?:,.*)?$') {
+                    $candidate = $Matches[1]
+                    if (Test-Path -LiteralPath $candidate) {
+                        return [pscustomobject]@{ Path = $candidate; Source = 'registry-uninstall' }
+                    }
+                }
+            }
+        }
+    }
+
+    return $null
+}
+
+function Get-InstalledMenuExePath {
+    <#
+    .SYNOPSIS
+        Reads the current \command (Default) value for one target key and
+        extracts the exe path from the leading quoted token. Used by sync
+        to compare what's REGISTERED against what's actually on disk.
+
+    .OUTPUTS
+        $null when key/command missing or unparseable; otherwise the exe
+        path as a string (already passed through ExpandEnvironmentVariables).
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $RegistryPath)
+
+    $cmdPath = $RegistryPath + '\command'
+    if (-not (Test-Path -LiteralPath $cmdPath)) { return $null }
+    try {
+        $val = (Get-ItemProperty -LiteralPath $cmdPath -ErrorAction Stop).'(default)'
+    } catch {
+        Write-Log ("Failed to read installed command from: " + $cmdPath + " (failure: " + $_.Exception.Message + ")") -Level "warn"
         return $null
     }
-    Write-Log ($LogMsgs.messages.exeOk -replace '\{path\}', $expanded) -Level "success"
-    return $expanded
+    if ([string]::IsNullOrWhiteSpace($val)) { return $null }
+
+    # Extract first quoted token. When confirmBeforeLaunch is enabled the
+    # outer quoted token is pwsh.exe -- we want the inner VS Code exe in
+    # that case. Detect by scanning for "Code.exe" / "Code - Insiders.exe".
+    $exeMatches = [regex]::Matches($val, '"([^"]+\.exe)"')
+    if ($exeMatches.Count -eq 0) { return $null }
+    foreach ($m in $exeMatches) {
+        $candidate = $m.Groups[1].Value
+        if ($candidate -match '(?i)\\Code( - Insiders)?\.exe$') {
+            return [System.Environment]::ExpandEnvironmentVariables($candidate)
+        }
+    }
+    # Fallback: the first .exe match.
+    return [System.Environment]::ExpandEnvironmentVariables($exeMatches[0].Groups[1].Value)
 }
