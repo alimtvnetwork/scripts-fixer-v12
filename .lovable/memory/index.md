@@ -22,4 +22,5 @@ CODE RED: Every file/path error MUST log exact file path + failure reason. Use W
 - [Resolved folder](mem://features/resolved-folder) — .resolved/ runtime state persistence
 - [Shared helpers](mem://features/shared-helpers) — Shared PowerShell helper modules
 - [Cross-OS user mgmt (Script 68)](mem://features/04-cross-os-user-mgmt) — Linux+macOS user/group creation; CLI + JSON object/array auto-detect; mirrors Windows os add-user
+- [Script 54 scope matrix](mem://features/05-script-54-scope-matrix) — Mutating PS test harness: install/uninstall per -Scope (CurrentUser+AllUsers) with cross-hive bleed detection
 - [Cross-OS startup-add (script 64)](mem://features/03-cross-os-startup-add) — Unix-side startup manager: 6 methods, tag-based enumerate/remove
