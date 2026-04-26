@@ -1,0 +1,26 @@
+{
+  "_about": "Single source of truth for global git config defaults. Consumed by both PS1 (Apply-DefaultGitConfig) and bash (apply_default_git_config). Each entry: { key, value, scope:'global', mode:'set-if-empty'|'set-always' }.",
+  "version": 1,
+  "defaults": [
+    { "key": "init.defaultBranch",     "value": "main",        "mode": "set-if-empty" },
+    { "key": "core.autocrlf",          "value": "true",        "mode": "set-if-empty",
+      "_note": "true on Windows, input on Unix -- consumers may override per OS" },
+    { "key": "core.editor",            "value": "code --wait", "mode": "set-if-empty" },
+    { "key": "credential.helper",      "value": "manager",     "mode": "set-if-empty",
+      "_note": "credential.helper=manager works on Win (GCM-Core); 'cache --timeout=86400' is the conservative Unix default" },
+    { "key": "push.autoSetupRemote",   "value": "true",        "mode": "set-if-empty" },
+    { "key": "pull.rebase",            "value": "false",       "mode": "set-if-empty" },
+    { "key": "fetch.prune",            "value": "true",        "mode": "set-if-empty" },
+    { "key": "safe.directory",         "value": "*",           "mode": "set-if-missing-value",
+      "_note": "Conservative dev-machine default. 'set-if-missing-value' uses --add semantics so existing safe.directory entries are preserved." }
+  ],
+  "osOverrides": {
+    "linux":   { "core.autocrlf": "input", "credential.helper": "cache --timeout=86400" },
+    "darwin":  { "core.autocrlf": "input", "credential.helper": "osxkeychain" },
+    "windows": {}
+  },
+  "urlRewrites": [],
+  "_urlRewritesExample": [
+    { "from": "https://github.com/", "to": "git@github.com:" }
+  ]
+}
