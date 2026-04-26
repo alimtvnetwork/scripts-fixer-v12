@@ -51,6 +51,13 @@ while [ $# -gt 0 ]; do
         VERB="osclean-passthrough"; OSCLEAN_SUB="list-categories";  shift; OSCLEAN_REST=("$@"); break ;;
     os-clean-help|clean-help)
         VERB="osclean-passthrough"; OSCLEAN_SUB="help";             shift; OSCLEAN_REST=("$@"); break ;;
+    # ---- top-level shortcuts to script 66 (macOS VS Code menu cleanup) ----
+    vscode-mac-clean|vscode-clean-mac|menu-clean-mac)
+        VERB="vscmac-passthrough"; VSCMAC_SUB="run";  shift; VSCMAC_REST=("$@"); break ;;
+    vscode-mac-clean-list|menu-clean-mac-list)
+        VERB="vscmac-passthrough"; VSCMAC_SUB="list"; shift; VSCMAC_REST=("$@"); break ;;
+    vscode-mac-clean-help|menu-clean-mac-help)
+        VERB="vscmac-passthrough"; VSCMAC_SUB="help"; shift; VSCMAC_REST=("$@"); break ;;
     *) log_warn "Unknown arg: $1"; shift ;;
   esac
 done
@@ -92,6 +99,16 @@ Cross-OS cleanup (script 65 shortcuts):
       --yes                    Pre-approve destructive (trash, logs-system)
       --json                   Emit machine-readable summary on stdout
   os-clean-list                Print all defined cleanup categories
+
+macOS VS Code menu cleanup (script 66 shortcuts; macOS only):
+  vscode-mac-clean             Remove Finder Services workflows, LaunchAgents/
+                               Daemons, Login Items, code/code-insiders shims,
+                               and vscode:// LaunchServices handlers.
+      --dry-run                Preview every targeted path/label/handler
+      --scope user|system      Default 'auto': system if root, else user
+      --only A,B,C             Limit to comma-separated category ids
+      --edition stable|insiders Limit to one VS Code edition
+  vscode-mac-clean-list        Print all defined cleanup categories
 
 Flags:
   -I <id>              Restrict to a single script id
@@ -225,6 +242,9 @@ case "${VERB:-help}" in
     ;;
   osclean-passthrough)
     bash "$ROOT/65-os-clean/run.sh" "$OSCLEAN_SUB" "${OSCLEAN_REST[@]:-}"
+    ;;
+  vscmac-passthrough)
+    bash "$ROOT/66-vscode-menu-cleanup-mac/run.sh" "$VSCMAC_SUB" "${VSCMAC_REST[@]:-}"
     ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then
