@@ -316,7 +316,9 @@ done < <(osc_category_ids)
 human_total=$(sweep_human_bytes "$TOTAL_BYTES")
 
 if [ "$JSON_OUT" -eq 1 ]; then
-  # Emit a single JSON document (jq if available, else hand-built).
+  # Emit a single JSON document on the original stdout (fd 3 was opened
+  # at the top of the script when --json was active; everything else is
+  # already redirected to stderr).
   if command -v jq >/dev/null 2>&1; then
     awk -F'\t' 'BEGIN{print "["} NR>1{print ","} {
       printf "{\"status\":\"%s\",\"category\":\"%s\",\"label\":\"%s\",\"bucket\":\"%s\",\"count\":%s,\"bytes\":%s,\"locked\":%s}",
@@ -328,7 +330,7 @@ if [ "$JSON_OUT" -eq 1 ]; then
       --argjson totalCount "$TOTAL_COUNT" \
       --argjson totalBytes "$TOTAL_BYTES" \
       --argjson totalLocked "$TOTAL_LOCKED" \
-      '{os:$os,mode:$mode,timestamp:$ts,totals:{count:$totalCount,bytes:$totalBytes,locked:$totalLocked},rows:$rows}'
+      '{os:$os,mode:$mode,timestamp:$ts,totals:{count:$totalCount,bytes:$totalBytes,locked:$totalLocked},rows:$rows}' >&3
   else
     {
       printf '{"os":"%s","mode":"%s","timestamp":"%s","totals":{"count":%s,"bytes":%s,"locked":%s},"rows":[' \
@@ -343,7 +345,7 @@ if [ "$JSON_OUT" -eq 1 ]; then
           "$s" "$c" "$l_esc" "$b" "$cnt" "$by" "$lk"
       done < "$ROWS_TSV"
       printf ']}\n'
-    }
+    } >&3
   fi
 else
   printf '\n  ===== summary (%s) =====\n' "$MODE_LABEL"
