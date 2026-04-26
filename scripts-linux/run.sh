@@ -247,6 +247,10 @@ User management (script 68 shortcuts; Linux + macOS):
                                  comment, sudo, system, sshKeys[], sshKeyFiles[]
       --dry-run                Preview every record, change nothing
       Aliases: users-from-json, add-user-from-json
+  useradm-help                 One-page cheat-sheet for the direct-CLI flags
+                               (no JSON required). Filtered variants:
+                                 user-help    users only
+                                 group-help   groups only
 
 Flags:
   -I <id>              Restrict to a single script id
