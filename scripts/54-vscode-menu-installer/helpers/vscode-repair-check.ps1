@@ -203,12 +203,21 @@ function Invoke-VsCodeRepairInvariantCheck {
     <#
     .SYNOPSIS
         Run all three repair invariants across every enabled edition.
+
+    .DESCRIPTION
+        When -Scope is supplied (CurrentUser | AllUsers), every config path
+        is first rewritten via Convert-EditionPathsForScope so each invariant
+        is probed in the EXACT hive that install / repair would have
+        targeted. Without this, a per-user repair could not be checked
+        independently of any AllUsers entries already present in HKLM.
     .OUTPUTS
         PSCustomObject with .editions[], .totalPass, .totalMiss, .enforced
     #>
     param(
         [Parameter(Mandatory)] $Config,
-        [string] $EditionFilter = ""
+        [string] $EditionFilter = "",
+        [ValidateSet('CurrentUser','AllUsers')]
+        [string] $Scope = $null
     )
 
     $enforced = Test-RepairInvariantsEnforced -Config $Config
@@ -217,6 +226,7 @@ function Invoke-VsCodeRepairInvariantCheck {
     if ($hasFilter) {
         $editions = $editions | Where-Object { $_ -ieq $EditionFilter }
     }
+    $hasScope = -not [string]::IsNullOrWhiteSpace($Scope)
 
     $legacyNames = Get-RepairLegacyNamesRC -Config $Config
     $editionResults = @()
@@ -237,6 +247,12 @@ function Invoke-VsCodeRepairInvariantCheck {
             continue
         }
         $ed = $Config.editions.$edName
+        # Per-scope rewrite. Convert-EditionPathsForScope is provided by
+        # vscode-install.ps1; we feature-test before calling so this module
+        # remains usable when only the read-only helpers are dot-sourced.
+        if ($hasScope -and (Get-Command Convert-EditionPathsForScope -ErrorAction SilentlyContinue)) {
+            $ed = Convert-EditionPathsForScope -EditionConfig $ed -Scope $Scope
+        }
         Write-Log ("Repair-invariant check for edition '" + $edName + "' (" + $ed.label + ")") -Level "info"
 
         $perEditionMisses = 0
@@ -283,21 +299,37 @@ function Invoke-VsCodeRepairInvariantCheck {
         foreach ($t in @('file','directory','background')) {
             $hasT = $ed.registryPaths.PSObject.Properties.Name -contains $t
             if (-not $hasT) { continue }
-            $sub = Get-ShellParentSubkeyRC $ed.registryPaths.$t
-            $parentSubs[$sub] = $true
+            # Build the hive-prefixed parent path so Get-LegacyChildrenPresent
+            # probes the right hive (HKCR vs HKCU\Software\Classes). Falling
+            # back to bare HKCR-relative subs would silently re-introduce the
+            # cross-hive bug we're fixing here.
+            $info = Get-HiveAndSubFromRegistryPathRC -PsPath $ed.registryPaths.$t
+            if ($null -eq $info) { continue }
+            $parentSub = Get-ShellParentSubkeyRC $ed.registryPaths.$t
+            $parentFull = "Registry::" + (
+                switch ($info.Hive) {
+                    'HKCR' { 'HKEY_CLASSES_ROOT' }
+                    'HKCU' { 'HKEY_CURRENT_USER' }
+                    'HKLM' { 'HKEY_LOCAL_MACHINE' }
+                }
+            ) + "\$parentSub"
+            $parentSubs[$parentFull] = $info.Hive
         }
-        foreach ($parentSub in $parentSubs.Keys) {
-            $present = Get-LegacyChildrenPresent -ParentSub $parentSub -LegacyNames $legacyNames
+        foreach ($parentFull in $parentSubs.Keys) {
+            $hive = $parentSubs[$parentFull]
+            $present = Get-LegacyChildrenPresent -ParentSub $parentFull -LegacyNames $legacyNames
+            # Pretty parent label: drop the "Registry::HKEY_*\" prefix.
+            $prettyParent = "$hive\" + ($parentFull -replace '^Registry::HKEY_[A-Z_]+\\','')
             $isClean = $present.Count -eq 0
             if ($isClean) {
-                Write-Log ("  [PASS] no legacy duplicates under HKCR\" + $parentSub) -Level "success"
+                Write-Log ("  [PASS] no legacy duplicates under " + $prettyParent) -Level "success"
                 $perEditionPasses++
-                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$true; parent="HKCR\$parentSub" }
+                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$true; parent=$prettyParent }
             } else {
                 $joined = ($present -join ', ')
-                Write-Log ("  [MISS] legacy duplicates under HKCR\" + $parentSub + ": " + $joined + " (failure: run 'repair' to remove)") -Level "error"
+                Write-Log ("  [MISS] legacy duplicates under " + $prettyParent + ": " + $joined + " (failure: run 'repair' to remove)") -Level "error"
                 $perEditionMisses++
-                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$false; parent="HKCR\$parentSub"; reason="legacy children present: $joined" }
+                $details += [pscustomobject]@{ invariant='no-legacy'; ok=$false; parent=$prettyParent; reason="legacy children present: $joined" }
             }
         }
 
