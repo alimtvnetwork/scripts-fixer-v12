@@ -1,0 +1,11 @@
+{
+  "install": {
+    "method":     "officialScript",
+    "scriptUrl":  "https://ollama.com/install.sh",
+    "binPath":    "/usr/local/bin/ollama",
+    "service":    "ollama"
+  },
+  "verify": {
+    "binary": "ollama --version"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "install": {
+    "aptBase":   ["python3", "python3-venv", "python3-pip", "python3-dev", "build-essential"],
+    "pipLibs":   ["numpy", "pandas", "scipy", "scikit-learn", "matplotlib", "jupyterlab", "requests", "rich", "pydantic", "fastapi", "uvicorn"],
+    "venvPath":  "${HOME}/.venvs/ai-base"
+  },
+  "verify": {
+    "python":   "python3 --version",
+    "venv":     "test -x ${HOME}/.venvs/ai-base/bin/python",
+    "numpy":    "${HOME}/.venvs/ai-base/bin/python -c 'import numpy,pandas,sklearn'"
+  }
+}

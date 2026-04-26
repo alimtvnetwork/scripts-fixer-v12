@@ -1,0 +1,20 @@
+{
+  "description": "Log messages for 43-install-llama-cpp",
+  "messages": {
+    "start":            "[43] Starting llama.cpp build-from-source installer",
+    "aptInstall":       "[43] Installing build deps: {pkgs}",
+    "aptFailed":        "[43] apt build deps failed",
+    "cloning":          "[43] Cloning {url} into {path}",
+    "cloneFailed":      "[43] git clone failed (url={url}, dest={path})",
+    "pulling":          "[43] Existing repo found, pulling latest in {path}",
+    "configuring":      "[43] cmake configure in {path}",
+    "configureFailed":  "[43] cmake configure failed in {path}",
+    "building":         "[43] cmake build (parallel) in {path}",
+    "buildFailed":      "[43] cmake build failed in {path}",
+    "linking":          "[43] Symlinking binaries into {bin}",
+    "linkFailed":       "[43] Symlink failed for {bin}",
+    "verifyOk":         "[43] Verify OK (llama-cli --version)",
+    "verifyFail":       "[43] Verify FAILED",
+    "alreadyInstalled": "[43] Already installed"
+  }
+}

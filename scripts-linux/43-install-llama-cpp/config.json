@@ -1,0 +1,15 @@
+{
+  "install": {
+    "method":    "buildFromSource",
+    "aptDeps":   ["build-essential", "cmake", "git", "ccache", "libcurl4-openssl-dev"],
+    "repoUrl":   "https://github.com/ggerganov/llama.cpp.git",
+    "srcDir":    "${HOME}/.local/src/llama.cpp",
+    "buildDir":  "${HOME}/.local/src/llama.cpp/build",
+    "binDir":    "${HOME}/.local/bin",
+    "binaries":  ["llama-cli", "llama-server", "llama-quantize"],
+    "cmakeFlags": ["-DGGML_NATIVE=ON", "-DLLAMA_CURL=ON"]
+  },
+  "verify": {
+    "cli": "${HOME}/.local/bin/llama-cli --version"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "description": "Log messages for 41-install-python-libs",
+  "messages": {
+    "start":            "[41] Starting Python AI base libraries installer",
+    "aptInstall":       "[41] Installing apt base: {pkgs}",
+    "aptFailed":        "[41] apt base install failed",
+    "venvCreate":       "[41] Creating venv at {path}",
+    "venvFailed":       "[41] venv creation failed at {path}",
+    "pipInstall":       "[41] Installing pip libs into venv: {libs}",
+    "pipFailed":        "[41] pip install failed inside {path}",
+    "verifyOk":         "[41] Verify OK (python + venv + numpy/pandas/sklearn import)",
+    "verifyFail":       "[41] Verify FAILED",
+    "alreadyInstalled": "[41] Already installed (venv + import OK)"
+  }
+}

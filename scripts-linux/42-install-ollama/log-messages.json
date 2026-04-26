@@ -1,0 +1,14 @@
+{
+  "description": "Log messages for 42-install-ollama",
+  "messages": {
+    "start":            "[42] Starting Ollama installer",
+    "fetching":         "[42] Fetching official install script: {url}",
+    "fetchFailed":      "[42] Failed to fetch script from {url}",
+    "running":          "[42] Running official Ollama installer",
+    "runFailed":        "[42] Official installer exited non-zero",
+    "verifyOk":         "[42] Verify OK (ollama binary found)",
+    "verifyFail":       "[42] Verify FAILED (ollama not on PATH)",
+    "alreadyInstalled": "[42] Already installed",
+    "uninstall":        "[42] Removing ollama binary + systemd service"
+  }
+}
