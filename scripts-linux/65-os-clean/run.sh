@@ -265,7 +265,9 @@ _run_category() {
         contents|*)
           if [ "$preserve" != "null" ] && [ -n "$preserve" ]; then
             local preserve_csv
-            preserve_csv=$(printf '%s' "$preserve" | tr -d '[]" ' )
+            # jq pretty-prints the array across multiple lines; strip every
+            # bracket/quote/space/newline so the result is a clean CSV.
+            preserve_csv=$(printf '%s' "$preserve" | tr -d '[]" \n\r\t' )
             sweep_contents "$pp" --preserve "$preserve_csv"
           else
             sweep_contents "$pp"
