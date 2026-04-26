@@ -43,6 +43,7 @@ component_mysql_install() {
 
     local pkgs; pkgs="$(_mysql_apt_pkg)"
     sudo apt-get update -y >/dev/null 2>&1 || true
+    # shellcheck disable=SC2086 # $pkgs is a deliberately word-split package list
     if ! sudo DEBIAN_FRONTEND=noninteractive apt-get install -y $pkgs; then
         log_err "[70][mysql] apt-get install failed for: $pkgs"
         return 1
@@ -111,6 +112,7 @@ EOF
 component_mysql_uninstall() {
     local pkgs; pkgs="$(_mysql_apt_pkg)"
     sudo systemctl stop "$(_mysql_service_name)" 2>/dev/null || true
+    # shellcheck disable=SC2086 # $pkgs is a deliberately word-split package list
     sudo apt-get remove --purge -y $pkgs 2>/dev/null || true
     sudo rm -f "$(_mysql_conf_dir)/99-wordpress-installer.cnf" 2>/dev/null || true
     rm -f "$ROOT/.installed/70-mysql.ok"
