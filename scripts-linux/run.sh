@@ -521,6 +521,11 @@ case "${VERB:-help}" in
       bash "$ROOT/68-user-mgmt/verify.sh"
     fi
     ;;
+  e2e-matrix)
+    # Pure test harness -- no helpers loaded, no root required, runs
+    # everything inside mktemp sandboxes and stubs.
+    bash "$ROOT/_shared/tests/e2e/run-matrix.sh"
+    ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then
       run_one "$ONLY_ID" "$VERB"
