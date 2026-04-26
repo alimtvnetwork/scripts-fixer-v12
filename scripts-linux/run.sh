@@ -273,6 +273,11 @@ User management (script 68 shortcuts; Linux + macOS):
                                  --group  "n:flags"  inline group (repeat)
                                  --user   "n:flags"  inline user  (repeat)
                                  --dry-run           preview, change nothing
+                                 --no-verify         skip BEFORE/AFTER verify
+                                 --verify-only       just AFTER-verify (no mutations)
+  useradm-verify    [opts]     READ-ONLY pass/fail audit of current user +
+                               group state. Same inputs as useradm-bootstrap.
+                               Optional: --emit-snapshot FILE (TSV), --quiet.
 
 Flags:
   -I <id>              Restrict to a single script id
@@ -491,6 +496,16 @@ case "${VERB:-help}" in
       bash "$ROOT/68-user-mgmt/orchestrate.sh" "${_boot_filtered[@]}"
     else
       bash "$ROOT/68-user-mgmt/orchestrate.sh"
+    fi
+    ;;
+  useradm-verify)
+    # Read-only audit. Same arg-filtering dance as the other passthroughs.
+    _vrf_filtered=()
+    for _a in "${USERADM_VRF_REST[@]:-}"; do [ -n "$_a" ] && _vrf_filtered+=("$_a"); done
+    if [ "${#_vrf_filtered[@]}" -gt 0 ]; then
+      bash "$ROOT/68-user-mgmt/verify.sh" "${_vrf_filtered[@]}"
+    else
+      bash "$ROOT/68-user-mgmt/verify.sh"
     fi
     ;;
   install|check|repair|uninstall)
