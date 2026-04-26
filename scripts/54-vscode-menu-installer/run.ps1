@@ -10,6 +10,8 @@ param(
 
     [string]$Edition,
     [string]$VsCodePath,
+    [ValidateSet('Auto','CurrentUser','AllUsers')]
+    [string]$Scope = 'Auto',
 
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Rest = @(),
@@ -45,10 +47,10 @@ if ($Help -or $Command -ieq "help" -or $Command -ieq "--help" -or $Command -ieq 
 
 switch ($Command.ToLower()) {
     "uninstall" {
-        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition
+        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope
     }
     "repair" {
-        & (Join-Path $scriptDir "repair.ps1") -Edition $Edition -VsCodePath $VsCodePath
+        & (Join-Path $scriptDir "repair.ps1") -Edition $Edition -VsCodePath $VsCodePath -Scope $Scope
     }
     "rollback" {
         # Per spec: rollback is a surgical "remove what we added" -- it does
@@ -72,7 +74,7 @@ switch ($Command.ToLower()) {
             Write-Host "  Proceeding with surgical removal of keys we created." -ForegroundColor Gray
             Write-Host ""
         }
-        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition
+        & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope
     }
     "check" {
         # Quick read-only registry verification for folder + background +
@@ -157,6 +159,6 @@ switch ($Command.ToLower()) {
         exit $LASTEXITCODE
     }
     default {
-        & (Join-Path $scriptDir "install.ps1") -Edition $Edition -VsCodePath $VsCodePath
+        & (Join-Path $scriptDir "install.ps1") -Edition $Edition -VsCodePath $VsCodePath -Scope $Scope
     }
 }
