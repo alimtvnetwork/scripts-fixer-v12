@@ -19,6 +19,7 @@ export SCRIPT_ID="67"
 . "$ROOT/_shared/verify.sh"
 . "$SCRIPT_DIR/helpers/detect.sh"
 . "$SCRIPT_DIR/helpers/remove.sh"
+. "$SCRIPT_DIR/helpers/verify-context-menu.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 LOGS_ROOT="${LOGS_OVERRIDE:-$ROOT/.logs/67}"
@@ -27,7 +28,9 @@ RUN_DIR="$LOGS_ROOT/$TS"
 ROWS_TSV="$RUN_DIR/rows.tsv"
 PLAN_TSV="$RUN_DIR/plan.tsv"
 VERIFY_TSV="$RUN_DIR/verify.tsv"
+VERIFY_CTX_TSV="$RUN_DIR/verify-context-menu.tsv"
 export ROWS_TSV
+export VERIFY_CTX_TSV
 
 # --------------------------------------------------------------------- args
 VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; SKIP_DETECT=0; ASSUME_YES=0
@@ -118,6 +121,15 @@ if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
     scripts-linux/run.sh 67 --dry-run
     scripts-linux/run.sh 67 --only user-config
     sudo scripts-linux/run.sh 67 --system
+
+  EXIT CODES
+    0 -- success (and context-menu / MIME scan came back clean)
+    1 -- one or more removal steps failed
+    2 -- aborted at confirmation prompt, or wrong OS
+    3 -- post-cleanup re-probe of removed targets found something still present
+    4 -- context-menu / MIME surface scan found VS Code wiring still present
+         (.desktop files, mimeapps.list lines, file-manager scripts, or live
+          xdg-mime defaults). See verify-context-menu.tsv for exact paths.
 
 EOF
   exit 0
@@ -479,6 +491,20 @@ else
   verify_render "$VERIFY_TSV" "vscode-cleanup-linux verification report"
 fi
 
+# --------------------------------------------------------------------- ctx-menu verify
+# Independent scan of every desktop-entry / MIME-handler / file-manager
+# scripts surface that VS Code can hook into. Runs in BOTH apply and
+# dry-run modes (it's read-only) and even when no methods were detected,
+# so the operator gets a definitive "context-menu entries gone?" verdict.
+VERIFY_CTX_PASSES=0; VERIFY_CTX_FAILS=0; VERIFY_CTX_SKIPS=0
+if [ "$APPLY_ABORTED" = "1" ]; then
+  log_info "===== context-menu verify skipped (run aborted at confirmation prompt) ====="
+else
+  log_info "===== context-menu / MIME surface scan (independent, read-only) ====="
+  verify_context_menu_run
+  verify_context_menu_render "$VERIFY_CTX_TSV" "vscode-cleanup-linux context-menu / MIME report"
+fi
+
 # --------------------------------------------------------------------- manifest
 _mode_label() {
   if [ "$APPLY_ABORTED" = "1" ]; then echo "aborted"
@@ -520,6 +546,20 @@ manifest="$RUN_DIR/manifest.json"
         "$vr" "$vb" "$vk" "$vt_esc" "$vd_esc"
     done < "$VERIFY_TSV"
   fi
+  printf ']},"contextMenu":{"totals":{"pass":%d,"fail":%d,"skipped":%d},"rows":[' \
+    "${VERIFY_CTX_PASSES:-0}" "${VERIFY_CTX_FAILS:-0}" "${VERIFY_CTX_SKIPS:-0}"
+  first=1
+  if [ -f "$VERIFY_CTX_TSV" ]; then
+    while IFS=$'\t' read -r cr cb ck ct cd; do
+      [ -z "$cr" ] && continue
+      [ "$first" -eq 1 ] || printf ','
+      first=0
+      ct_esc=$(printf '%s' "$ct" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      cd_esc=$(printf '%s' "$cd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      printf '{"result":"%s","bucket":"%s","kind":"%s","target":"%s","detail":"%s"}' \
+        "$cr" "$cb" "$ck" "$ct_esc" "$cd_esc"
+    done < "$VERIFY_CTX_TSV"
+  fi
   printf ']}}\n'
 } > "$manifest" 2>/dev/null \
   || log_file_error "$manifest" "manifest write failed"
@@ -539,6 +579,15 @@ fi
 if [ "${VERIFY_FAILS:-0}" -gt 0 ] && [ "$DRY_RUN" -eq 0 ]; then
   log_warn "Apply finished, but post-cleanup verification reported ${VERIFY_FAILS} target(s) still present. See verify report above and verify.tsv: $VERIFY_TSV"
   exit 3
+fi
+# Independent context-menu / MIME surface scan: if anything still references
+# code/code-insiders in desktop entries, mimeapps.list, file-manager scripts
+# directories, or live xdg-mime defaults, the user-visible right-click
+# integration is NOT actually gone. Surface that as a distinct exit code so
+# CI / wrapper scripts can branch on it.
+if [ "${VERIFY_CTX_FAILS:-0}" -gt 0 ] && [ "$DRY_RUN" -eq 0 ]; then
+  log_warn "Apply finished, but context-menu/MIME scan found ${VERIFY_CTX_FAILS} VS Code wiring entry(ies) still present. See ctx-menu report above and ${VERIFY_CTX_TSV}"
+  exit 4
 fi
 log_ok "Done."
 exit 0

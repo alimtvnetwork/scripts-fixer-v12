@@ -22,6 +22,9 @@
     "summary":          "Cleanup summary -- removed: {removed}, would-remove: {would}, missing: {missing}, skipped: {skipped}, failed: {failed} (mode={mode}, scope={scope}).",
     "manifestWritten":  "Manifest written: {path}",
     "noMethods":        "No VS Code install methods detected on this machine. Nothing to do.",
-    "rerunWithDryRun":  "Tip: re-run with --dry-run first to preview the exact set of packages/paths that will be removed."
+    "rerunWithDryRun":  "Tip: re-run with --dry-run first to preview the exact set of packages/paths that will be removed.",
+    "ctxScanStart":     "===== context-menu / MIME surface scan (independent, read-only) =====",
+    "ctxScanFail":      "Context-menu/MIME scan found {count} VS Code wiring entry(ies) still present after cleanup. See {path}",
+    "ctxScanPass":      "Context-menu/MIME scan: no VS Code wiring detected on any inspected surface."
   }
 }
