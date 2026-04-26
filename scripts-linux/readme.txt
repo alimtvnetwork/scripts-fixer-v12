@@ -2,7 +2,16 @@ Linux Installer Toolkit
 =======================
 let's start now 2026-04-26 (Asia/Kuala_Lumpur)
 
-Phase 01 milestone: skeleton + shared helpers complete (v0.114.0).
+v0.126.0 milestone: Script 64 (cross-OS startup-add) COMPLETE.
+  - 6 methods: autostart, systemd-user, shell-rc-app, launchagent, login-item, shell-rc-env
+  - Subverbs: app | env | list | remove (all wired through dispatcher)
+  - Tag-based enumeration (lovable-startup-*) -> deterministic list/remove
+  - macOS plist round-trips through plistlib; env values survive sourcing
+  - Smoke test: 4 entries -> 2 removes -> empty list
+  - Full docs: scripts-linux/64-startup-add/readme.md
+  - Memory:    .lovable/memory/features/03-cross-os-startup-add.md
+
+Earlier milestone (v0.114.0): skeleton + shared helpers complete.
 
 Layout:
   _shared/         logger, pkg-detect, parallel, file-error, registry
@@ -12,11 +21,13 @@ Layout:
   .installed/      per-script install markers (runtime)
   .resolved/       runtime resolved state
   .logs/           per-script logs
+  64-startup-add/  cross-OS startup entry manager (Linux + macOS)
 
 Resolution order per package: apt-get -> snap -> tarball/curl|sh -> none
 
 Run smoke test:    bash scripts-linux/_shared/tests/smoke.sh
 List scripts:      bash scripts-linux/run.sh --list
+Startup demo:      HOME=/tmp/x bash scripts-linux/64-startup-add/run.sh list
 
 CODE RED rule: every file/path error logs exact path + reason via log_file_error.
 
