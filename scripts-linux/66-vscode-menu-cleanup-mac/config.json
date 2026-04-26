@@ -1,0 +1,77 @@
+{
+  "_comment": "Allow-list for the macOS VS Code menu cleanup. Each target is removed in order. Nothing outside this file is ever touched (CODE RED safety: surgical, never enumerative). The targets array is the ONLY source of truth -- add/remove entries here to tune scope.",
+  "enabled": true,
+  "_scopeComment": "Default scope when --scope is omitted. 'auto' picks 'system' when running as root, else 'user'. 'user' = ~/Library only. 'system' adds /Library + /usr/local + /opt/homebrew (needs sudo).",
+  "defaultScope": "auto",
+  "_safetyComment": "Apply by default. Pass --dry-run to preview every targeted path/launchctl label/lsregister handler before any deletion. Manifest is written either way.",
+  "editions": {
+    "stable":   { "appName": "Visual Studio Code",          "bundleId": "com.microsoft.VSCode",          "shimNames": ["code"],           "urlSchemes": ["vscode"] },
+    "insiders": { "appName": "Visual Studio Code - Insiders","bundleId": "com.microsoft.VSCodeInsiders","shimNames": ["code-insiders"],"urlSchemes": ["vscode-insiders"] }
+  },
+  "targets": {
+    "_comment": "Each category is processed in array order. mode=path => remove file/symlink; mode=glob => glob within root and remove matches; mode=launchctl => unload+remove plist; mode=lsregister => unregister from LaunchServices; mode=loginitem => remove via osascript.",
+    "user": [
+      {
+        "id": "services",
+        "label": "Finder Quick Actions / Services (~/Library/Services/*Code*.workflow)",
+        "mode": "glob",
+        "root": "$HOME/Library/Services",
+        "patterns": ["*Code*.workflow", "*VSCode*.workflow", "*Visual Studio Code*.workflow"]
+      },
+      {
+        "id": "launchagents-user",
+        "label": "User LaunchAgents that reference VS Code (~/Library/LaunchAgents/*.plist)",
+        "mode": "launchctl",
+        "root": "$HOME/Library/LaunchAgents",
+        "matchProgramSubstrings": ["Code.app", "Code - Insiders.app", "/code", "/code-insiders"]
+      },
+      {
+        "id": "loginitems",
+        "label": "Login Items / open-at-login entries pointing at VS Code",
+        "mode": "loginitem",
+        "appNamesFromEditions": true
+      },
+      {
+        "id": "shims-user",
+        "label": "User-scope 'code' / 'code-insiders' shims (~/.local/bin, ~/bin)",
+        "mode": "shim",
+        "roots": ["$HOME/.local/bin", "$HOME/bin"],
+        "shimsFromEditions": true
+      },
+      {
+        "id": "url-handlers-user",
+        "label": "vscode:// URL handlers registered for the current user (LaunchServices)",
+        "mode": "lsregister",
+        "schemesFromEditions": true,
+        "userOnly": true
+      }
+    ],
+    "system": [
+      {
+        "id": "launchagents-system",
+        "label": "/Library/LaunchAgents that reference VS Code",
+        "mode": "launchctl",
+        "root": "/Library/LaunchAgents",
+        "matchProgramSubstrings": ["Code.app", "Code - Insiders.app", "/code", "/code-insiders"],
+        "requiresSudo": true
+      },
+      {
+        "id": "launchdaemons-system",
+        "label": "/Library/LaunchDaemons that reference VS Code",
+        "mode": "launchctl",
+        "root": "/Library/LaunchDaemons",
+        "matchProgramSubstrings": ["Code.app", "Code - Insiders.app", "/code", "/code-insiders"],
+        "requiresSudo": true,
+        "domain": "system"
+      },
+      {
+        "id": "shims-system",
+        "label": "System-scope 'code' / 'code-insiders' shims (/usr/local/bin, /opt/homebrew/bin)",
+        "mode": "shim",
+        "roots": ["/usr/local/bin", "/opt/homebrew/bin"],
+        "shimsFromEditions": true,
+        "requiresSudo": true
+      }
+    ]
+  }
+}
