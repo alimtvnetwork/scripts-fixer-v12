@@ -286,6 +286,11 @@ User management (script 68 shortcuts; Linux + macOS):
   useradm-verify    [opts]     READ-ONLY pass/fail audit of current user +
                                group state. Same inputs as useradm-bootstrap.
                                Optional: --emit-snapshot FILE (TSV), --quiet.
+  e2e-matrix                   End-to-end test matrix for scripts 65/66/67.
+                               Runs per-folder smoke tests, sandboxed
+                               production dry-runs, OS-guard checks (66 on
+                               Linux, 67 on macOS), and root-requirement
+                               contract checks. Aliases: e2e, test-matrix.
 
 Flags:
   -I <id>              Restrict to a single script id
