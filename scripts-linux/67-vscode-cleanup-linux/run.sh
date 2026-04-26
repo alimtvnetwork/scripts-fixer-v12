@@ -87,6 +87,13 @@ if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
   VERBS
     run        Detect install methods, then remove the matching artifacts (default).
     detect     Detect-only: print which install methods are present, no changes.
+    resolve    Detect-only, print a SINGLE classification line + exit code:
+                 0 = exactly one method present
+                 1 = multiple methods present (prints all, picks the most specific)
+                 2 = none detected
+                 3 = jq missing or other internal error
+               Output format (machine-parseable, single line):
+                 method=<id>  edition=<stable|insiders|both>  detail='<probe detail>'
     list       Print the catalog of methods + their detection probes + removal steps.
     help       This help.
 
@@ -101,7 +108,7 @@ if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
                           Default: 'auto' = system if root, else user.
     --system, --user      Shortcuts for --scope system / --scope user.
     --only A,B,C          Limit to comma-separated method ids:
-                            apt, snap, deb, tarball, user-config
+                            apt, snap, deb, tarball, binary, user-config
     --skip-detect         Run all methods listed in --only without first probing.
                           (Use only when you know which method was used.)
     --no-color            Disable ANSI colour output.
