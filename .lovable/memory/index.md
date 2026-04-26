@@ -7,6 +7,7 @@ Updated: now
 Project includes PowerShell utility scripts alongside the React web app.
 User prefers structured script projects: external JSON configs, spec docs, suggestions folder, colorful logging.
 CODE RED: Every file/path error MUST log exact file path + failure reason. Use Write-FileError helper.
+NO-QUESTIONS MODE active for next 40 tasks (from 2026-04-26): never call ask_questions; log ambiguities to .lovable/question-and-ambiguity/xx-name.md and proceed with best inference. Resume on user phrase "ask question if any understanding issues".
 
 ## Memories
 - [Script structure](mem://preferences/script-structure) — How the user wants scripts organized with configs, specs, and suggestions
@@ -22,6 +23,7 @@ CODE RED: Every file/path error MUST log exact file path + failure reason. Use W
 - [Resolved folder](mem://features/resolved-folder) — .resolved/ runtime state persistence
 - [Shared helpers](mem://features/shared-helpers) — Shared PowerShell helper modules
 - [Script 67 context-menu verifier](mem://features/13-script-67-context-menu-verifier) — Independent post-cleanup scan of Linux desktop/MIME/file-manager surfaces (exit code 4)
+- [No-Questions Mode](mem://preferences/no-questions-mode) — 40-task window: never ask the user; log ambiguities to .lovable/question-and-ambiguity/
 - [Script 67 binary detector + resolve](mem://features/12-script-67-binary-detector-resolver) — Adds 'binary' install method, two new probe kinds (cmd-no-pkg-owner, symlink-into-roots), and a `resolve` verb that prints single classification line with structured exit code
 - [Script 70 WordPress Ubuntu](mem://features/11-script-70-wordpress-ubuntu) — Modular Ubuntu LEMP+WordPress installer with --interactive prompts and root run.sh `wp`/`install wordpress`/`install wp-only` shortcuts
 - [Script 54 verbosity switch](mem://features/09-script-54-verbosity-switch) — -Verbosity Quiet|Normal|Debug for verification + audit reports; failures never suppressed
