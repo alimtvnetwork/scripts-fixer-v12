@@ -40,7 +40,7 @@ printf '%s' "$POLLUTED" > "$TMP/A/home/.zshrc"
 put_backup A 20260101-120000 "$PRISTINE"
 out=$(run62 A install); ec=$?
 [ $ec -eq 0 ] && ok "exit 0" || bad "expected 0, got $ec"
-diff <(printf '%s' "$PRISTINE") "$TMP/A/home/.zshrc" >/dev/null && ok "zshrc matches pristine backup" || bad "zshrc != pristine"
+cmp -s "$TMP/A/home/.zshrc" <(printf "%s" "$PRISTINE") && ok "zshrc matches pristine backup" || bad "zshrc != pristine"
 ls "$TMP/A/home/.zsh-backups/" | grep -q '^pre-clear-' && ok "pre-clear safety backup created" || bad "no pre-clear backup"
 [ -d "$TMP/A/home/.oh-my-zsh" ] && ok "~/.oh-my-zsh untouched (safe mode)" || bad "~/.oh-my-zsh removed in safe mode"
 
@@ -113,7 +113,7 @@ rm -rf "$TMP/F/home/.zsh-backups"
 printf '%s' "$POLLUTED" > "$TMP/F/home/.zshrc"
 out=$(run62 F install); ec=$?
 [ $ec -eq 0 ] && ok "install exit 0 with no backups" || bad "expected 0, got $ec"
-echo "$out" | grep -q "Backup root.*does not exist" && ok "warns about missing backup root" || bad "no warning"
+echo "$out" | grep -q "No timestamped backups found" && ok "warns about missing backup root" || bad "no warning"
 grep -Fq '# >>> lovable zsh extras >>>' "$TMP/F/home/.zshrc" && bad "60 marker remains" || ok "stripped despite no backup"
 
 echo
