@@ -488,7 +488,21 @@ manifest="$RUN_DIR/manifest.json"
     printf '{"status":"%s","category":"%s","label":"%s","bucket":"%s","count":%s,"bytes":%s,"locked":%s}' \
       "$s" "$c" "$l_esc" "$b" "$cnt" "$by" "$lk"
   done < "$ROWS_TSV"
-  printf ']}\n'
+  printf '],"verification":{"pass":%s,"fail":%s,"skipped":%s,"rows":[' \
+    "$VERIFY_PASSES" "$VERIFY_FAILS" "$VERIFY_SKIPS"
+  vfirst=1
+  if [ -s "$VERIFY_TSV" ]; then
+    while IFS=$'\t' read -r vr vbk vk vt vd; do
+      [ -z "$vr" ] && continue
+      [ "$vfirst" -eq 1 ] || printf ','
+      vfirst=0
+      vt_esc=$(printf '%s' "$vt" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      vd_esc=$(printf '%s' "$vd" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      printf '{"result":"%s","bucket":"%s","kind":"%s","target":"%s","detail":"%s"}' \
+        "$vr" "$vbk" "$vk" "$vt_esc" "$vd_esc"
+    done < "$VERIFY_TSV"
+  fi
+  printf ']}}\n'
 } > "$manifest" 2>/dev/null \
   || log_file_error "$manifest" "manifest write failed"
 
