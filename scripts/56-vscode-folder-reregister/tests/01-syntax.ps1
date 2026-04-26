@@ -91,14 +91,18 @@ foreach ($f in @('helpers/registry.ps1','run.ps1')) {
 #    StrictMode in this test forbids reading $LASTEXITCODE if it was never
 #    set (which happens when run.ps1 returns instead of `exit`-ing). We
 #    assert on captured output instead, which is the actual contract.
+# Help text is emitted via Write-Host, which bypasses the success+error
+# stream, so a plain `2>&1 | Out-String` capture is empty. Run pwsh as a
+# subprocess and capture its real stdout.
 try {
     $runScript = Join-Path $root 'run.ps1'
-    $out = & $runScript -Help 2>&1
-    $joined = ($out | Out-String)
-    if ($joined -match 'reregister' -and $joined -match '(?i)commands') {
+    $pwshExe   = (Get-Process -Id $PID).Path
+    $captured  = & $pwshExe -NoProfile -File $runScript -Help 2>&1 | Out-String
+    if ($captured -match 'reregister' -and $captured -match '(?i)commands') {
         _ok "help verb dispatches"
     } else {
-        _no "help verb dispatches" ("output did not include verbs/commands: " + ($joined.Substring(0, [Math]::Min(200, $joined.Length))))
+        $preview = if ($captured.Length -gt 200) { $captured.Substring(0, 200) } else { $captured }
+        _no "help verb dispatches" ("output did not include verbs/commands: " + $preview)
     }
 } catch {
     _no "help verb dispatches" $_.Exception.Message
