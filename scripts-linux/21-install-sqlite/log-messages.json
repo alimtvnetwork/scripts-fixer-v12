@@ -1,0 +1,12 @@
+{ "description": "Log messages for 21-install-sqlite",
+  "messages": {
+    "start":           "[21] Starting SQLite 3 installer",
+    "alreadyInstalled":"[21] Already installed",
+    "installing":      "[21] Installing via apt: {pkg}",
+    "installSuccess":  "[21] Installed",
+    "installFailed":   "[21] Install failed: {err}",
+    "verifyOk":        "[21] Verify OK: {detail}",
+    "verifyFail":      "[21] Verify FAILED",
+    "noMethod":        "[21] apt not available"
+  }
+}

@@ -1,0 +1,12 @@
+{ "description": "Log messages for 18-install-mysql",
+  "messages": {
+    "start":           "[18] Starting MySQL Server installer",
+    "alreadyInstalled":"[18] Already installed",
+    "installing":      "[18] Installing via apt: {pkg}",
+    "installSuccess":  "[18] Installed",
+    "installFailed":   "[18] Install failed: {err}",
+    "verifyOk":        "[18] Verify OK: {detail}",
+    "verifyFail":      "[18] Verify FAILED",
+    "noMethod":        "[18] apt not available"
+  }
+}

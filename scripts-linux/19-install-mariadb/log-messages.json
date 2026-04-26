@@ -1,0 +1,12 @@
+{ "description": "Log messages for 19-install-mariadb",
+  "messages": {
+    "start":           "[19] Starting MariaDB Server installer",
+    "alreadyInstalled":"[19] Already installed",
+    "installing":      "[19] Installing via apt: {pkg}",
+    "installSuccess":  "[19] Installed",
+    "installFailed":   "[19] Install failed: {err}",
+    "verifyOk":        "[19] Verify OK: {detail}",
+    "verifyFail":      "[19] Verify FAILED",
+    "noMethod":        "[19] apt not available"
+  }
+}

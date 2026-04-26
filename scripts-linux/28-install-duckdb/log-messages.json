@@ -1,0 +1,14 @@
+{ "description": "Log messages for 28-install-duckdb",
+  "messages": {
+    "start":            "[28] Starting DuckDB installer",
+    "alreadyInstalled": "[28] DuckDB already installed: {detail}",
+    "downloading":      "[28] Downloading DuckDB CLI zip from {url}",
+    "downloadFailed":   "[28] Download failed: {err}",
+    "extracting":       "[28] Extracting to {path}",
+    "extractFailed":    "[28] Extract failed: {err}",
+    "installSuccess":   "[28] DuckDB installed at {path}",
+    "verifyOk":         "[28] duckdb detected: {detail}",
+    "verifyFail":       "[28] duckdb not on PATH",
+    "noMethod":         "[28] curl + unzip required"
+  }
+}

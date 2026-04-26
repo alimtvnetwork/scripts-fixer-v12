@@ -1,0 +1,12 @@
+{ "description": "Log messages for 20-install-postgresql",
+  "messages": {
+    "start":           "[20] Starting PostgreSQL installer",
+    "alreadyInstalled":"[20] Already installed",
+    "installing":      "[20] Installing via apt: {pkg}",
+    "installSuccess":  "[20] Installed",
+    "installFailed":   "[20] Install failed: {err}",
+    "verifyOk":        "[20] Verify OK: {detail}",
+    "verifyFail":      "[20] Verify FAILED",
+    "noMethod":        "[20] apt not available"
+  }
+}
