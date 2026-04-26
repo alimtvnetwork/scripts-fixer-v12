@@ -57,6 +57,7 @@ main() {
     env|startup-env)               ensure_run_dir; cmd_env    "$@"; exit $? ;;
     list|startup-list|ls)          cmd_list   "$@"; exit $? ;;
     remove|startup-remove|rm|del)  ensure_run_dir; cmd_remove "$@"; exit $? ;;
+    prune|startup-prune|purge)     ensure_run_dir; cmd_prune  "$@"; exit $? ;;
     ""|help|-h|--help) usage; exit 0 ;;
     *) log_warn "[64] Unknown subverb: '$sub'"; usage; exit 1 ;;
   esac
@@ -186,6 +187,59 @@ cmd_remove() {
     log_ok "[64] removed $hits entr$([ $hits -eq 1 ] && echo y || echo ies) for '$name'"
   fi
   return $rc
+}
+
+# Sweep ALL tool-tagged entries in one shot. Idempotent: re-runs with nothing
+# left return exit 0 with a warning. Optional --dry-run to preview.
+cmd_prune() {
+  if ! declare -f remove_startup_entry >/dev/null 2>&1; then
+    log_file_error "$SCRIPT_DIR/helpers/enumerate.sh" "remove_startup_entry not loaded"
+    return 1
+  fi
+  local dry=0 yes=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --dry-run|-n) dry=1; shift ;;
+      --yes|-y)     yes=1; shift ;;
+      -h|--help)    usage; return 0 ;;
+      *) log_warn "[64] ignoring extra arg: $1"; shift ;;
+    esac
+  done
+
+  # Snapshot first so removals don't perturb the iteration.
+  local snapshot; snapshot=$(list_startup_entries)
+  if [ -z "$snapshot" ]; then
+    log_info "[64] prune: nothing to remove (0 tool-tagged entries)"
+    return 0
+  fi
+
+  local total; total=$(printf '%s\n' "$snapshot" | grep -c .)
+  if [ "$dry" -eq 1 ]; then
+    printf 'PRUNE PREVIEW (would remove %d entr%s):\n' "$total" "$([ $total -eq 1 ] && echo y || echo ies)"
+    printf '  %s\n' $'METHOD\tNAME\tPATH/ID'
+    printf '%s\n' "$snapshot" | awk -F'\t' '{ printf "  %-15s %-20s %s\n", $1, $2, $3 }'
+    return 0
+  fi
+
+  if [ "$yes" -ne 1 ] && [ -t 0 ]; then
+    printf '[64] prune will remove %d tool-tagged entr%s. Continue? [y/N] ' \
+      "$total" "$([ $total -eq 1 ] && echo y || echo ies)" >&2
+    read -r ans
+    case "${ans:-}" in y|Y|yes) ;; *) log_info "[64] prune cancelled"; return 0 ;; esac
+  fi
+
+  local removed=0 failed=0
+  while IFS=$'\t' read -r m n _p _scope; do
+    [ -z "${m:-}" ] && continue
+    if remove_startup_entry "$m" "$n"; then
+      removed=$((removed+1))
+    else
+      failed=$((failed+1))
+    fi
+  done < <(printf '%s\n' "$snapshot")
+
+  log_ok "[64] prune: removed $removed entr$([ $removed -eq 1 ] && echo y || echo ies)$([ $failed -gt 0 ] && echo " ($failed failed)")"
+  [ $failed -eq 0 ]
 }
 
 main "$@"
