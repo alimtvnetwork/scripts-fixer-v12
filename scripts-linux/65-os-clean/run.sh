@@ -384,8 +384,53 @@ else
   fi
 fi
 
+# ---------- verify --------------------------------------------------------
+# Independent post-cleanup verification. Re-probes every removed/would
+# target (file or dir) using _shared/verify.sh and emits a pass/fail
+# report. Skipped only when the operator aborted at the prompt
+# (APPLY_ABORTED=1) -- in dry-run we still verify so the operator can
+# see "would these targets actually be gone if I applied?".
+VERIFY_PASSES=0; VERIFY_FAILS=0; VERIFY_SKIPS=0
+_mode_for_verify="$MODE_LABEL"
+if [ "$APPLY_ABORTED" = "1" ]; then
+  log_info "===== verify phase skipped (run aborted at confirmation prompt) ====="
+else
+  log_info "===== verify phase (re-probing every targeted item) ====="
+  # Reshape TARGETS_TSV (status\tkind\ttarget\tbytes\tdetail) into the
+  # verify_run input schema (status\tbucket\tkind\ttarget\tdetail).
+  verify_input="$RUN_DIR/verify-input.tsv"
+  : > "$verify_input" || log_file_error "$verify_input" "failed to truncate verify-input TSV"
+  while IFS=$'\t' read -r vs vk vt vb vd; do
+    [ -z "$vs" ] && continue
+    vbucket="user"
+    case "$vt" in cmd:*) vbucket="command" ;; esac
+    printf '%s\t%s\t%s\t%s\t%s\n' "$vs" "$vbucket" "$vk" "$vt" "$vd" >> "$verify_input"
+  done < "$TARGETS_TSV"
+  verify_run    "$verify_input" "$VERIFY_TSV" "$_mode_for_verify"
+  verify_render "$VERIFY_TSV"   "os-clean verification report"
+fi
+
 # ---------- summary -------------------------------------------------------
 human_total=$(sweep_human_bytes "$TOTAL_BYTES")
+
+# Per-category verified counts (PASS/FAIL/SKIP) joined onto the per-row table.
+# We tally by the longest category-name prefix that matches the target's
+# first path component or "cmd:..." token. Cheaper + good enough for the
+# operator-facing summary; the authoritative breakdown lives in verify.tsv.
+declare -A _CAT_VPASS _CAT_VFAIL _CAT_VSKIP
+if [ -s "$VERIFY_TSV" ]; then
+  while IFS=$'\t' read -r vresult vbucket vkind vtarget vdetail; do
+    [ -z "$vresult" ] && continue
+    # Find which category this target belongs to by re-scanning ROWS_TSV
+    # is overkill; we just bin by the result for the global summary line
+    # and let verify.tsv carry the per-target detail.
+    case "$vresult" in
+      pass)        VERIFY_PASSES=$((VERIFY_PASSES+1)) ;;
+      fail)        VERIFY_FAILS=$((VERIFY_FAILS+1)) ;;
+      skip*|skipped) VERIFY_SKIPS=$((VERIFY_SKIPS+1)) ;;
+    esac
+  done < "$VERIFY_TSV"
+fi
 
 if [ "$JSON_OUT" -eq 1 ]; then
   # Emit a single JSON document on the original stdout (fd 3 was opened
