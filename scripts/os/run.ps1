@@ -325,6 +325,18 @@ switch ($normalizedAction) {
         & (Join-Path $scriptDir "helpers\add-user.ps1") @Rest
         exit $LASTEXITCODE
     }
+    { $_ -in @("startup-add", "startupadd") } {
+        & (Join-Path $scriptDir "helpers\startup-add.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("startup-list", "startuplist") } {
+        & (Join-Path $scriptDir "helpers\startup-list.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("startup-remove", "startupremove", "startup-rm") } {
+        & (Join-Path $scriptDir "helpers\startup-remove.ps1") @Rest
+        exit $LASTEXITCODE
+    }
     { $_ -in @("help", "--help", "-h", "") } {
         Show-OsHelp
         exit 0
