@@ -185,6 +185,7 @@ sweep_glob() {
     if [ ! -d "$root_for_glob" ]; then
       _SW_NOTES="${_SW_NOTES}Root not present: ${root_for_glob}
 "
+      _sw_emit_target "missing" "rm-dir" "$root_for_glob" 0 "glob root absent (pattern=$pattern)"
       return 0
     fi
     while IFS= read -r -d '' entry; do
@@ -203,21 +204,31 @@ sweep_glob() {
   if [ "${#matches[@]}" -eq 0 ]; then
     _SW_NOTES="${_SW_NOTES}No matches for pattern: ${pattern}
 "
+    _sw_emit_target "missing" "rm-file" "$pattern" 0 "no glob matches"
     return 0
   fi
 
   for entry in "${matches[@]}"; do
     [ -e "$entry" ] || continue
-    before=$((before + $(sweep_size_bytes "$entry")))
+    local entry_bytes
+    entry_bytes=$(sweep_size_bytes "$entry")
+    before=$((before + entry_bytes))
+    local entry_kind="rm-file"
+    [ -d "$entry" ] && entry_kind="rm-dir"
     if [ "$dry_run" = "1" ]; then
       _SW_COUNT=$((_SW_COUNT + 1))
+      _sw_emit_target "would" "$entry_kind" "$entry" "$entry_bytes" "match for $pattern"
       continue
     fi
     err=$(rm -rf -- "$entry" 2>&1); rc=$?
     if [ "$rc" -eq 0 ]; then
       _SW_COUNT=$((_SW_COUNT + 1))
+      _sw_emit_target "removed" "$entry_kind" "$entry" "$entry_bytes" "match for $pattern"
     else
-      _sw_add_lock "$entry" "$(_sw_classify_err "$err")"
+      local lock_reason
+      lock_reason=$(_sw_classify_err "$err")
+      _sw_add_lock "$entry" "$lock_reason"
+      _sw_emit_target "failed" "$entry_kind" "$entry" 0 "$lock_reason"
     fi
   done
 
