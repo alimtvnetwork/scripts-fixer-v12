@@ -58,6 +58,14 @@ switch ($Command.ToLower()) {
     "repair" {
         & (Join-Path $scriptDir "repair.ps1") -Edition $Edition -VsCodePath $VsCodePath -Scope $Scope
     }
+    "sync" {
+        # Auto-detect current VS Code path and rewrite drifted \command
+        # values. Pass --dry-run via $Rest to preview changes.
+        $isDryRun = ($Rest -contains '-DryRun') -or ($Rest -contains '--dry-run')
+        $syncArgs = @{ Edition = $Edition; VsCodePath = $VsCodePath; Scope = $Scope }
+        if ($isDryRun) { $syncArgs['DryRun'] = $true }
+        & (Join-Path $scriptDir "sync.ps1") @syncArgs
+    }
     "rollback" {
         # Per spec: rollback is a surgical "remove what we added" -- it does
         # NOT auto-import the pre-install snapshot. We point the user at the

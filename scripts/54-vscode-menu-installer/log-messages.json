@@ -44,7 +44,8 @@
       "repair":    "[ADMIN] Make the menu appear on FOLDERS + folder background but NOT on files. Re-asserts directory + background keys, deletes the file-target key, strips suppression values (ProgrammaticAccessOnly, AppliesTo, NoWorkingDirectory), sweeps legacy duplicates listed in config.repair.legacyNames.",
       "rollback":  "[ADMIN] Alias for 'uninstall' (surgical delete). Also prints the path of the most recent pre-install snapshot so you can manually `reg.exe import` it to restore third-party entries.",
       "check":     "[no-admin] Quick read-only registry check. Reports PASS/MISS for file, folder, and background entries per edition. Exit 0=all pass, 1=one or more miss, 2=config missing.",
-      "verify":    "[no-admin] Full read-only test harness (leaf existence + command template). Accepts -Edition, -OnlyTargets, -OnlyCases, -NoColor."
+      "verify":    "[no-admin] Full read-only test harness (leaf existence + command template). Accepts -Edition, -OnlyTargets, -OnlyCases, -NoColor.",
+      "sync":      "[scope-aware] Auto-detect the current VS Code exe (config path > PATH shim > Programs folders > uninstall registry) and rewrite any registered \\command whose exe path drifted (VS Code moved, upgraded, reinstalled, or wrong folder). Skips keys that are already in sync. Pass --dry-run to preview without writing."
     },
     "parameters": {
       "-Edition":      "Limit the run to one edition: 'stable' or 'insiders'. Default: every edition listed in config.enabledEditions.",
