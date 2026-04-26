@@ -177,3 +177,106 @@ function Write-RegistryAuditEvent {
 
     return (_Append-AuditLine -Record $record)
 }
+
+function Get-RegistryAuditSummary {
+    <#
+    .SYNOPSIS
+        Read back the CURRENT run's audit JSONL file and group every event
+        by operation. Used by the post-op verification step so the user
+        sees exactly which registry keys were added, removed, skipped, or
+        failed -- no need to grep the JSONL by hand.
+
+    .OUTPUTS
+        PSCustomObject with:
+          .auditPath  -- path to the JSONL file (or $null)
+          .added      -- @( @{ regPath; edition; target; values } ... )
+          .removed    -- @( @{ regPath; edition; target } ... )
+          .skipped    -- @( @{ regPath; edition; target } ... )  (skip-absent)
+          .failed     -- @( @{ regPath; edition; target; reason } ... )
+          .totalAdded / .totalRemoved / .totalSkipped / .totalFailed
+    #>
+    [CmdletBinding()]
+    param()
+
+    $result = [pscustomobject]@{
+        auditPath    = $script:AuditFilePath
+        added        = @()
+        removed      = @()
+        skipped      = @()
+        failed       = @()
+        totalAdded   = 0
+        totalRemoved = 0
+        totalSkipped = 0
+        totalFailed  = 0
+    }
+
+    $isPathMissing = [string]::IsNullOrWhiteSpace($script:AuditFilePath)
+    if ($isPathMissing) { return $result }
+    $isFileMissing = -not (Test-Path -LiteralPath $script:AuditFilePath)
+    if ($isFileMissing) {
+        Write-Log "Audit file not found at: $script:AuditFilePath (failure: cannot summarize a file that does not exist)" -Level "warn"
+        return $result
+    }
+
+    try {
+        $lines = Get-Content -LiteralPath $script:AuditFilePath -Encoding UTF8 -ErrorAction Stop
+    } catch {
+        Write-Log "Failed to read audit file: $script:AuditFilePath (failure: $($_.Exception.Message))" -Level "warn"
+        return $result
+    }
+
+    foreach ($line in $lines) {
+        $isBlank = [string]::IsNullOrWhiteSpace($line)
+        if ($isBlank) { continue }
+        try {
+            $rec = $line | ConvertFrom-Json -ErrorAction Stop
+        } catch {
+            # Skip corrupt line, but flag it -- file path + reason per CODE RED rule.
+            Write-Log "Skipping corrupt audit line in: $script:AuditFilePath (failure: $($_.Exception.Message))" -Level "warn"
+            continue
+        }
+
+        $hasOp = $rec.PSObject.Properties.Name -contains 'operation'
+        if (-not $hasOp) { continue }
+
+        switch ($rec.operation) {
+            'add' {
+                $result.added += [pscustomobject]@{
+                    regPath = $rec.regPath
+                    edition = $rec.edition
+                    target  = $rec.target
+                    values  = $(if ($rec.PSObject.Properties.Name -contains 'values') { $rec.values } else { $null })
+                }
+            }
+            'remove' {
+                $result.removed += [pscustomobject]@{
+                    regPath = $rec.regPath
+                    edition = $rec.edition
+                    target  = $rec.target
+                }
+            }
+            'skip-absent' {
+                $result.skipped += [pscustomobject]@{
+                    regPath = $rec.regPath
+                    edition = $rec.edition
+                    target  = $rec.target
+                }
+            }
+            'fail' {
+                $result.failed += [pscustomobject]@{
+                    regPath = $rec.regPath
+                    edition = $rec.edition
+                    target  = $rec.target
+                    reason  = $(if ($rec.PSObject.Properties.Name -contains 'reason') { $rec.reason } else { $null })
+                }
+            }
+            default { } # session-start and any future op are ignored on purpose.
+        }
+    }
+
+    $result.totalAdded   = $result.added.Count
+    $result.totalRemoved = $result.removed.Count
+    $result.totalSkipped = $result.skipped.Count
+    $result.totalFailed  = $result.failed.Count
+    return $result
+}
