@@ -37,7 +37,7 @@ Usage: ./run.sh -I 64 -- <subverb> [args]
 Subverbs:
   app  <path>     [--method M] [--name N] [--args "..."] [--interactive]
   env  KEY=VALUE  [--scope user] [--method shell-rc|systemd-env|launchctl]
-  list            [--scope user|all]
+  list            [--method M] [--json|--format=table|json]
   remove <name>   [--method ...]
 
 Linux methods : autostart | systemd-user | shell-rc
@@ -142,11 +142,14 @@ cmd_list() {
     return 1
   fi
   local fmt="table"
+  local method=""
   while [ $# -gt 0 ]; do
     case "$1" in
       --json)            fmt="json"; shift ;;
       --format)          fmt="${2:-table}"; shift 2 ;;
       --format=*)        fmt="${1#--format=}"; shift ;;
+      --method)          method="${2:-}"; shift 2 ;;
+      --method=*)        method="${1#--method=}"; shift ;;
       -h|--help)         usage; return 0 ;;
       *) log_warn "[64] list: ignoring extra arg: $1"; shift ;;
     esac
@@ -159,6 +162,7 @@ cmd_list() {
       printf -- '--------------- -------------------- --------------------------------------------\n'
       while IFS=$'\t' read -r m n p _scope; do
         [ -z "${m:-}" ] && continue
+        _method_matches "$method" "$m" || continue
         printf '%-15s %-20s %s\n' "$m" "$n" "$p"
         count=$((count+1))
       done < <(list_startup_entries)
@@ -167,7 +171,7 @@ cmd_list() {
       return 0
       ;;
     json)
-      _emit_list_json
+      _emit_list_json "$method"
       return $?
       ;;
     *)
@@ -181,6 +185,7 @@ cmd_list() {
 #   { "method": "...", "name": "...", "path": "...", "scope": "user" }
 # Strings are escaped per RFC 8259 (\, ", control chars). Empty list -> [].
 _emit_list_json() {
+  local method="${1:-}"
   local tag="${STARTUP_TAG_PREFIX:-lovable-startup}"
 
   # Use python3 when available for guaranteed-correct escaping; fall back to
@@ -191,6 +196,15 @@ _emit_list_json() {
   if command -v python3 >/dev/null 2>&1; then
     list_startup_entries | python3 -c '
 import json, sys
+want = sys.argv[1] if len(sys.argv) > 1 else ""
+def keep(method):
+    if not want or want == "ALL":
+        return True
+    if want == method:
+        return True
+    if want == "shell-rc" and method in ("shell-rc-app", "shell-rc-env"):
+        return True
+    return False
 rows = []
 for line in sys.stdin:
     line = line.rstrip("\n")
@@ -199,6 +213,8 @@ for line in sys.stdin:
     parts = line.split("\t")
     while len(parts) < 4:
         parts.append("")
+    if not keep(parts[0]):
+        continue
     rows.append({
         "method": parts[0],
         "name":   parts[1],
@@ -208,12 +224,12 @@ for line in sys.stdin:
 out = {"tag": '"\"$tag\""', "count": len(rows), "entries": rows}
 json.dump(out, sys.stdout, indent=2, sort_keys=False)
 sys.stdout.write("\n")
-'
+' "$method"
     return $?
   fi
 
   # awk fallback (POSIX awk + gawk both work).
-  list_startup_entries | awk -F'\t' -v tag="$tag" '
+  list_startup_entries | awk -F'\t' -v tag="$tag" -v want="$method" '
     function jesc(s,    r) {
       r = s
       gsub(/\\/, "\\\\", r)
@@ -225,9 +241,16 @@ sys.stdout.write("\n")
       gsub(/\f/, "\\f",  r)
       return r
     }
+    function keep(meth) {
+      if (want == "" || want == "ALL") return 1
+      if (want == meth) return 1
+      if (want == "shell-rc" && (meth == "shell-rc-app" || meth == "shell-rc-env")) return 1
+      return 0
+    }
     BEGIN { n=0 }
     NF==0 { next }
     {
+      if (!keep($1)) next
       n++
       m[n]=$1; nm[n]=$2; p[n]=$3; sc[n]=($4==""?"user":$4)
     }
