@@ -74,6 +74,8 @@ Inline flag inputs (repeatable, all optional):
 Misc:
   --dry-run                Forwarded to every leaf; nothing changes on disk
   -h | --help              This help
+  --no-verify              Skip the BEFORE/AFTER verify.sh snapshots
+  --verify-only            Run AFTER-verify only; no mutations performed
 
 Order is fixed: groups (CLI then JSON) before users (CLI then JSON).
 No business logic lives here -- all real work happens in the leaf scripts.
@@ -87,6 +89,8 @@ ORCH_USERS_JSON=""
 ORCH_DRY_RUN="${UM_DRY_RUN:-0}"
 ORCH_GROUPS_CLI=()   # entries like "name:flag1,flag2,..."
 ORCH_USERS_CLI=()
+ORCH_NO_VERIFY=0
+ORCH_VERIFY_ONLY=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -97,6 +101,8 @@ while [ $# -gt 0 ]; do
     --group)         ORCH_GROUPS_CLI+=("${2:-}"); shift 2 ;;
     --user)          ORCH_USERS_CLI+=("${2:-}");  shift 2 ;;
     --dry-run)       ORCH_DRY_RUN=1;             shift ;;
+    --no-verify)     ORCH_NO_VERIFY=1;           shift ;;
+    --verify-only)   ORCH_VERIFY_ONLY=1;         shift ;;
     --) shift; break ;;
     -*)
       log_err "unknown option: '$1' (failure: see --help for the full list)"
@@ -147,7 +153,9 @@ if [ "$ORCH_DRY_RUN" = "1" ]; then log_warn "$(um_msg dryRunBanner)"; fi
 # phase its own short-lived file and merging them at the end.
 ORCH_RUN_ID="$$-$(date +%s 2>/dev/null || echo 0)"
 ORCH_SUMMARY_MERGED=$(mktemp -t 68-orch-summary.XXXXXX)
-trap 'rm -f "$ORCH_SUMMARY_MERGED" "${ORCH_SPLIT_GROUPS:-}" "${ORCH_SPLIT_USERS:-}" 2>/dev/null || true' EXIT
+ORCH_SNAP_BEFORE=$(mktemp -t 68-orch-snap-before.XXXXXX)
+ORCH_SNAP_AFTER=$(mktemp -t 68-orch-snap-after.XXXXXX)
+trap 'rm -f "$ORCH_SUMMARY_MERGED" "$ORCH_SNAP_BEFORE" "$ORCH_SNAP_AFTER" "${ORCH_SPLIT_GROUPS:-}" "${ORCH_SPLIT_USERS:-}" 2>/dev/null || true' EXIT
 
 # Helper: run a leaf with a private summary file and merge it into the master.
 orch_run_leaf() {
@@ -169,6 +177,49 @@ orch_run_leaf() {
 }
 
 ORCH_RC=0
+
+# ---- verify expectations builder ------------------------------------------
+# Translate every parsed input source into the SAME flag set verify.sh
+# accepts. We pass JSON files straight through and add --group/--user for
+# every inline entry. Returns the argv array via global ORCH_VRF_ARGS.
+orch_build_verify_args() {
+  ORCH_VRF_ARGS=()
+  [ -n "$ORCH_SPEC" ]        && ORCH_VRF_ARGS+=(--spec        "$ORCH_SPEC")
+  [ -n "$ORCH_GROUPS_JSON" ] && ORCH_VRF_ARGS+=(--groups-json "$ORCH_GROUPS_JSON")
+  [ -n "$ORCH_USERS_JSON" ]  && ORCH_VRF_ARGS+=(--users-json  "$ORCH_USERS_JSON")
+  for entry in "${ORCH_GROUPS_CLI[@]:-}"; do
+    [ -z "$entry" ] && continue
+    ORCH_VRF_ARGS+=(--group "${entry%%:*}")
+  done
+  for entry in "${ORCH_USERS_CLI[@]:-}"; do
+    [ -z "$entry" ] && continue
+    ORCH_VRF_ARGS+=(--user "${entry%%:*}")
+  done
+}
+
+# ---- BEFORE snapshot --------------------------------------------------------
+# Skipped under --no-verify or --dry-run (since dry-run never mutates state,
+# the AFTER snapshot would be identical -- pointless noise).
+ORCH_VERIFY_RAN=0
+if [ "$ORCH_NO_VERIFY" = "0" ] && [ "$ORCH_DRY_RUN" = "0" ]; then
+  orch_build_verify_args
+  log_info "================ verify: BEFORE ================"
+  bash "$SCRIPT_DIR/verify.sh" "${ORCH_VRF_ARGS[@]}" \
+        --emit-snapshot "$ORCH_SNAP_BEFORE" --quiet \
+    || true   # before-snapshot failures are EXPECTED (entities not yet created)
+  ORCH_VERIFY_RAN=1
+fi
+
+# Short-circuit when --verify-only: skip all mutation phases entirely.
+if [ "$ORCH_VERIFY_ONLY" = "1" ]; then
+  orch_build_verify_args
+  log_info "================ verify: ONLY (no mutations) ================"
+  if bash "$SCRIPT_DIR/verify.sh" "${ORCH_VRF_ARGS[@]}"; then
+    exit 0
+  else
+    exit 1
+  fi
+fi
 
 # ---- split unified --spec into a groups file + a users file ----------------
 # We don't reimplement the JSON loader -- we just slice the spec and forward
@@ -282,5 +333,50 @@ if [ -s "$ORCH_SUMMARY_MERGED" ]; then
 else
   log_info "(no per-record rows recorded by leaves)"
 fi
+
+# ---- AFTER snapshot + diff + pass/fail ------------------------------------
+# This is the authoritative pass/fail for the whole orchestrator run.
+# A non-zero ORCH_RC from a leaf does NOT automatically mean the entity is
+# missing (e.g. existing user + new group attempt) -- so we trust verify.sh.
+ORCH_VERIFY_RC=0
+if [ "$ORCH_VERIFY_RAN" = "1" ]; then
+  log_info "================ verify: AFTER ================"
+  if bash "$SCRIPT_DIR/verify.sh" "${ORCH_VRF_ARGS[@]}" \
+          --emit-snapshot "$ORCH_SNAP_AFTER"; then
+    ORCH_VERIFY_RC=0
+  else
+    ORCH_VERIFY_RC=1
+  fi
+
+  # Idempotency report: diff BEFORE vs AFTER per entity.
+  # Rows are: kind\tname\texists\tid\textra
+  log_info "================ idempotency: BEFORE -> AFTER ================"
+  if [ -s "$ORCH_SNAP_BEFORE" ] || [ -s "$ORCH_SNAP_AFTER" ]; then
+    awk -F'\t' '
+      FNR==NR { before[$1"\t"$2] = $3"\t"$4; next }
+      {
+        key = $1"\t"$2; b = before[key]; a = $3"\t"$4
+        split(b, B, "\t"); split(a, A, "\t")
+        b_ex=B[1]; a_ex=A[1]; b_id=B[2]; a_id=A[2]
+        if (b == "")           { state="CREATED        " }
+        else if (b == a)       { state="unchanged      " }
+        else if (b_ex==0 && a_ex==1) { state="CREATED        " }
+        else if (b_ex==1 && a_ex==0) { state="REMOVED        " }
+        else                   { state="modified       " }
+        printf "  %s %-7s %-20s before=%s after=%s\n",
+               state, $1, $2,
+               (b_ex=="" ? "absent" : (b_ex==0 ? "absent" : "id="b_id)),
+               (a_ex==0 ? "absent" : "id="a_id)
+      }
+    ' "$ORCH_SNAP_BEFORE" "$ORCH_SNAP_AFTER"
+  else
+    log_info "(no snapshot rows -- nothing was expected)"
+  fi
+
+  if [ "$ORCH_VERIFY_RC" -ne 0 ]; then ORCH_RC=1; fi
+else
+  log_info "(verify skipped: --no-verify or --dry-run)"
+fi
+
 log_info "exit code: $ORCH_RC  (0 = all phases ok; 1 = at least one record failed)"
 exit "$ORCH_RC"
