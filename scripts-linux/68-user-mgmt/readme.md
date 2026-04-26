@@ -95,6 +95,21 @@ sudo bash run.sh add-group-json examples/groups.json --dry-run
 | `comment`      | string    | GECOS / RealName                                                   |
 | `sudo`         | bool      | also add to `sudo` (Linux) or `admin` (macOS)                      |
 | `system`       | bool      | system account (Linux only; ignored on macOS)                      |
+| `sshKeys`      | string[]  | inline OpenSSH public keys to install in `~/.ssh/authorized_keys`  |
+| `sshKeyFiles`  | string[]  | host paths to `.pub` files (one or many keys per file; comments ok)|
+
+SSH-key install behaviour:
+- Dir/file perms enforced: `~/.ssh` → `0700`, `authorized_keys` → `0600`,
+  both `chown`'d to the new user + their primary group.
+- Existing `authorized_keys` content is preserved; new keys are appended
+  and the merged file is de-duplicated.
+- Each key is sanity-checked for an OpenSSH algo prefix (`ssh-rsa`,
+  `ssh-ed25519`, `ecdsa-sha2-*`, `sk-*`, `ssh-dss`); malformed lines are
+  warn-logged and skipped.
+- **Key bodies are never written to logs** — only a SHA-256 fingerprint
+  per installed key.
+- Both fields can be combined; both flags (`--ssh-key`, `--ssh-key-file`)
+  are repeatable on the CLI.
 
 ### Group record fields
 
