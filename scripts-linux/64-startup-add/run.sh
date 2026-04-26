@@ -141,17 +141,106 @@ cmd_list() {
     log_file_error "$SCRIPT_DIR/helpers/enumerate.sh" "list_startup_entries not loaded"
     return 1
   fi
-  local count=0
-  printf 'METHOD          NAME                 PATH/ID\n'
-  printf -- '--------------- -------------------- --------------------------------------------\n'
-  while IFS=$'\t' read -r m n p _scope; do
-    [ -z "${m:-}" ] && continue
-    printf '%-15s %-20s %s\n' "$m" "$n" "$p"
-    count=$((count+1))
-  done < <(list_startup_entries)
-  printf -- '--------------- -------------------- --------------------------------------------\n'
-  printf '%d entr%s tagged "%s".\n' "$count" "$([ $count -eq 1 ] && echo y || echo ies)" "${STARTUP_TAG_PREFIX:-lovable-startup}"
-  return 0
+  local fmt="table"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --json)            fmt="json"; shift ;;
+      --format)          fmt="${2:-table}"; shift 2 ;;
+      --format=*)        fmt="${1#--format=}"; shift ;;
+      -h|--help)         usage; return 0 ;;
+      *) log_warn "[64] list: ignoring extra arg: $1"; shift ;;
+    esac
+  done
+
+  case "$fmt" in
+    table)
+      local count=0
+      printf 'METHOD          NAME                 PATH/ID\n'
+      printf -- '--------------- -------------------- --------------------------------------------\n'
+      while IFS=$'\t' read -r m n p _scope; do
+        [ -z "${m:-}" ] && continue
+        printf '%-15s %-20s %s\n' "$m" "$n" "$p"
+        count=$((count+1))
+      done < <(list_startup_entries)
+      printf -- '--------------- -------------------- --------------------------------------------\n'
+      printf '%d entr%s tagged "%s".\n' "$count" "$([ $count -eq 1 ] && echo y || echo ies)" "${STARTUP_TAG_PREFIX:-lovable-startup}"
+      return 0
+      ;;
+    json)
+      _emit_list_json
+      return $?
+      ;;
+    *)
+      log_warn "[64] list: unknown --format '$fmt' (use table|json)"
+      return 1
+      ;;
+  esac
+}
+
+# Emit a stable JSON array on stdout. Each element:
+#   { "method": "...", "name": "...", "path": "...", "scope": "user" }
+# Strings are escaped per RFC 8259 (\, ", control chars). Empty list -> [].
+_emit_list_json() {
+  local tag="${STARTUP_TAG_PREFIX:-lovable-startup}"
+
+  # Use python3 when available for guaranteed-correct escaping; fall back to
+  # an awk-based escaper that handles \, ", and the control chars we'd
+  # plausibly see (tab, newline, CR, backspace, formfeed). The awk path
+  # never executes when python3 is on PATH (it always is on every Linux
+  # distro + macOS we target), so this stays simple in production.
+  if command -v python3 >/dev/null 2>&1; then
+    list_startup_entries | python3 -c '
+import json, sys
+rows = []
+for line in sys.stdin:
+    line = line.rstrip("\n")
+    if not line:
+        continue
+    parts = line.split("\t")
+    while len(parts) < 4:
+        parts.append("")
+    rows.append({
+        "method": parts[0],
+        "name":   parts[1],
+        "path":   parts[2],
+        "scope":  parts[3] or "user",
+    })
+out = {"tag": '"\"$tag\""', "count": len(rows), "entries": rows}
+json.dump(out, sys.stdout, indent=2, sort_keys=False)
+sys.stdout.write("\n")
+'
+    return $?
+  fi
+
+  # awk fallback (POSIX awk + gawk both work).
+  list_startup_entries | awk -v tag="$tag" '
+    function jesc(s,    r) {
+      r = s
+      gsub(/\\/, "\\\\", r)
+      gsub(/"/,  "\\\"", r)
+      gsub(/\t/, "\\t",  r)
+      gsub(/\r/, "\\r",  r)
+      gsub(/\n/, "\\n",  r)
+      gsub(/\b/, "\\b",  r)
+      gsub(/\f/, "\\f",  r)
+      return r
+    }
+    BEGIN { n=0 }
+    NF==0 { next }
+    {
+      n++
+      m[n]=$1; nm[n]=$2; p[n]=$3; sc[n]=($4==""?"user":$4)
+    }
+    END {
+      printf "{\n  \"tag\": \"%s\",\n  \"count\": %d,\n  \"entries\": [", jesc(tag), n
+      for (i=1; i<=n; i++) {
+        printf "%s\n    {\n      \"method\": \"%s\",\n      \"name\": \"%s\",\n      \"path\": \"%s\",\n      \"scope\": \"%s\"\n    }", \
+          (i==1?"":","), jesc(m[i]), jesc(nm[i]), jesc(p[i]), jesc(sc[i])
+      }
+      if (n>0) printf "\n  "
+      printf "]\n}\n"
+    }
+  ' BEGIN { FS="\t" }
 }
 
 cmd_remove() {
