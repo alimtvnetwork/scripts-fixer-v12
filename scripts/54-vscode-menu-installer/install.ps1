@@ -7,6 +7,8 @@
 param(
     [string]$Edition,
     [string]$VsCodePath,
+    [ValidateSet('Auto','CurrentUser','AllUsers')]
+    [string]$Scope = 'Auto',
     [switch]$Help
 )
 
@@ -60,14 +62,31 @@ try {
         Write-Log $logMessages.messages.snapshotSkipped -Level "warn"
     }
 
-    # -- Assert admin ---------------------------------------------------------
+    # -- Resolve scope + admin gate ------------------------------------------
+    # Scope drives WHERE the registry keys land:
+    #   AllUsers    -> HKEY_CLASSES_ROOT (HKLM under the hood)  -> needs admin
+    #   CurrentUser -> HKCU\Software\Classes                    -> any user
+    #   Auto        -> AllUsers if admin, else CurrentUser
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
     $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     $isAdmin   = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     Write-Log ($logMessages.messages.currentUser -replace '\{name\}', $identity.Name) -Level "info"
-    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $isAdmin) -Level $(if ($isAdmin) { "success" } else { "error" })
-    if (-not $isAdmin) { Write-Log $logMessages.messages.notAdmin -Level "error"; return }
+    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $isAdmin) -Level $(if ($isAdmin) { "success" } else { "warn" })
+
+    $resolvedScope = Resolve-MenuScope -Requested $Scope -IsAdmin $isAdmin
+    Write-Log ("Resolved scope: requested='" + $Scope + "', resolved='" + $resolvedScope + "'") -Level "info"
+
+    # Fail fast: AllUsers explicitly requested but caller is NOT elevated.
+    $isAllUsersRequested = ($Scope -ieq 'AllUsers' -or $Scope -ieq 'Machine' -or $Scope -ieq 'HKLM')
+    if ($isAllUsersRequested -and -not $isAdmin) {
+        Write-Log "Scope=AllUsers requires Administrator. Re-run from an elevated PowerShell, or pass -Scope CurrentUser to install for the current user only." -Level "error"
+        return
+    }
+    # Defensive: if Auto chose AllUsers, admin must hold (it does, by definition).
+    if ($resolvedScope -eq 'AllUsers' -and -not $isAdmin) {
+        Write-Log $logMessages.messages.notAdmin -Level "error"; return
+    }
 
     # -- Decide editions ------------------------------------------------------
     $editions = if ([string]::IsNullOrWhiteSpace($Edition)) {
@@ -88,6 +107,11 @@ try {
             $skippedCount++
             continue
         }
+
+        # Rewrite this edition's registryPaths for the resolved scope so
+        # every helper (Register-VsCodeMenuEntry, Test-VsCodeMenuEntry,
+        # the audit log) sees the scoped path with no further plumbing.
+        $editionCfg = Convert-EditionPathsForScope -EditionConfig $editionCfg -Scope $resolvedScope
 
         Write-Log (($logMessages.messages.editionStart -replace '\{name\}', $editionName) -replace '\{label\}', $editionCfg.label) -Level "info"
 
@@ -137,6 +161,7 @@ try {
             vsCodeExe = $vsCodeExe
             ok        = $isAllOk
             at        = (Get-Date -Format "o")
+            scope     = $resolvedScope
         }
         $processedCount++
     }
@@ -144,6 +169,7 @@ try {
     Save-ResolvedData -ScriptFolder "54-vscode-menu-installer" -Data @{
         action   = "install"
         editions = $resolvedSummary
+        scope    = $resolvedScope
         timestamp = (Get-Date -Format "o")
     }
 
