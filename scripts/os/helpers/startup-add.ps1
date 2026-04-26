@@ -80,8 +80,116 @@ if (-not $isKnownKind) {
 
 # ---------- env path is implemented in step 5 (stub here) ----------
 if ($Kind -eq 'env') {
-    Write-Log "env subcommand will be implemented in Step 5." -Level "info"
-    Save-LogFile -Status "ok"; exit 0
+    $isPairMissing = [string]::IsNullOrWhiteSpace($Target)
+    if ($isPairMissing) {
+        Write-Log $logMessages.startup.missingEnvPair -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
+    }
+    $parsed = Split-EnvPair -Pair $Target
+    if (-not $parsed.ok) {
+        Write-Log "Invalid KEY=VALUE: '$Target' (key must match ^[A-Za-z_][A-Za-z0-9_]*$)" -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
+    }
+    $envKey = $parsed.key
+    $envVal = $parsed.value
+
+    # scope default + validation
+    $isScopeMissing = [string]::IsNullOrWhiteSpace($Scope)
+    if ($isScopeMissing) { $Scope = $startupCfg.defaultEnvScope }
+    $Scope = $Scope.ToLower()
+    $isKnownScope = ($Scope -eq 'user' -or $Scope -eq 'machine')
+    if (-not $isKnownScope) {
+        Write-Log "Unknown --scope '$Scope'. Use 'user' or 'machine'." -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
+    }
+
+    # method default
+    $isMethodMissing = [string]::IsNullOrWhiteSpace($Method) -or ($Method -eq 'auto')
+    if ($isMethodMissing) { $Method = 'registry' }
+    if (-not (Test-EnvMethod $Method)) {
+        $msg = ($logMessages.startup.methodInvalid `
+            -replace '\{method\}', $Method `
+            -replace '\{valid\}',  ($script:STARTUP_ENV_METHODS -join ', '))
+        Write-Log $msg -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
+    }
+
+    # admin guard for machine scope
+    if ($Scope -eq 'machine' -and -not (Test-IsAdministrator)) {
+        $msg = ($logMessages.startup.adminRequiredForMethod -replace '\{method\}', "env --scope machine")
+        Write-Log $msg -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
+    }
+
+    $masked = Get-MaskedValue -Value $envVal
+
+    $envOk = $false
+    if ($Method -eq 'registry') {
+        $regPath = if ($Scope -eq 'machine') { $startupCfg.registry.envMachine } else { $startupCfg.registry.envUser }
+        try {
+            if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+            # use ExpandString if value contains %VAR% references, else String
+            $valType = if ($envVal -match '%[^%]+%') { 'ExpandString' } else { 'String' }
+            Set-ItemProperty -Path $regPath -Name $envKey -Value $envVal -Type $valType -Force
+            $okMsg = ($logMessages.startup.registryWritten `
+                -replace '\{hive\}', (if ($Scope -eq 'machine') { 'HKLM' } else { 'HKCU' }) `
+                -replace '\{value\}', $envKey `
+                -replace '\{data\}', $masked)
+            Write-Log $okMsg -Level "ok"
+            $envOk = $true
+        } catch {
+            $err = ($logMessages.startup.registryWriteFailed `
+                -replace '\{hive\}', (if ($Scope -eq 'machine') { 'HKLM' } else { 'HKCU' }) `
+                -replace '\{value\}', $envKey `
+                -replace '\{error\}', $_.Exception.Message)
+            Write-Log $err -Level "fail"
+        }
+    } elseif ($Method -eq 'setx') {
+        $setxArgs = @($envKey, $envVal)
+        if ($Scope -eq 'machine') { $setxArgs += '/M' }
+        try {
+            $proc = Start-Process -FilePath "setx.exe" -ArgumentList $setxArgs -NoNewWindow -Wait -PassThru `
+                -RedirectStandardError "$env:TEMP\setx-err.txt" -RedirectStandardOutput "$env:TEMP\setx-out.txt"
+            $code = $proc.ExitCode
+            $isOk = ($code -eq 0)
+            if ($isOk) {
+                Write-Log "setx wrote $envKey ($Scope scope)" -Level "ok"
+                $envOk = $true
+            } else {
+                $stderr = ""
+                try { $stderr = Get-Content "$env:TEMP\setx-err.txt" -Raw -ErrorAction SilentlyContinue } catch {}
+                Write-Log "setx.exe failed for '$envKey' (exit $code): $($stderr -replace '[\r\n]+', ' ')" -Level "fail"
+            }
+        } catch {
+            Write-Log "setx.exe invocation failed for '$envKey': $($_.Exception.Message)" -Level "fail"
+        }
+    }
+
+    if ($envOk) {
+        $msg = ($logMessages.startup.envSet `
+            -replace '\{key\}', $envKey `
+            -replace '\{valueMasked\}', $masked `
+            -replace '\{scope\}', $Scope `
+            -replace '\{method\}', $Method)
+        Write-Log $msg -Level "ok"
+
+        # broadcast WM_SETTINGCHANGE so open shells / Explorer pick it up
+        if ($startupCfg.broadcastSettingChange) {
+            $bcast = Send-EnvironmentSettingChange -LogMessages $logMessages
+            if ($bcast) {
+                $bMsg = ($logMessages.startup.envBroadcast -replace '\{key\}', $envKey)
+                Write-Log $bMsg -Level "ok"
+            } else {
+                $bMsg = ($logMessages.startup.envBroadcastFailed `
+                    -replace '\{key\}', $envKey `
+                    -replace '\{error\}', 'see prior warning')
+                Write-Log $bMsg -Level "warn"
+            }
+        }
+        Save-LogFile -Status "ok"; exit 0
+    } else {
+        Save-LogFile -Status "fail"; exit 1
+    }
 }
 
 # ===== APP path =====
