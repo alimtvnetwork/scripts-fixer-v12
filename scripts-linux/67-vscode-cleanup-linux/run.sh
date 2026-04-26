@@ -257,8 +257,6 @@ if [ "${#DETECTED_METHODS[@]}" -eq 0 ]; then
 fi
 
 # --------------------------------------------------------------------- apply phase
-log_info "===== apply phase ($([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply), scope=$RESOLVED_SCOPE) ====="
-
 _run_step() {
   local method="$1" idx="$2"
   local kind path pkgs req
@@ -295,15 +293,55 @@ _run_step() {
   esac
 }
 
-for m in "${DETECTED_METHODS[@]}"; do
-  N=$(_jq -r ".actions.\"$m\".steps | length")
-  log_info "[$m] running $N step(s)"
-  i=0
-  while [ "$i" -lt "$N" ]; do
-    _run_step "$m" "$i"
-    i=$((i+1))
+# Run every queued step for every detected method. Honors current $DRY_RUN.
+_run_all_steps() {
+  for m in "${DETECTED_METHODS[@]}"; do
+    N=$(_jq -r ".actions.\"$m\".steps | length")
+    log_info "[$m] running $N step(s)"
+    i=0
+    while [ "$i" -lt "$N" ]; do
+      _run_step "$m" "$i"
+      i=$((i+1))
+    done
   done
-done
+}
+
+# In apply mode, do a forced dry-run pass first to build the plan, render
+# tree + table, then prompt. If approved (or --yes), reset rows and re-run.
+if [ "$DRY_RUN" -eq 1 ]; then
+  log_info "===== apply phase (dry-run, scope=$RESOLVED_SCOPE) ====="
+  _run_all_steps
+else
+  log_info "===== plan phase (scope=$RESOLVED_SCOPE) -- nothing will be removed yet ====="
+  DRY_RUN=1; export DRY_RUN
+  _run_all_steps
+
+  # Extract every 'would' row from the dry-run rows file into the plan TSV
+  # using the schema confirm_render_plan expects: bucket\tkind\ttarget\tdetail.
+  : > "$PLAN_TSV"
+  while IFS=$'\t' read -r status method kind target detail; do
+    [ "$status" = "would" ] || continue
+    confirm_plan_add "$PLAN_TSV" "$method" "$kind" "$target" "$detail"
+  done < "$ROWS_TSV"
+
+  confirm_render_plan "$PLAN_TSV" "Planned VS Code cleanup actions"
+
+  if ! confirm_prompt "$PLAN_TSV" "$ASSUME_YES"; then
+    log_warn "Apply phase aborted. The plan above was NOT executed."
+    log_info "Plan file kept for inspection: $PLAN_TSV"
+    # Manifest still gets written below so we have an audit trail of what
+    # WOULD have happened. Mark mode as 'aborted' for the manifest header.
+    APPLY_ABORTED=1
+  else
+    APPLY_ABORTED=0
+    # Reset rows + re-run for real.
+    log_info "===== apply phase (apply, scope=$RESOLVED_SCOPE) ====="
+    : > "$ROWS_TSV"
+    DRY_RUN=0; export DRY_RUN
+    _run_all_steps
+  fi
+fi
+APPLY_ABORTED="${APPLY_ABORTED:-0}"
 
 # --------------------------------------------------------------------- summary
 REMOVED=0; WOULD=0; MISSING=0; FAILED=0; SKIPPED=0
