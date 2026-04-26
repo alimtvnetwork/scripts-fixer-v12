@@ -1,5 +1,5 @@
 {
-  "version": "0.115.0",
+  "version": "0.116.0",
   "description": "Linux installer registry. Mirrors Windows numbering. Windows-only scripts intentionally absent.",
   "scripts": [
     {
@@ -223,6 +223,12 @@
       "folder": "55-install-jenkins",
       "phase": "08",
       "title": "Jenkins (apt)"
+    },
+    {
+      "id": "60",
+      "folder": "60-install-zsh",
+      "phase": "10",
+      "title": "ZSH + Oh-My-Zsh (apt + curl) with curated zshrc + auto-backup"
     },
     {
       "id": "61",
