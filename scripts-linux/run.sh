@@ -386,6 +386,29 @@ case "${VERB:-help}" in
         log_err "internal: unknown grp sub '$GRP_SUB'"; exit 64 ;;
     esac
     ;;
+  usr-passthrough)
+    # Same empty-arg-filter dance as grp/vsclin/wp passthroughs.
+    _usr_filtered=()
+    for _a in "${USR_REST[@]:-}"; do [ -n "$_a" ] && _usr_filtered+=("$_a"); done
+    case "$USR_SUB" in
+      cli)
+        if [ "${#_usr_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/add-user.sh" "${_usr_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/add-user.sh"
+        fi
+        ;;
+      json)
+        if [ "${#_usr_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/add-user-from-json.sh" "${_usr_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/add-user-from-json.sh"
+        fi
+        ;;
+      *)
+        log_err "internal: unknown usr sub '$USR_SUB'"; exit 64 ;;
+    esac
+    ;;
   install|check|repair|uninstall)
     if [ -n "$ONLY_ID" ]; then
       run_one "$ONLY_ID" "$VERB"
