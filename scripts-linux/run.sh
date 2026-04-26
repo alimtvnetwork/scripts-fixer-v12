@@ -153,6 +153,20 @@ Linux VS Code uninstaller (script 67 shortcuts; Linux only):
                                present, no changes
   vscode-clean-linux-list      Print catalog of methods + probes + steps
 
+Ubuntu WordPress installer (script 70 shortcuts; Ubuntu/Debian only):
+  install wordpress            Install full LEMP stack + latest WordPress
+      -i, --interactive        Prompt for port / data dir / PHP version /
+                               install path / DB name / user / password
+      --db mysql|mariadb       Pick DB engine (default: mysql)
+      --php 8.1|8.2|8.3|latest Pin PHP version (default: latest)
+      --port <n>               MySQL port (default: 3306)
+      --datadir <path>         MySQL data directory (default: /var/lib/mysql)
+      --path <path>            WordPress install path (default: /var/www/wordpress)
+      --site-port <n>          nginx HTTP port (default: 80)
+  install wp                   Alias of 'install wordpress'
+  install wp-only              Only the WordPress component (assumes prereqs)
+  uninstall wordpress          Remove WordPress + nginx vhost (keeps PHP / MySQL)
+
 Flags:
   -I <id>              Restrict to a single script id
   --parallel <N>       Run N installs in parallel (install verb only)
