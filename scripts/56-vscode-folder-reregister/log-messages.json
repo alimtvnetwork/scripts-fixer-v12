@@ -2,6 +2,7 @@
   "scriptName": "vscode-folder-reregister",
   "scriptTitle": "VS Code -- Re-register Folder Context Menu",
   "scriptDesc": "Re-create the 'Open with Code' folder + background context-menu entries. Auto-removes the entries when Code.exe is no longer on disk for that edition.",
+  "description": "Re-create the 'Open with Code' folder + background context-menu entries. Auto-removes the entries when Code.exe is no longer on disk for that edition.",
   "messages": {
     "scriptDisabled":      "Script 56 is disabled in config.json (enabled=false). Nothing to do.",
     "notAdmin":             "This script writes under HKEY_CLASSES_ROOT and must be run as Administrator. Re-launch PowerShell with 'Run as administrator', then re-run.",
