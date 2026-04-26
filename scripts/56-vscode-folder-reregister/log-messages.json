@@ -1,0 +1,36 @@
+{
+  "scriptName": "vscode-folder-reregister",
+  "scriptTitle": "VS Code -- Re-register Folder Context Menu",
+  "scriptDesc": "Re-create the 'Open with Code' folder + background context-menu entries. Auto-removes the entries when Code.exe is no longer on disk for that edition.",
+  "messages": {
+    "scriptDisabled":      "Script 56 is disabled in config.json (enabled=false). Nothing to do.",
+    "notAdmin":             "This script writes under HKEY_CLASSES_ROOT and must be run as Administrator. Re-launch PowerShell with 'Run as administrator', then re-run.",
+    "editionStart":         "Edition '{name}': checking VS Code at {path}",
+    "exeMissingRegister":   "Edition '{name}': Code.exe not found at any of the configured paths -- skipping registration. (failure: configured paths user='{userPath}' / system='{systemPath}' both absent on disk)",
+    "exeMissingAutoRemove": "Edition '{name}': Code.exe not found and autoRemoveWhenMissing=true -- removing stale registry entries.",
+    "registered":           "Edition '{name}': registered '{label}' at {path}",
+    "removed":              "Edition '{name}': removed registry key {path}",
+    "alreadyAbsent":        "Edition '{name}': key {path} already absent -- nothing to remove.",
+    "checkPass":            "[OK]   {name}: {target} present and points at {exe}",
+    "checkMissExe":         "[MISS] {name}: {target} key MISSING (failure: HKCR path '{path}' does not exist; fix: run 'reregister' verb)",
+    "checkMissDefault":     "[MISS] {name}: {target} (Default) value is '{got}', expected '{want}' (failure: registry path '{path}'; fix: run 'reregister' verb)",
+    "checkMissCommand":     "[MISS] {name}: {target} \\command\\(Default) does not invoke configured Code.exe (failure: registry path '{path}'; fix: run 'reregister' verb)",
+    "checkSummary":         "Check totals: PASS={pass}, MISS={miss}",
+    "doneRegister":         "Done. Right-click any folder (or empty space inside one) -- you should see the 'Open with Code' entry.",
+    "doneRemove":           "Done. All folder/background entries created by this script have been removed.",
+    "unknownEdition":       "Edition '{name}' is listed in enabledEditions but not defined under 'editions'. Skipping. (failure: config.json mismatch)",
+    "unknownVerb":          "Unknown verb '{verb}'. Use one of: reregister, remove, check, help."
+  },
+  "help": {
+    "commands": {
+      "reregister": "Re-create the folder + background HKCR entries for every enabled edition. Auto-removes entries for editions whose Code.exe is missing.",
+      "remove":     "Delete the folder + background HKCR entries for every enabled edition (regardless of whether Code.exe is on disk).",
+      "check":      "Read-only audit: prints PASS/MISS for every (edition, target) combination."
+    },
+    "examples": [
+      ".\\run.ps1 -I 56 -- reregister",
+      ".\\run.ps1 -I 56 -- check",
+      ".\\run.ps1 -I 56 -- remove"
+    ]
+  }
+}
