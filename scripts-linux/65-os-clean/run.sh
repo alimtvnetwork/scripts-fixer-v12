@@ -372,9 +372,9 @@ else
     # them in the TARGETS_TSV directly we default to "user" (matches the
     # vast majority of categories) and let the operator inspect the
     # detail column.
-    local_bucket="user"
-    case "$target" in cmd:*) local_bucket="command" ;; esac
-    confirm_plan_add "$PLAN_TSV" "$local_bucket" "$kind" "$target" "$detail"
+    plan_bucket="user"
+    case "$target" in cmd:*) plan_bucket="command" ;; esac
+    confirm_plan_add "$PLAN_TSV" "$plan_bucket" "$kind" "$target" "$detail"
   done < "$TARGETS_TSV"
 
   confirm_render_plan "$PLAN_TSV" "Planned os-clean actions"
