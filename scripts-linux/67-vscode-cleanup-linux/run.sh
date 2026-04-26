@@ -15,6 +15,7 @@ export SCRIPT_ID="67"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
 . "$ROOT/_shared/pkg-detect.sh"
+. "$ROOT/_shared/confirm.sh"
 . "$SCRIPT_DIR/helpers/detect.sh"
 . "$SCRIPT_DIR/helpers/remove.sh"
 
@@ -23,10 +24,11 @@ LOGS_ROOT="${LOGS_OVERRIDE:-$ROOT/.logs/67}"
 TS="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="$LOGS_ROOT/$TS"
 ROWS_TSV="$RUN_DIR/rows.tsv"
+PLAN_TSV="$RUN_DIR/plan.tsv"
 export ROWS_TSV
 
 # --------------------------------------------------------------------- args
-VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; SKIP_DETECT=0
+VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; SKIP_DETECT=0; ASSUME_YES=0
 while [ $# -gt 0 ]; do
   case "$1" in
     run|detect|list|help|--help|-h) [ -z "$VERB" ] && VERB="$1"; shift ;;
@@ -38,6 +40,7 @@ while [ $# -gt 0 ]; do
     --only)                  ONLY_CSV="$2"; shift 2 ;;
     --only=*)                ONLY_CSV="${1#--only=}"; shift ;;
     --skip-detect)           SKIP_DETECT=1; shift ;;
+    --yes|-y)                ASSUME_YES=1; shift ;;
     --no-color)              export NO_COLOR=1; shift ;;
     *) log_warn "Unknown flag: $1"; shift ;;
   esac
@@ -87,6 +90,10 @@ if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
 
   FLAGS
     --dry-run, -n         Preview every targeted package/path. No deletions.
+    --yes, -y             Skip the plan-then-confirm prompt (for CI / scripted use).
+                          In apply mode the script first builds a plan, prints it
+                          as a tree + table, and asks for confirmation. Pass --yes
+                          to bypass the prompt. --dry-run never prompts.
     --scope user|system   user   = ~/.config, ~/.vscode, ~/.vscode-server, per-user shims only.
                           system = + apt/snap/dpkg removal + /usr/bin shims + /etc/apt sources.
                           Default: 'auto' = system if root, else user.
@@ -250,8 +257,6 @@ if [ "${#DETECTED_METHODS[@]}" -eq 0 ]; then
 fi
 
 # --------------------------------------------------------------------- apply phase
-log_info "===== apply phase ($([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply), scope=$RESOLVED_SCOPE) ====="
-
 _run_step() {
   local method="$1" idx="$2"
   local kind path pkgs req
@@ -288,15 +293,55 @@ _run_step() {
   esac
 }
 
-for m in "${DETECTED_METHODS[@]}"; do
-  N=$(_jq -r ".actions.\"$m\".steps | length")
-  log_info "[$m] running $N step(s)"
-  i=0
-  while [ "$i" -lt "$N" ]; do
-    _run_step "$m" "$i"
-    i=$((i+1))
+# Run every queued step for every detected method. Honors current $DRY_RUN.
+_run_all_steps() {
+  for m in "${DETECTED_METHODS[@]}"; do
+    N=$(_jq -r ".actions.\"$m\".steps | length")
+    log_info "[$m] running $N step(s)"
+    i=0
+    while [ "$i" -lt "$N" ]; do
+      _run_step "$m" "$i"
+      i=$((i+1))
+    done
   done
-done
+}
+
+# In apply mode, do a forced dry-run pass first to build the plan, render
+# tree + table, then prompt. If approved (or --yes), reset rows and re-run.
+if [ "$DRY_RUN" -eq 1 ]; then
+  log_info "===== apply phase (dry-run, scope=$RESOLVED_SCOPE) ====="
+  _run_all_steps
+else
+  log_info "===== plan phase (scope=$RESOLVED_SCOPE) -- nothing will be removed yet ====="
+  DRY_RUN=1; export DRY_RUN
+  _run_all_steps
+
+  # Extract every 'would' row from the dry-run rows file into the plan TSV
+  # using the schema confirm_render_plan expects: bucket\tkind\ttarget\tdetail.
+  : > "$PLAN_TSV"
+  while IFS=$'\t' read -r status method kind target detail; do
+    [ "$status" = "would" ] || continue
+    confirm_plan_add "$PLAN_TSV" "$method" "$kind" "$target" "$detail"
+  done < "$ROWS_TSV"
+
+  confirm_render_plan "$PLAN_TSV" "Planned VS Code cleanup actions"
+
+  if ! confirm_prompt "$PLAN_TSV" "$ASSUME_YES"; then
+    log_warn "Apply phase aborted. The plan above was NOT executed."
+    log_info "Plan file kept for inspection: $PLAN_TSV"
+    # Manifest still gets written below so we have an audit trail of what
+    # WOULD have happened. Mark mode as 'aborted' for the manifest header.
+    APPLY_ABORTED=1
+  else
+    APPLY_ABORTED=0
+    # Reset rows + re-run for real.
+    log_info "===== apply phase (apply, scope=$RESOLVED_SCOPE) ====="
+    : > "$ROWS_TSV"
+    DRY_RUN=0; export DRY_RUN
+    _run_all_steps
+  fi
+fi
+APPLY_ABORTED="${APPLY_ABORTED:-0}"
 
 # --------------------------------------------------------------------- summary
 REMOVED=0; WOULD=0; MISSING=0; FAILED=0; SKIPPED=0
@@ -310,7 +355,7 @@ while IFS=$'\t' read -r s _; do
   esac
 done < "$ROWS_TSV"
 
-printf '\n  ===== summary (%s, scope=%s) =====\n' "$([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply)" "$RESOLVED_SCOPE"
+printf '\n  ===== summary (%s, scope=%s) =====\n' "$(_mode_label)" "$RESOLVED_SCOPE"
 printf '  %-9s  %-12s  %-12s  %s\n' "STATUS" "METHOD" "KIND" "TARGET"
 printf '  %s\n' "$(printf '%.0s-' {1..95})"
 while IFS=$'\t' read -r s id kind target detail; do
@@ -321,10 +366,15 @@ printf '  TOTALS: removed=%d  would-remove=%d  missing=%d  skipped=%d  failed=%d
   "$REMOVED" "$WOULD" "$MISSING" "$SKIPPED" "$FAILED"
 
 # --------------------------------------------------------------------- manifest
+_mode_label() {
+  if [ "$APPLY_ABORTED" = "1" ]; then echo "aborted"
+  elif [ "$DRY_RUN" -eq 1 ]; then echo "dry-run"
+  else echo "apply"; fi
+}
 manifest="$RUN_DIR/manifest.json"
 {
   printf '{"script":"67-vscode-cleanup-linux","os":"Linux","mode":"%s","scope":"%s","timestamp":"%s","detected":[' \
-    "$([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply)" "$RESOLVED_SCOPE" "$TS"
+    "$(_mode_label)" "$RESOLVED_SCOPE" "$TS"
   first=1
   for m in "${DETECTED_METHODS[@]}"; do
     [ "$first" -eq 1 ] || printf ','
@@ -347,6 +397,10 @@ manifest="$RUN_DIR/manifest.json"
   || log_file_error "$manifest" "manifest write failed"
 
 log_info "Manifest written: $manifest"
+if [ "$APPLY_ABORTED" = "1" ]; then
+  log_warn "Run aborted by operator at the confirmation prompt. No changes were made."
+  exit 2
+fi
 if [ "$FAILED" -gt 0 ]; then
   log_warn "Completed with $FAILED failure(s). See manifest for details."
   exit 1

@@ -20,19 +20,21 @@ export SCRIPT_ID="66"
 
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/confirm.sh"
 . "$SCRIPT_DIR/helpers/match.sh"
 . "$SCRIPT_DIR/helpers/sweep.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 LOG_MSGS="$SCRIPT_DIR/log-messages.json"
-LOGS_ROOT="$ROOT/.logs/66"
+LOGS_ROOT="${LOGS_OVERRIDE:-$ROOT/.logs/66}"
 TS="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="$LOGS_ROOT/$TS"
 ROWS_TSV="$RUN_DIR/rows.tsv"
+PLAN_TSV="$RUN_DIR/plan.tsv"
 export ROWS_TSV
 
 # --------------------------------------------------------------------- args
-VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; EDITION_FILTER=""
+VERB=""; DRY_RUN=0; SCOPE=""; ONLY_CSV=""; EDITION_FILTER=""; ASSUME_YES=0
 while [ $# -gt 0 ]; do
   case "$1" in
     run|list|help|--help|-h) [ -z "$VERB" ] && VERB="$1"; shift ;;
@@ -45,6 +47,7 @@ while [ $# -gt 0 ]; do
     --only=*)                ONLY_CSV="${1#--only=}"; shift ;;
     --edition)               EDITION_FILTER="$2"; shift 2 ;;
     --edition=*)             EDITION_FILTER="${1#--edition=}"; shift ;;
+    --yes|-y)                ASSUME_YES=1; shift ;;
     --no-color)              export NO_COLOR=1; shift ;;
     *) log_warn "Unknown flag: $1"; shift ;;
   esac
@@ -98,6 +101,10 @@ if [ "$VERB" = "help" ] || [ "$VERB" = "--help" ] || [ "$VERB" = "-h" ]; then
 
   FLAGS
     --dry-run, -n         Preview every targeted path/label/handler. No deletions.
+    --yes, -y             Skip the plan-then-confirm prompt (for CI / scripted use).
+                          In apply mode the script first builds a plan, prints it
+                          as a tree + table, and asks for confirmation. Pass --yes
+                          to bypass the prompt. --dry-run never prompts.
     --scope user|system   user = ~/Library only (no sudo).
                           system = + /Library, /usr/local, /opt/homebrew (needs sudo).
                           Default: 'auto' = system if running as root, else user.
@@ -293,23 +300,63 @@ _process_category() {
 }
 
 # Iterate scopes. 'system' only runs when resolved scope == 'system'.
-for sc in user system; do
-  if [ "$sc" = "system" ] && [ "$RESOLVED_SCOPE" != "system" ]; then
-    log_info "[scope:system] skipped (resolved scope='$RESOLVED_SCOPE'; pass --scope system or run as root to include /Library + /usr/local + /opt/homebrew)"
-    continue
-  fi
-  N="$(_jq -r ".targets.${sc} | length")"
-  i=0
-  while [ "$i" -lt "$N" ]; do
-    _process_category "$sc" "$i"
-    i=$((i+1))
+# Wrapped in a function so we can call it twice (plan pass + apply pass).
+_run_all_categories() {
+  local sc N i
+  for sc in user system; do
+    if [ "$sc" = "system" ] && [ "$RESOLVED_SCOPE" != "system" ]; then
+      log_info "[scope:system] skipped (resolved scope='$RESOLVED_SCOPE'; pass --scope system or run as root to include /Library + /usr/local + /opt/homebrew)"
+      continue
+    fi
+    N="$(_jq -r ".targets.${sc} | length")"
+    i=0
+    while [ "$i" -lt "$N" ]; do
+      _process_category "$sc" "$i"
+      i=$((i+1))
+    done
   done
-done
+}
+
+# In apply mode: do a forced dry-run pass first to build the plan, render
+# the tree + table, then prompt. If approved (or --yes), reset rows and
+# re-run for real. In dry-run mode: just one pass.
+APPLY_ABORTED=0
+if [ "$DRY_RUN" -eq 1 ]; then
+  _run_all_categories
+else
+  log_info "===== plan phase (scope=$RESOLVED_SCOPE) -- nothing will be removed yet ====="
+  DRY_RUN=1; export DRY_RUN
+  _run_all_categories
+
+  : > "$PLAN_TSV"
+  while IFS=$'\t' read -r status id kind target detail; do
+    [ "$status" = "would" ] || continue
+    confirm_plan_add "$PLAN_TSV" "$id" "$kind" "$target" "$detail"
+  done < "$ROWS_TSV"
+
+  confirm_render_plan "$PLAN_TSV" "Planned macOS VS Code menu cleanup"
+
+  if ! confirm_prompt "$PLAN_TSV" "$ASSUME_YES"; then
+    log_warn "Apply phase aborted. The plan above was NOT executed."
+    log_info "Plan file kept for inspection: $PLAN_TSV"
+    APPLY_ABORTED=1
+  else
+    log_info "===== apply phase (apply, scope=$RESOLVED_SCOPE) ====="
+    : > "$ROWS_TSV"
+    DRY_RUN=0; export DRY_RUN
+    _run_all_categories
+  fi
+fi
 
 _count_rows
 
 # --------------------------------------------------------------------- summary
-printf '\n  ===== summary (%s, scope=%s) =====\n' "$([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply)" "$RESOLVED_SCOPE"
+_mode_label() {
+  if [ "$APPLY_ABORTED" = "1" ]; then echo "aborted"
+  elif [ "$DRY_RUN" -eq 1 ]; then echo "dry-run"
+  else echo "apply"; fi
+}
+printf '\n  ===== summary (%s, scope=%s) =====\n' "$(_mode_label)" "$RESOLVED_SCOPE"
 printf '  %-9s  %-22s  %-12s  %s\n' "STATUS" "CATEGORY" "KIND" "TARGET"
 printf '  %s\n' "$(printf '%.0s-' {1..95})"
 while IFS=$'\t' read -r s id kind target detail; do
@@ -323,7 +370,7 @@ printf '  TOTALS: removed=%d  would-remove=%d  missing=%d  skipped=%d  failed=%d
 manifest="$RUN_DIR/manifest.json"
 {
   printf '{"script":"66-vscode-menu-cleanup-mac","os":"macOS","mode":"%s","scope":"%s","timestamp":"%s","totals":{"removed":%d,"would":%d,"missing":%d,"skipped":%d,"failed":%d},"rows":[' \
-    "$([ "$DRY_RUN" -eq 1 ] && echo dry-run || echo apply)" "$RESOLVED_SCOPE" "$TS" \
+    "$(_mode_label)" "$RESOLVED_SCOPE" "$TS" \
     "$REMOVED" "$WOULD" "$MISSING" "$SKIPPED" "$FAILED"
   first=1
   while IFS=$'\t' read -r s id kind target detail; do
@@ -339,6 +386,10 @@ manifest="$RUN_DIR/manifest.json"
   || log_file_error "$manifest" "manifest write failed"
 
 log_info "Manifest written: $manifest"
+if [ "$APPLY_ABORTED" = "1" ]; then
+  log_warn "Run aborted by operator at the confirmation prompt. No changes were made."
+  exit 2
+fi
 if [ "$FAILED" -gt 0 ]; then
   log_warn "Completed with $FAILED failure(s). See manifest for details."
   exit 1
