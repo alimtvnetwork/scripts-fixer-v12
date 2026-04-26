@@ -10,6 +10,12 @@
 #   add-group       <name> [options]            -> add-group.sh
 #   add-user-json   <file.json> [--dry-run]     -> add-user-from-json.sh
 #   add-group-json  <file.json> [--dry-run]     -> add-group-from-json.sh
+#   bootstrap       [...orchestrator flags...]  -> orchestrate.sh
+#                                                  (parse-only root: groups
+#                                                   first, then users; shared
+#                                                   summary; supports unified
+#                                                   --spec, separate --*-json,
+#                                                   and inline --group/--user)
 #
 # Run any subverb with --help for full options.
 
@@ -27,6 +33,10 @@ Subverbs:
   add-group       <name> [options]          create one local group
   add-user-json   <file.json> [--dry-run]   bulk users from JSON (object/array)
   add-group-json  <file.json> [--dry-run]   bulk groups from JSON (object/array)
+  bootstrap       [orchestrator flags]      parse-only orchestrator: runs all
+                                            four leaves in correct order with
+                                            a shared summary. See:
+                                              bash run.sh bootstrap --help
 
 Common flags:
   --dry-run       print what would happen, change nothing
@@ -59,6 +69,8 @@ case "$SUBVERB" in
     exec bash "$SCRIPT_DIR/add-user-from-json.sh" "$@" ;;
   add-group-json|add-groups-json|group-json)
     exec bash "$SCRIPT_DIR/add-group-from-json.sh" "$@" ;;
+  bootstrap|orchestrate|all)
+    exec bash "$SCRIPT_DIR/orchestrate.sh" "$@" ;;
   *)
     log_err "unknown subverb: '$SUBVERB' (failure: see --help for the list)"
     usage
