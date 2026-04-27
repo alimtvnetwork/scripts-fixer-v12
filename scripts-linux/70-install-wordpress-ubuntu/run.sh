@@ -130,15 +130,42 @@ _prompt() {
     echo "$reply"
 }
 
+# _validate_server_name <value> -> rc=0 if every space-separated token looks
+# like a hostname (letters/digits/dot/hyphen, or 'localhost'). Logs a warning
+# but does NOT reject -- the operator may know better than this regex.
+_validate_server_name() {
+    local value="$1" token bad=0
+    [ -z "$value" ] && return 0
+    for token in $value; do
+        if ! printf '%s' "$token" | grep -qE '^([a-zA-Z0-9_]([a-zA-Z0-9_-]{0,61}[a-zA-Z0-9])?)(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$|^localhost$'; then
+            log_warn "[70] server_name token '$token' does not look like a valid hostname (continuing anyway)"
+            bad=1
+        fi
+    done
+    return $bad
+}
+
+# _validate_docroot <path> -> rc=0 if absolute path; warn otherwise.
+_validate_docroot() {
+    local value="$1"
+    case "$value" in
+        /*) return 0 ;;
+        *)  log_warn "[70] document root '$value' is not absolute -- nginx/apache require an absolute path"
+            return 1 ;;
+    esac
+}
+
 _run_interactive() {
     log_info "[70] Interactive mode -- press Enter to accept the [default]"
     WP_DB_ENGINE="$(_prompt    'DB engine (mysql|mariadb)'      "$WP_DB_ENGINE")"
     WP_MYSQL_PORT="$(_prompt   'MySQL port'                     "$WP_MYSQL_PORT")"
     WP_MYSQL_DATADIR="$(_prompt 'MySQL data dir'                "$WP_MYSQL_DATADIR")"
     WP_PHP_VERSION="$(_prompt  'PHP version (8.1|8.2|8.3|latest)' "$WP_PHP_VERSION")"
-    WP_INSTALL_PATH="$(_prompt 'WordPress install path'         "$WP_INSTALL_PATH")"
+    WP_INSTALL_PATH="$(_prompt 'Document root / WordPress install path (absolute, e.g. /var/www/example.com)' "$WP_INSTALL_PATH")"
+    _validate_docroot "$WP_INSTALL_PATH" || true
     WP_SITE_PORT="$(_prompt    'nginx HTTP port'                "$WP_SITE_PORT")"
-    WP_SERVER_NAME="$(_prompt  'nginx server_name'              "$WP_SERVER_NAME")"
+    WP_SERVER_NAME="$(_prompt  'Server name / domain (e.g. example.com www.example.com)' "$WP_SERVER_NAME")"
+    _validate_server_name "$WP_SERVER_NAME" || true
     WP_DB_NAME="$(_prompt      'DB name'                        "$WP_DB_NAME")"
     WP_DB_USER="$(_prompt      'DB user'                        "$WP_DB_USER")"
     WP_DB_PASS="$(_prompt      'DB password (blank = auto-generate)' "$WP_DB_PASS")"
@@ -149,6 +176,13 @@ _run_interactive() {
 
 if [ "$INTERACTIVE" = "1" ] && [ "$VERB" = "install" ]; then
     _run_interactive
+fi
+
+# Non-interactive: still run validators so a typo in --server-name or
+# --docroot is surfaced before MySQL/PHP packages get installed.
+if [ "$INTERACTIVE" = "0" ] && [ "$VERB" = "install" ]; then
+    _validate_server_name "$WP_SERVER_NAME" || true
+    _validate_docroot "$WP_INSTALL_PATH"    || true
 fi
 
 # ---- verb dispatchers -------------------------------------------------------
