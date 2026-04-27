@@ -89,12 +89,21 @@ Examples:
   bash verify-summary.sh --dir /var/lib/68-user-mgmt/ssh-key-runs/summaries
   bash verify-summary.sh --file /tmp/run-XYZ__alice.summary.json --json
   bash verify-summary.sh --auto --run-id 20260427-101530-abcd --strict
+  bash verify-summary.sh --discover                              # use config defaults
+  bash verify-summary.sh --root /srv/runs --glob 'summaries/*.summary.json'
+  bash verify-summary.sh --root /srv/runs --recursive --glob '**/*.summary.json'
+  bash verify-summary.sh --root /srv/runs --glob '2026-*/summaries/*.summary.json' --json
 EOF
 }
 
 # ---- arg parse -------------------------------------------------------------
 VS_FILES=()
 VS_DIRS=()
+VS_GLOBS=()
+VS_ROOT=""
+VS_DISCOVER=0
+VS_RECURSIVE=""           # tri-state: ""=use config default, "1"=on, "0"=off
+VS_FOLLOW_SYMLINKS=""     # tri-state: ""=config, "1"=on, "0"=off
 VS_RUN_FILTER=""
 VS_JSON=0
 VS_STRICT=0
@@ -109,6 +118,15 @@ while [ $# -gt 0 ]; do
     --dir)       VS_DIRS+=("${2:-}");  shift 2 ;;
     --dir=*)     VS_DIRS+=("${1#--dir=}");  shift ;;
     --auto)      VS_AUTO=1; shift ;;
+    --discover)  VS_DISCOVER=1; shift ;;
+    --root)      VS_ROOT="${2:-}"; shift 2 ;;
+    --root=*)    VS_ROOT="${1#--root=}"; shift ;;
+    --glob)      VS_GLOBS+=("${2:-}"); shift 2 ;;
+    --glob=*)    VS_GLOBS+=("${1#--glob=}"); shift ;;
+    --recursive) VS_RECURSIVE=1; shift ;;
+    --no-recursive) VS_RECURSIVE=0; shift ;;
+    --follow-symlinks) VS_FOLLOW_SYMLINKS=1; shift ;;
+    --no-follow-symlinks) VS_FOLLOW_SYMLINKS=0; shift ;;
     --run-id)    VS_RUN_FILTER="${2:-}"; shift 2 ;;
     --run-id=*)  VS_RUN_FILTER="${1#--run-id=}"; shift ;;
     --json)      VS_JSON=1;   shift ;;
@@ -125,14 +143,164 @@ if [ "$VS_AUTO" = "1" ]; then
   VS_DIRS+=("$_auto_dir")
 fi
 
-if [ "${#VS_FILES[@]}" -eq 0 ] && [ "${#VS_DIRS[@]}" -eq 0 ]; then
-  log_err "no inputs supplied (failure: pass --file, --dir, or --auto -- see --help)"
+# Trigger glob discovery when any glob-related flag is supplied.
+_have_glob_intent=0
+if [ "$VS_DISCOVER" = "1" ] || [ "${#VS_GLOBS[@]}" -gt 0 ] || [ -n "$VS_ROOT" ]; then
+  _have_glob_intent=1
+fi
+
+if [ "${#VS_FILES[@]}" -eq 0 ] && [ "${#VS_DIRS[@]}" -eq 0 ] && [ "$_have_glob_intent" = "0" ]; then
+  log_err "no inputs supplied (failure: pass --file, --dir, --auto, --discover, or --glob -- see --help)"
   exit 64
 fi
 
 if ! command -v jq >/dev/null 2>&1; then
   log_err "$(um_msg missingTool "jq")"
   exit 127
+fi
+
+# ---- glob discovery -------------------------------------------------------
+# Defaults come from config.json -> summaryDiscovery; fall back hard-coded
+# if the block is missing/corrupt so the script still works.
+_vs_cfg="$SCRIPT_DIR/config.json"
+_vs_default_root="${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}"
+_vs_default_recursive="true"
+_vs_default_follow="false"
+_vs_default_max=5000
+_vs_default_patterns=()
+
+if [ -r "$_vs_cfg" ]; then
+  _vs_default_recursive=$(jq -r '.summaryDiscovery.recursiveDefault // true'  "$_vs_cfg" 2>/dev/null || echo true)
+  _vs_default_follow=$(jq    -r '.summaryDiscovery.followSymlinks   // false' "$_vs_cfg" 2>/dev/null || echo false)
+  _vs_default_max=$(jq       -r '.summaryDiscovery.maxFiles         // 5000'  "$_vs_cfg" 2>/dev/null || echo 5000)
+  while IFS= read -r _p; do
+    [ -z "$_p" ] && continue
+    _vs_default_patterns+=("$_p")
+  done < <(jq -r '(.summaryDiscovery.defaultPatterns // []) | .[]' "$_vs_cfg" 2>/dev/null)
+fi
+if [ "${#_vs_default_patterns[@]}" -eq 0 ]; then
+  _vs_default_patterns=("summaries/*.summary.json" "summaries/**/*.summary.json")
+fi
+
+if [ "$_have_glob_intent" = "1" ]; then
+  _eff_root="${VS_ROOT:-$_vs_default_root}"
+  if [ "${#VS_GLOBS[@]}" -eq 0 ]; then
+    _eff_globs=("${_vs_default_patterns[@]}")
+  else
+    _eff_globs=("${VS_GLOBS[@]}")
+  fi
+
+  case "$VS_RECURSIVE" in
+    1) _eff_recursive=1 ;;
+    0) _eff_recursive=0 ;;
+    *) [ "$_vs_default_recursive" = "true" ] && _eff_recursive=1 || _eff_recursive=0 ;;
+  esac
+  case "$VS_FOLLOW_SYMLINKS" in
+    1) _eff_follow=1 ;;
+    0) _eff_follow=0 ;;
+    *) [ "$_vs_default_follow" = "true" ] && _eff_follow=1 || _eff_follow=0 ;;
+  esac
+
+  # CODE RED: every root failure logs exact path + reason.
+  if [ ! -e "$_eff_root" ]; then
+    log_err "$(um_msg summaryDiscoveryRootMissing "$_eff_root")"
+    exit 2
+  fi
+  if [ ! -d "$_eff_root" ]; then
+    log_file_error "$_eff_root" "discovery root is not a directory (failure: pass --root <dir>, not a file)"
+    exit 2
+  fi
+  if [ ! -r "$_eff_root" ] || [ ! -x "$_eff_root" ]; then
+    log_err "$(um_msg summaryDiscoveryRootUnreadable "$_eff_root")"
+    exit 2
+  fi
+
+  if [ "$VS_JSON" != "1" ] && [ "$VS_QUIET" != "1" ]; then
+    _patstr=$(printf "'%s' " "${_eff_globs[@]}")
+    log_info "$(um_msg summaryDiscoveryBegin "$_eff_root" "${_patstr% }" "$_eff_recursive" "$_eff_follow")"
+  fi
+
+  shopt -s nullglob
+  if [ "$_eff_recursive" = "1" ]; then shopt -s globstar; else shopt -u globstar; fi
+
+  _vs_seen="$(mktemp -t 68-vs-discover.XXXXXX)" || {
+    log_err "could not create dedupe tempfile under \$TMPDIR (failure: check disk/perm; tried mktemp -t 68-vs-discover)"
+    exit 2
+  }
+  trap 'rm -f "$_vs_seen"' EXIT
+
+  _discover_total=0
+  _cap_hit=0
+  for _gp in "${_eff_globs[@]}"; do
+    [ -z "$_gp" ] && continue
+    _matches_for_pat=()
+    while IFS= read -r -d '' _hit; do
+      _matches_for_pat+=("$_hit")
+    done < <(
+      cd "$_eff_root" 2>/dev/null && \
+      for _m in $_gp; do
+        [ -e "$_m" ] || continue
+        [ -f "$_m" ] || continue
+        if [ "$_eff_follow" = "1" ]; then
+          _abs=$(readlink -f -- "$_m" 2>/dev/null) || _abs="$_eff_root/$_m"
+        else
+          case "$_m" in
+            /*) _abs="$_m" ;;
+            *)  _abs="$_eff_root/$_m" ;;
+          esac
+        fi
+        printf '%s\0' "$_abs"
+      done
+    )
+
+    _added_for_pat=0
+    for _hit in "${_matches_for_pat[@]:-}"; do
+      [ -z "$_hit" ] && continue
+      if [ -n "$VS_RUN_FILTER" ]; then
+        case "$(basename -- "$_hit")" in
+          "${VS_RUN_FILTER}__"*) : ;;
+          *) continue ;;
+        esac
+      fi
+      if grep -Fxq -- "$_hit" "$_vs_seen" 2>/dev/null; then
+        continue
+      fi
+      printf '%s\n' "$_hit" >> "$_vs_seen"
+      VS_FILES+=("$_hit")
+      _added_for_pat=$((_added_for_pat+1))
+      _discover_total=$((_discover_total+1))
+      if [ "$_discover_total" -ge "$_vs_default_max" ]; then
+        _cap_hit=1
+        break
+      fi
+    done
+
+    if [ "$VS_JSON" != "1" ] && [ "$VS_QUIET" != "1" ]; then
+      log_info "$(um_msg summaryDiscoveryMatch "$_added_for_pat" "$_gp")"
+    fi
+    [ "$_cap_hit" = "1" ] && break
+  done
+
+  shopt -u nullglob globstar
+
+  if [ "$_cap_hit" = "1" ]; then
+    log_warn "$(um_msg summaryDiscoveryCapHit "$_vs_default_max" "$_eff_root")"
+  fi
+
+  if [ "$VS_JSON" != "1" ] && [ "$VS_QUIET" != "1" ]; then
+    log_info "$(um_msg summaryDiscoveryTotal "$_discover_total" "${#_eff_globs[@]}" "$_eff_root")"
+  fi
+
+  # If discovery was the SOLE source and yielded nothing, that's a hard error.
+  if [ "$_discover_total" -eq 0 ] && [ "${#VS_DIRS[@]}" -eq 0 ] && \
+     [ "${#VS_FILES[@]}" -eq 0 ]; then
+    if [ "$VS_JSON" = "1" ]; then
+      printf '{"summary":{"checked":0,"passed":0,"failed":0,"warned":0},"ok":false,"empty":true,"reason":"no glob matches under root"}\n'
+    else
+      log_err "$(um_msg summaryDiscoveryNone "$_eff_root")"
+    fi
+    exit 2
+  fi
 fi
 
 # ---- expand --dir into --file list ----------------------------------------
