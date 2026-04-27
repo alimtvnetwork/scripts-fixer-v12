@@ -13,6 +13,14 @@
 #   repair                wipe markers, re-run install
 #   uninstall             remove WordPress + per-component cleanup
 #
+#   install postinstall   run only the 3-part post-install verification:
+#                           1. web vhost active (nginx -t / apache2ctl
+#                              configtest + sites-enabled symlink)
+#                           2. PHP-FPM unix socket reachable (cgi-fcgi
+#                              handshake, falls back to AF_UNIX connect)
+#                           3. root URL responds with HTTP 200 + WordPress
+#                              fingerprint (uses HTTPS when WP_HTTPS=1)
+#
 # Flags:
 #   --interactive | -i    prompt for port / data dir / php version /
 #                         install path / site port / db name|user|pass
@@ -69,6 +77,7 @@ export ROOT
 . "$SCRIPT_DIR/components/apache.sh"
 . "$SCRIPT_DIR/components/firewall.sh"
 . "$SCRIPT_DIR/components/http-verify.sh"
+. "$SCRIPT_DIR/components/postinstall-verify.sh"
 . "$SCRIPT_DIR/components/https.sh"
 . "$SCRIPT_DIR/components/wordpress.sh"
 
@@ -111,7 +120,7 @@ while [ $# -gt 0 ]; do
             VERB="$1"; shift
             # Optional positional: component (mysql|php|nginx|wordpress|wp-only|wp)
             case "${1:-}" in
-                mysql|php|nginx|apache|http|firewall|http-verify|https|wordpress|wp-only|wp|prereqs|prerequisites)
+                mysql|php|nginx|apache|http|firewall|http-verify|postinstall|postinstall-verify|https|wordpress|wp-only|wp|prereqs|prerequisites)
                     SUBCOMPONENT="$1"; shift ;;
             esac
             ;;
@@ -228,6 +237,7 @@ _install_one() {
         http)      _install_http               ;;
         firewall)  component_firewall_install  ;;
         http-verify) component_http_verify     ;;
+        postinstall|postinstall-verify) component_postinstall_verify ;;
         https)     WP_HTTPS=1 component_https_install ;;
         wordpress|wp|wp-only) component_wordpress_install ;;
         prereqs|prerequisites) _install_prerequisites ;;
@@ -303,10 +313,13 @@ _install_all() {
     # Skipped automatically when WP_HTTPS=0.
     [ $rc -eq 0 ] && component_https_install     || rc=$?
     if [ $rc -eq 0 ]; then
-        # HTTP-loads check is best-effort: don't fail the whole install if
-        # the wizard page isn't reachable yet (DNS, container networking).
-        if ! component_http_verify; then
-            log_warn "[70] HTTP verification failed -- WordPress files are in place but the site did not respond as expected. Investigate before opening the install wizard."
+        # Post-install verification: strict 3-part gate (vhost active,
+        # PHP-FPM socket reachable, root URL HTTP 200). Failure does NOT
+        # roll back the install (files are on disk and recoverable) but
+        # IS surfaced as a non-zero rc so CI catches a broken install.
+        if ! component_postinstall_verify; then
+            log_warn "[70] post-install verification failed -- WordPress files are in place but the site is not serving correctly. See [70][postinstall] lines above for the failing check."
+            rc=1
         fi
     fi
     return $rc
@@ -323,7 +336,7 @@ _check_all() {
             component_nginx_verify  && log_ok "[70][verify] nginx OK"  || { log_err "[70][verify] nginx FAILED";  rc=1; } ;;
     esac
     component_wordpress_verify && log_ok "[70][verify] wordpress OK" || { log_err "[70][verify] wordpress FAILED"; rc=1; }
-    component_http_verify      && log_ok "[70][verify] http-loads OK" || { log_err "[70][verify] http-loads FAILED"; rc=1; }
+    component_postinstall_verify && log_ok "[70][verify] postinstall (vhost+fpm+200) OK" || { log_err "[70][verify] postinstall FAILED -- one of vhost/php-fpm-socket/root-url-200"; rc=1; }
     if [ "${WP_FIREWALL:-0}" = "1" ]; then
         component_firewall_verify && log_ok "[70][verify] firewall OK" || { log_err "[70][verify] firewall FAILED (port ${WP_SITE_PORT}/tcp not allowed in UFW)"; rc=1; }
     fi
