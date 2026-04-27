@@ -35,5 +35,15 @@
     "keepLastPerUser":   20,
     "maxTotal":          500,
     "autoPruneOnInstall": true
+  },
+  "summaryDiscovery": {
+    "_comment": "Glob patterns used by verify-summary.sh to auto-discover summary JSON files under the runs directory. Patterns are evaluated relative to --root (default: <UM_MANIFEST_DIR>/, falling back to /var/lib/68-user-mgmt/ssh-key-runs). Use --recursive (or set recursiveDefault=true) to enable bash globstar (**). Override per-run with --glob PATTERN (repeatable) -- when supplied on CLI, these defaults are ignored. Each pattern is OR-combined; matched files are de-duplicated by absolute path before validation. CODE RED: missing root or unreadable matches always log the exact path + reason.",
+    "defaultPatterns": [
+      "summaries/*.summary.json",
+      "summaries/**/*.summary.json"
+    ],
+    "recursiveDefault":  true,
+    "followSymlinks":    false,
+    "maxFiles":          5000
   }
 }

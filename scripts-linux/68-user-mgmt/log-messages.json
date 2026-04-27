@@ -78,5 +78,12 @@
     ,"summaryVerifyBadCounter":"summary JSON '%s' counter '%s.%s' is invalid: %s (failure: counters must be non-negative integers)"
     ,"summaryVerifyBatchMismatch":"summary JSON '%s' batch aggregate '%s' (%s) != sum across users (%s) (failure: rollup is inconsistent)"
     ,"summaryVerifyTally":   "verify-summary: %s pass / %s warn / %s fail (of %s)"
+    ,"summaryDiscoveryBegin":     "discovering summary JSONs under root '%s' (patterns=%s, recursive=%s, followSymlinks=%s)"
+    ,"summaryDiscoveryMatch":     "  matched %s file(s) for pattern '%s'"
+    ,"summaryDiscoveryNone":      "no summary JSON files matched any glob under root '%s' (failure: nothing to validate -- check that add-user.sh ran with --summary-json, or supply --glob/--file)"
+    ,"summaryDiscoveryRootMissing":"discovery root '%s' does not exist (failure: create the dir or pass --root <existing-dir>)"
+    ,"summaryDiscoveryRootUnreadable":"discovery root '%s' is not readable (failure: re-run with sudo or fix dir mode 0700/0750)"
+    ,"summaryDiscoveryCapHit":    "discovery cap hit: stopped after %s file(s) (failure: raise summaryDiscovery.maxFiles in config.json or narrow --glob -- root='%s')"
+    ,"summaryDiscoveryTotal":     "discovery complete: %s unique file(s) from %s pattern(s) under root '%s'"
   }
 }

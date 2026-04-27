@@ -260,3 +260,35 @@ error surfaced), negative counter, wrong-type counter (string), batch
 aggregate mismatch (hard fail), internal inconsistency (warn by default,
 fail under `--strict`), `--run-id` filter narrowing, `--auto` against a
 missing summaries dir (CODE-RED log + rc=2).
+
+### Glob-based discovery (v0.184.0)
+
+`verify-summary.sh` now auto-discovers summary JSONs under a configurable
+root using glob patterns. New flags:
+
+- `--root DIR` — discovery base (default: `UM_MANIFEST_DIR` or
+  `/var/lib/68-user-mgmt/ssh-key-runs`).
+- `--glob PATTERN` — repeatable; evaluated relative to `--root`. When
+  omitted, the patterns from `config.json -> summaryDiscovery.defaultPatterns`
+  apply (`summaries/*.summary.json`, `summaries/**/*.summary.json`).
+- `--recursive` / `--no-recursive` — toggle bash `globstar`. Default from
+  `summaryDiscovery.recursiveDefault` (true).
+- `--follow-symlinks` / `--no-follow-symlinks` — resolve matched paths via
+  `readlink -f` when on. Default from `summaryDiscovery.followSymlinks` (false).
+- `--discover` — explicit shorthand: run discovery using the resolved
+  defaults. Combinable with `--file`/`--dir`.
+
+Config block (`config.json -> summaryDiscovery`) drives defaults plus a
+`maxFiles` cap (default 5000) that hard-stops runaway discovery on huge
+trees with a CODE-RED warning that names the root and the cap.
+`--run-id` still narrows by basename `<id>__` after discovery. Matches
+are de-duplicated by absolute path (mktemp-backed seen-set), so
+overlapping patterns can't double-validate the same file. Every error
+path (missing root, non-dir root, unreadable root, cap hit, zero matches)
+logs the exact path and the precise reason.
+
+Verified: default-pattern discovery against a fresh runs tree, explicit
+recursive `**/*.summary.json` finds date-sharded summaries, missing root
+returns rc=2 with CODE-RED, empty root returns rc=2, `--run-id` filter
+narrows correctly across recursive matches, `--json` mode emits clean
+NDJSON + final tally with no log-info noise.
