@@ -83,10 +83,12 @@ $errors = 0
 $allFiles = Get-ChildItem -LiteralPath $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
     Where-Object {
         $rel = $_.FullName.Substring($RepoRoot.Length).TrimStart('\','/')
+        $relLower = $rel.ToLower()
         $parts = $rel -split '[\\/]'
         ($parts | Where-Object { $skipDirs -contains $_ }).Count -eq 0 -and
         ($skipExts -notcontains $_.Extension.ToLower()) -and
-        ($selfNames -notcontains $_.Name)
+        ($selfNames -notcontains $_.Name) -and
+        ($skipRelDocs -notcontains $relLower)
     }
 
 foreach ($file in $allFiles) {
