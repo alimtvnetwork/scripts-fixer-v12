@@ -472,6 +472,17 @@ if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
     done < "$f"
   done
 
+  # URL-sourced keys (v0.171.0). Each fetched body is parsed line-by-line
+  # and run through _ssh_emit (same dedup + algo-prefix sanity as files).
+  # Failed URLs are logged and skipped -- they don't abort the whole
+  # install, so a partial-network failure can't lock the user out.
+  for u in "${UM_SSH_KEY_URLS[@]}"; do
+    body=$(_ssh_fetch_url "$u") || continue
+    while IFS= read -r line || [ -n "$line" ]; do
+      _ssh_emit "$line"
+    done <<< "$body"
+  done
+
   # De-duplicate while preserving order. Awk on the buffer.
   _ssh_buf=$(printf '%s\n' "$_ssh_buf" | awk 'NF && !seen[$0]++')
   _ssh_count=$(printf '%s\n' "$_ssh_buf" | awk 'NF' | wc -l | tr -d ' ')
