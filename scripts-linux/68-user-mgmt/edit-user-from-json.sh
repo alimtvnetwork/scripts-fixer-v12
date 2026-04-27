@@ -84,6 +84,27 @@ Mutually-exclusive intents enforced by the validator (UM_SCHEMA_MUTEX):
 A half-applied batch is impossible because mutex pairs are rejected up front.
 Records with zero applicable changes are skipped with a [WARN] line --
 still exit 0 if every other record succeeded.
+
+JSON examples (each record below would pass schema validation):
+  // 1) minimal single object (rename only)
+  { "name": "alice", "rename": "alyssa" }
+
+  // 2) array exercising most fields (no mutex violations)
+  [
+    { "name": "alice", "rename": "alyssa", "comment": "Alyssa P. Hacker" },
+    { "name": "bob",   "promote": true,
+      "addGroups":    ["docker","dev"],
+      "removeGroups": ["video"],
+      "shell":        "/bin/zsh" },
+    { "name": "carol", "demote": true,  "disable": true },
+    { "name": "dave",  "passwordFile": "/etc/secrets/dave.pw", "enable": true }
+  ]
+
+  // 3) wrapped (legal at the top level only)
+  { "users": [ { "name": "alice", "rename": "alyssa" } ] }
+
+  // 4) REJECTED -- mutex violation (promote + demote both true)
+  { "name": "eve", "promote": true, "demote": true }
 EOF
 }
 

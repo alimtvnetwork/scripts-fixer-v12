@@ -76,6 +76,25 @@ SSH-key install behaviour (verbatim from readme.md):
     per installed key.
   - Both fields can be combined; both flags (--ssh-key, --ssh-key-file)
     are repeatable on the CLI.
+
+JSON examples (each record below would pass schema validation):
+  // 1) minimal single object
+  { "name": "dan", "password": "Welcome1!" }
+
+  // 2) array of mixed shapes
+  [
+    { "name": "alice", "password": "P@ss",       "groups": ["sudo","docker"] },
+    { "name": "bob",   "passwordFile": "/etc/secrets/bob.pw",
+      "primaryGroup": "devs", "shell": "/bin/zsh", "comment": "Bob the Builder" },
+    { "name": "carol", "password": "x",          "sudo": true,
+      "sshKeys":     ["ssh-ed25519 AAAA... carol@laptop"],
+      "sshKeyFiles": ["/srv/keys/carol.pub"],
+      "sshKeyUrls":  ["https://github.com/carol.keys"],
+      "sshKeyUrlAllowlist": "git.example.com,keys.corp.local" }
+  ]
+
+  // 3) wrapped (legal at the top level only)
+  { "users": [ { "name": "dan", "password": "..." } ] }
 EOF
 }
 
