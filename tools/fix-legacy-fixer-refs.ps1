@@ -112,6 +112,44 @@ Write-Host '-----------------------------'
 Write-Host ("files changed:    {0}" -f $changedFiles.Count)
 Write-Host ("total rewrites:   {0}" -f $totalReplacements)
 Write-Host ("errors:           {0}" -f $errors)
+
+# ---- JSON report ------------------------------------------------------------
+if (-not [string]::IsNullOrEmpty($ReportFile)) {
+    $reportPath = if ([System.IO.Path]::IsPathRooted($ReportFile)) {
+        $ReportFile
+    } else {
+        Join-Path $RepoRoot $ReportFile
+    }
+    try {
+        $reportDir = Split-Path -Parent $reportPath
+        if ($reportDir -and -not (Test-Path -LiteralPath $reportDir)) {
+            New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
+        }
+        $report = [ordered]@{
+            tool           = 'fix-legacy-fixer-refs.ps1'
+            generatedAt    = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            repoRoot       = $RepoRoot
+            mode           = $(if ($DryRun) { 'dry-run' } else { 'apply' })
+            target         = "scripts-fixer-$Target"
+            legacyVersions = $Versions
+            totals         = [ordered]@{
+                filesChanged      = $changedFiles.Count
+                totalReplacements = $totalReplacements
+                errors            = $errors
+            }
+            files          = @($changedFiles | ForEach-Object {
+                [ordered]@{ path = $_.Path; count = $_.Count }
+            })
+        }
+        $json = $report | ConvertTo-Json -Depth 6
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($reportPath, $json, $utf8NoBom)
+        Write-Info "report:   $reportPath"
+    } catch {
+        Write-FileError $reportPath "report write failed: $($_.Exception.Message)"
+    }
+}
+
 if ($DryRun) { Write-WarnMsg 'dry-run: no files were modified' }
 
 if ($errors -gt 0) { exit 2 }
