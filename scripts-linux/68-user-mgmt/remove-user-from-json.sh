@@ -59,10 +59,15 @@ Removing a missing user is a no-op (idempotent), so this is safe to re-run.
 
 Per-record schema (verbatim from readme.md "Bulk edit / remove";
 every field optional except 'name'):
-  name             string  REQUIRED -- account to remove
-  purgeHome        bool    --purge-home (DESTRUCTIVE: deletes the home dir)
-  removeMailSpool  bool    --remove-mail-spool (Linux only: also deletes
-                           /var/mail/<name>; passes -r to userdel)
+(Type column matches the schema DSL enforced by helpers/_schema.sh:
+  nestr=non-empty string, bool=boolean.)
+  name             nestr  REQUIRED -- account to remove
+  purgeHome        bool   --purge-home (DESTRUCTIVE: deletes the home dir)
+  purgeProfile     bool   alias of purgeHome (Windows-native name; same
+                          semantics on Unix so a single fan-out command
+                          can target both OSes)
+  removeMailSpool  bool   --remove-mail-spool (Linux only: also deletes
+                          /var/mail/<name>; passes -r to userdel)
 EOF
 }
 

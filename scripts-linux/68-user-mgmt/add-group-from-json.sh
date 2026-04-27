@@ -28,9 +28,12 @@ Three accepted shapes (mirrors readme.md "JSON examples"):
 Each record fans out to add-group.sh.
 
 Group record fields (verbatim from readme.md "Group record fields"):
-  name    string  REQUIRED
-  gid     number  explicit GID (auto-allocated on macOS if omitted)
-  system  bool    system group (Linux only; ignored on macOS)
+(Type column matches the schema DSL enforced by helpers/_schema.sh:
+  nestr=non-empty string, uid=non-negative integer or numeric string,
+  bool=boolean.)
+  name    nestr  REQUIRED
+  gid     uid    explicit GID (auto-allocated on macOS if omitted)
+  system  bool   system group (Linux only; ignored on macOS)
 EOF
 }
 

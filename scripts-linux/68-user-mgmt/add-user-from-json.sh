@@ -41,19 +41,28 @@ Three accepted shapes (mirrors readme.md "JSON examples"):
 Each record fans out to add-user.sh.
 
 User record fields (verbatim from readme.md "User record fields"):
-  name          string    REQUIRED
-  password      string    plain text (never logged; masked in console)
-  passwordFile  string    path to a 0600/0400 file containing the password (preferred)
-  uid           number    explicit UID (auto-allocated on macOS if omitted)
-  primaryGroup  string    primary group; created if missing on Linux
-  groups        string[]  supplementary groups
-  shell         string    login shell (default: /bin/bash Linux, /bin/zsh macOS)
-  home          string    home dir (default: /home/<name> or /Users/<name>)
-  comment       string    GECOS / RealName
-  sudo          bool      also add to 'sudo' (Linux) or 'admin' (macOS)
-  system        bool      system account (Linux only; ignored on macOS)
-  sshKeys       string[]  inline OpenSSH public keys to install in ~/.ssh/authorized_keys
-  sshKeyFiles   string[]  host paths to .pub files (one or many keys per file; comments ok)
+(Type column matches the schema DSL enforced by helpers/_schema.sh:
+  nestr=non-empty string, str=string, bool=boolean, uid=non-negative
+  integer or numeric string, nestrarr=array of non-empty strings.)
+  name                    nestr     REQUIRED
+  password                nestr     plain text (never logged; masked in console)
+  passwordFile            nestr     path to a 0600/0400 file containing the password (preferred)
+  uid                     uid       explicit UID (auto-allocated on macOS if omitted)
+  primaryGroup            nestr     primary group; created if missing on Linux
+  groups                  nestrarr  supplementary groups
+  shell                   nestr     login shell (default: /bin/bash Linux, /bin/zsh macOS)
+  home                    nestr     home dir (default: /home/<name> or /Users/<name>)
+  comment                 str       GECOS / RealName (may be empty string)
+  sudo                    bool      also add to 'sudo' (Linux) or 'admin' (macOS)
+  system                  bool      system account (Linux only; ignored on macOS)
+  sshKeys                 nestrarr  inline OpenSSH public keys to install in ~/.ssh/authorized_keys
+  sshKeyFiles             nestrarr  host paths to .pub files (one or many keys per file; comments ok)
+  sshKeyUrls              nestrarr  HTTPS URLs to fetch keys from (e.g. https://github.com/<u>.keys)
+  sshKeyUrlTimeout        uid       per-URL timeout in seconds (default: 10)
+  sshKeyUrlMaxBytes       uid       max response size per URL in bytes (default: 65536)
+  sshKeyUrlAllowlist      nestr     comma-separated extra hostnames to allow (e.g.
+                                    "git.example.com,keys.corp.local"); "*" disables checking
+  allowInsecureSshKeyUrl  bool      permit http:// URLs (NOT recommended -- tampering risk)
 
 SSH-key install behaviour (verbatim from readme.md):
   - Dir/file perms enforced: ~/.ssh -> 0700, authorized_keys -> 0600,

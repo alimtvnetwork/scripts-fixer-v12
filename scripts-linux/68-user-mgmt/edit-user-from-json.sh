@@ -62,21 +62,26 @@ Each record applies in-process via the um_user_modify shared helper.
 
 Per-record schema (verbatim from readme.md "Bulk edit / remove";
 every field optional except 'name'):
-  name          string    REQUIRED -- account to edit
-  rename        string    --rename <newName>
-  password      string    --reset-password (visible in process listing)
-  passwordFile  string    --password-file (mode 0600 or stricter)
+(Type column matches the schema DSL enforced by helpers/_schema.sh:
+  nestr=non-empty string, str=string, bool=boolean,
+  nestrarr=array of non-empty strings.)
+  name          nestr     REQUIRED -- account to edit
+  rename        nestr     --rename <newName>
+  password      nestr     --reset-password (visible in process listing)
+  passwordFile  nestr     --password-file (mode 0600 or stricter)
   promote       bool      --promote (add to sudo/admin)
   demote        bool      --demote (remove from sudo/admin)
-  addGroups     string[]  --add-group (one per array entry)
-  removeGroups  string[]  --remove-group (one per array entry)
-  shell         string    --shell <PATH>
-  comment       string    --comment "..." (may be empty string to clear GECOS)
+  addGroups     nestrarr  --add-group (one per array entry)
+  removeGroups  nestrarr  --remove-group (one per array entry)
+  shell         nestr     --shell <PATH>
+  comment       str       --comment "..." (may be empty string to clear GECOS)
   enable        bool      --enable (unlock the account)
   disable       bool      --disable (lock the account)
 
-Mutually-exclusive intents (e.g. promote+demote, enable+disable) are
-rejected up front so a half-applied batch is impossible.
+Mutually-exclusive intents enforced by the validator (UM_SCHEMA_MUTEX):
+  promote,demote     -- both true -> ERROR on 'promote'
+  enable,disable     -- both true -> ERROR on 'enable'
+A half-applied batch is impossible because mutex pairs are rejected up front.
 Records with zero applicable changes are skipped with a [WARN] line --
 still exit 0 if every other record succeeded.
 EOF
