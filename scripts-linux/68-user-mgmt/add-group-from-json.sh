@@ -48,6 +48,16 @@ JSON examples (each record below would pass schema validation):
 
   // 3) wrapped (legal at the top level only)
   { "groups": [ { "name": "devs", "gid": 2000 } ] }
+
+Dry-run effect per JSON field (--dry-run is passed through to add-group.sh
+per record; see that script's --help for the underlying "[dry-run] <cmd>"
+wording. Schema validation ALWAYS runs so a malformed file fails fast.):
+  name    would create the local group via groupadd (Linux) / dscl create
+          (macOS); skipped with [WARN] if the group already exists
+  gid     would pass --gid N to groupadd / set PrimaryGroupID=N via dscl;
+          on macOS the next free GID >=510 is auto-allocated when omitted
+  system  would pass --system to groupadd (Linux only; ignored on macOS
+          with no log line)
 EOF
 }
 
