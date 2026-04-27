@@ -83,7 +83,15 @@ _clean_mime_defaults() {
             log_file_error "$path" "sed scrub failed -- original NOT modified"
             rm -f "$tmp"; return 1
         fi
-        if cmp -s "$path" "$tmp"; then
+        # cmp is in coreutils on every supported distro; fall back to diff -q
+        # if it's somehow missing.
+        local _changed=1
+        if command -v cmp >/dev/null 2>&1; then
+            cmp -s "$path" "$tmp" && _changed=0
+        else
+            diff -q "$path" "$tmp" >/dev/null 2>&1 && _changed=0
+        fi
+        if [ "$_changed" -eq 0 ]; then
             log_info "[01]   no matching MIME entries in: $path"
             rm -f "$tmp"; return 0
         fi
