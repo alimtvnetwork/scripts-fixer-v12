@@ -1,1 +1,32 @@
-{ "install": { "snap": "code", "msRepo": true }, "snapClassic": true, "notes": "Microsoft apt repo OR snap classic" }
+{
+  "_comment": "01-install-vscode config. The 'mimeCleanup' block is a STRICT allow-list of .desktop files written by VS Code's apt/snap shell integration. Uninstall scrubs ONLY these exact tokens from mimeapps.list / defaults.list -- never deletes whole files, never touches sibling associations.",
+  "install": { "snap": "code", "msRepo": true },
+  "snapClassic": true,
+  "notes": "Microsoft apt repo OR snap classic",
+  "mimeCleanup": {
+    "_enabledComment": "Set false to keep MIME associations even after uninstall (e.g. you reinstalled VS Code via flatpak and don't want those handlers wiped).",
+    "enabled": true,
+    "desktopFiles": [
+      "code.desktop",
+      "code-url-handler.desktop",
+      "code_code.desktop",
+      "code-insiders.desktop",
+      "code-insiders-url-handler.desktop"
+    ],
+    "userFiles": [
+      "${HOME}/.config/mimeapps.list",
+      "${HOME}/.local/share/applications/mimeapps.list",
+      "${HOME}/.local/share/applications/defaults.list",
+      "${HOME}/.config/menus/applications-merged"
+    ],
+    "systemFiles": [
+      "/usr/share/applications/mimeapps.list",
+      "/usr/share/applications/defaults.list",
+      "/etc/xdg/mimeapps.list"
+    ],
+    "cacheFiles": [
+      "${HOME}/.local/share/applications/mimeinfo.cache",
+      "/usr/share/applications/mimeinfo.cache"
+    ]
+  }
+}
