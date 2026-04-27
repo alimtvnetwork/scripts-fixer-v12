@@ -359,6 +359,7 @@ verb_uninstall() {
   if is_apt_pkg_installed code; then sudo apt-get remove -y code; fi
   if is_snap_pkg_installed code; then sudo snap remove code; fi
   _clean_mime_defaults
+  _clean_vscode_desktop_entries
   rm -f "$INSTALLED_MARK"
   log_ok "[01] VS Code uninstalled"
 }
