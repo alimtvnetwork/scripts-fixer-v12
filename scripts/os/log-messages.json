@@ -59,6 +59,10 @@
     "pinNotice": "PIN '{pinMasked}' provided. Windows requires interactive PIN setup. Hint saved to '{hintFile}'. Sign in as '{name}' and use Settings -> Accounts -> Sign-in options to set the PIN.",
     "pinHintWriteFailed": "Failed to write PIN hint file at '{path}': {error}",
     "emailNotice": "Email '{email}' noted. To link a Microsoft account, '{name}' must sign in to Settings -> Accounts -> 'Sign in with a Microsoft account instead'.",
+    "msAccountNotice": "Microsoft/Outlook email '{email}' associated with '{name}'. Linking is interactive: sign in as '{name}' and use Settings -> Accounts -> 'Sign in with a Microsoft account instead'.",
+    "msAccountRunOnceSet": "Queued RunOnce 'ms-settings:emailandaccounts' for '{name}' (will open at first interactive logon).",
+    "msAccountRunOnceNoProfile": "Could not queue RunOnce -- profile not loaded yet. Path: {path}. User '{name}' must sign in once before RunOnce can be set.",
+    "msAccountRunOnceFailed": "Failed to queue RunOnce for '{name}': {error}",
     "summaryHeader": "User Setup Summary"
   },
   "startup": {
