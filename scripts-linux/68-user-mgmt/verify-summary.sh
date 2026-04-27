@@ -113,6 +113,12 @@
 #         Promote: keys_installed_new <= keys_parsed.
 #     batch-aggregate-matches-users    (default: ON, severity: error, builtin)
 #         Listed for completeness; always enforced for batch docs.
+#
+#   --print-schema          print the expected summary JSON schema (per-user
+#                           and batch) as a self-describing JSON catalog and
+#                           exit 0. No validation runs; nothing is read from
+#                           disk. Pipe into jq for docs/lookup, e.g.:
+#                             verify-summary.sh --print-schema | jq '.user.required'
 #   -h | --help             this help
 #
 # Exit codes:
@@ -148,6 +154,9 @@ Examples:
   bash verify-summary.sh --auto --rule all
   bash verify-summary.sh --auto --rule pure-inline-eq-sources --rule unique-le-parsed
   bash verify-summary.sh --auto --rule all --no-rule installed-le-parsed
+  bash verify-summary.sh --print-schema
+  bash verify-summary.sh --print-schema | jq '.user.fields.summary.required'
+  bash verify-summary.sh --print-schema | jq -r '.batch.required[]'
 EOF
 }
 
@@ -184,6 +193,7 @@ VS_RULE_BUILTIN=(
 )
 declare -A VS_RULES_ENABLED=()
 VS_LIST_RULES=0
+VS_PRINT_SCHEMA=0
 
 vs_is_known_rule() {
   # $1 = rule name. Returns 0 if in opt-in catalog or built-in.
@@ -242,6 +252,7 @@ while [ $# -gt 0 ]; do
     --strict)    VS_STRICT=1; shift ;;
     --quiet)     VS_QUIET=1;  shift ;;
     --list-rules) VS_LIST_RULES=1; shift ;;
+    --print-schema) VS_PRINT_SCHEMA=1; shift ;;
     --rule)
       _rn="${2:-}"
       if [ -z "$_rn" ]; then
