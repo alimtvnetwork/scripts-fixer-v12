@@ -2,6 +2,170 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.212.0] -- 2026-04-27
+
+### Added: Script 68 -- PowerShell sibling of `_schema.sh` for cross-OS validation
+
+`scripts/os/helpers/_schema.ps1` ports the bash strict-JSON-schema validator to PowerShell so a single allowed/required/specs/mutex string can be authored once per record type and shared by both OSes.
+
+**Rule DSL (identical to bash `_schema.sh`):**
+- `nestr` non-empty string, `str` string, `bool` boolean, `uid` non-negative integer or numeric string, `nestrarr` array of non-empty strings.
+- Mutex pairs: space-separated `a,b`. Both true => ERROR on field `a`.
+
+**Public API (PS-cased; semantics match bash exactly):**
+- `Initialize-UmSchemaArray <file> <wrapperKey> [-AllowStrings]` -> `$script:UmNormalizedJson` + `$script:UmNormalizedCount`.
+- `Test-UmSchemaRecord <rec> <allowed> <required> <specs> [<mutex>]` -> string[] of TSV rows (`ERROR\tfield\treason` / `WARN\tfield\treason`).
+- `Write-UmSchemaReport -Index -File -Rows [-Mode rich|plain]` -> `Write-Log` lines + `$script:UmSchemaErrCount`.
+- `Get-UmSchemaRecordName <rec>` -> `.name` / `<missing>` / `<not-an-object>`.
+
+**Implementation note:** no `jq` dependency; uses native `PSCustomObject` introspection. The TSV output contract matches the bash version row-for-row so the same downstream report walker pattern works on both OSes.
+
+**Verified by parity tests** against 13 record cases (valid, missing required, wrong-type for each rule, null, empty string, array-not-array, bad array item, unknown-field typo, mutex conflict, non-object) and all 5 input shapes (single object, array, wrapped, bare-string list with `-AllowStrings`, broken JSON).
+
+**Not yet wired into the four `*-from-json.ps1` loaders** -- they still validate ad-hoc. Adoption is a follow-up that needs its own review pass.
+
+**Files touched:**
+- `scripts/os/helpers/_schema.ps1` (new, 294 lines)
+- `.lovable/memory/features/windows-schema-validator.md` (new)
+- `.lovable/memory/index.md` (+1 entry)
+- `scripts/version.json` 0.211.0 -> 0.212.0
+
+## [v0.211.0] -- 2026-04-27
+
+### Hardened: Script 68 -- ACL + audit-trail parity across the three Windows SSH leaves
+
+Audit pass against `gen-key.ps1` (the v0.210.0 baseline) found two gaps in `install-key.ps1` / `revoke-key.ps1` / `gen-key.ps1`. Both closed:
+
+**Gap A -- `revoke-key.ps1` skipped re-hardening the `.ssh\` directory.** After `Move-Item -Force` rewrites `authorized_keys`, only the file ACL was re-asserted; the parent dir was left as-is. If the dir had been widened out-of-band, sshd's StrictModes would silently reject the rewritten file. Now matches `install-key.ps1`: harden parent dir AND file, both via `Set-SshFileAcl`. Failure is fatal (with the exact path + reason) since shipping an unusable key is worse than aborting loudly.
+
+**Gap B -- `gen-key.ps1` silently skipped ledger entry when helper was missing.** `install-key.ps1` and `revoke-key.ps1` already emit a loud WARN with the helper path when `Add-SshLedgerEntry` isn't loaded. `gen-key.ps1` did not, so a generated key with no ledger row would look "unknown" to later install/revoke calls. Now warns with the same message + exact `$ledgerHelper` path.
+
+**Confirmed at parity (no changes needed):** backup-failure-is-fatal, Admin elevation for cross-user writes, atomic write via `.tmp` + `Move-Item`, CODE RED exact-path-and-reason on every file/path failure, ACL re-assertion after writes, per-action ledger entries.
+
+**Known cosmetic follow-up (not done):** `Get-KeyBody` / `Get-KeyFingerprint` / `Get-KeyComment` are duplicated between `install-key.ps1` and `revoke-key.ps1`; could be lifted into `_common.ps1`.
+
+**Files touched:**
+- `scripts/os/helpers/revoke-key.ps1` (+1 `Set-SshFileAcl` call on `$sshDir` after Move-Item)
+- `scripts/os/helpers/gen-key.ps1` (ledger-helper-missing path now WARNs with `$ledgerHelper` path)
+- `scripts/version.json` 0.210.0 -> 0.211.0
+
+## [v0.210.0] -- 2026-04-27
+
+### Hardened: Script 68 -- `gen-key.ps1` adopts shared `Set-SshFileAcl` helper
+
+Refactored `gen-key.ps1` to import `_common.ps1` and replace its inline `icacls` hardening with calls to `Set-SshFileAcl` for `$sshDir`, `$out`, and `"$out.pub"`. Now all three SSH-key scripts (gen, install, revoke) share one ACL hardening codepath: `/inheritance:r`, `/grant:r SYSTEM/Administrators/<user>`, strip `Authenticated Users`/`Everyone`/`Users`, set owner.
+
+**Files touched:**
+- `scripts/os/helpers/gen-key.ps1` (inline icacls block -> `Set-SshFileAcl` loop)
+- `scripts/version.json` 0.209.0 -> 0.210.0
+
+## [v0.209.0] -- 2026-04-27
+
+### Hardened: Script 68 -- `install-key.ps1` / `revoke-key.ps1` ACL + audit hardening
+
+Both scripts now:
+- **Admin elevation:** `Assert-Admin` is called when targeting a different user's profile.
+- **Fatal backups:** failed `authorized_keys.<ts>.bak` aborts the run unless `--no-backup` was explicitly passed.
+- **ACL enforcement:** `Set-SshFileAcl` runs on the `.ssh\` dir (install-key only at this point) and on `authorized_keys`, re-asserted after `Move-Item -Force`.
+- **Ledger audit:** loud WARN if `Add-SshLedgerEntry` is unavailable, including the exact helper path.
+
+New shared helper `Set-SshFileAcl -Path -User [-DryRun]` in `_common.ps1`: disables inheritance, grants Full Control only to SYSTEM / Administrators / target user, strips `Everyone` and `Users`. Captures `icacls` stdout/stderr and emits CODE RED log lines (exact path + captured output) on any non-zero exit.
+
+**Files touched:**
+- `scripts/os/helpers/_common.ps1` (+`Set-SshFileAcl`)
+- `scripts/os/helpers/install-key.ps1`
+- `scripts/os/helpers/revoke-key.ps1`
+- `scripts/version.json` 0.208.0 -> 0.209.0
+
+## [v0.208.0] -- 2026-04-27
+
+### Added: Script 68 -- Windows PowerShell parity for edit/remove/purge user
+
+Closes the cross-OS gap: every operation the bash side gained in v0.198..v0.203 is now available on Windows in-process via the same shared-helper architecture.
+
+**New shared helpers in `scripts/os/helpers/_common.ps1`:**
+- `Invoke-UserModify` -- mirrors `um_user_modify`: rename, password reset, group add/remove, sudo/admin promote/demote, shell, comment, enable/disable.
+- `Invoke-UserDelete` -- mirrors `um_user_delete`: removes the local account; idempotent (missing user is success).
+- `Invoke-PurgeHome` -- mirrors `um_purge_home`: deletes the resolved home directory after the account record is gone.
+
+**Refactored leaves to call the helpers in-process** (no per-row script forks):
+- `scripts/os/helpers/edit-user.ps1` -- single-user edit CLI.
+- `scripts/os/helpers/remove-user.ps1` -- single-user delete CLI.
+- `scripts/os/helpers/edit-user-from-json.ps1` (new) -- bulk edit loader; same JSON shapes as `add-user-from-json.ps1` (single object / array / wrapped `{users:[...]}`).
+- `scripts/os/helpers/remove-user-from-json.ps1` (new) -- bulk remove loader; also accepts the bare-string shorthand `[ "alice", "bob" ]`.
+
+`scripts/os/run.ps1` learned the matching subverbs (`edit-user`, `edit-user-json`, `remove-user`, `remove-user-json`) with the same alias surface as the bash dispatcher.
+
+**Files touched:**
+- `scripts/os/helpers/_common.ps1` (+3 helpers)
+- `scripts/os/helpers/edit-user.ps1` (refactor to call helper)
+- `scripts/os/helpers/remove-user.ps1` (refactor to call helper)
+- `scripts/os/helpers/edit-user-from-json.ps1` (new)
+- `scripts/os/helpers/remove-user-from-json.ps1` (new)
+- `scripts/os/run.ps1` (+4 subverbs)
+- `.lovable/memory/features/windows-user-mgmt-shared-helpers.md` (new)
+- `.lovable/memory/index.md` (+1 entry)
+- `scripts/version.json` 0.207.0 -> 0.208.0
+
+## [v0.203.0] -- 2026-04-27
+
+### Refactored: Script 68 -- bulk edit/remove loaders apply records in-process
+
+`edit-user-from-json.sh` and `remove-user-from-json.sh` previously forked `bash edit-user.sh` / `bash remove-user.sh` per record. v0.203.0 invokes the new shared helpers directly:
+
+- `um_user_modify <name> [flags...]`
+- `um_user_delete <name> [--remove-mail-spool]`
+- `um_purge_home <home>`
+
+...all defined in `scripts-linux/68-user-mgmt/helpers/_common.sh`. Per-record fork overhead is gone, behavior is preserved (same flag mapping, same idempotency contract, same CODE RED file/path error reporting).
+
+`remove-user-from-json.sh` keeps its bare-string shorthand (`[ "alice", "bob" ]` -> `[ {name:"alice"}, {name:"bob"} ]`) and continues to add `--yes` semantics implicitly (bulk mode is non-interactive by design).
+
+**Files touched:**
+- `scripts-linux/68-user-mgmt/edit-user-from-json.sh` (in-process applicator loop)
+- `scripts-linux/68-user-mgmt/remove-user-from-json.sh` (in-process applicator loop)
+- `scripts-linux/68-user-mgmt/helpers/_common.sh` (+`um_user_modify` / `um_user_delete` / `um_purge_home`)
+- `.lovable/memory/features/user-mgmt-shared-helpers.md` (new)
+- `scripts/version.json` 0.202.0 -> 0.203.0
+
+## [v0.198.0] -- 2026-04-27
+
+### Added: Script 68 -- bulk edit + bulk remove from JSON (Linux + macOS)
+
+Mirrors the existing add-from-json shapes for the edit + remove leaves. New subverbs in `scripts-linux/68-user-mgmt/run.sh`:
+
+- `edit-user-json <file.json> [--dry-run]` -> `edit-user-from-json.sh`
+- `remove-user-json <file.json> [--dry-run]` -> `remove-user-from-json.sh`
+
+**Per-record schemas (every field optional except `name`):**
+
+`edit-users.json` -- `name`, `rename`, `password`, `passwordFile`, `promote`, `demote`, `addGroups[]`, `removeGroups[]`, `shell`, `comment`, `enable`, `disable`. Mutually-exclusive intents (`promote`+`demote`, `enable`+`disable`) are rejected up front so a half-applied batch is impossible.
+
+`remove-users.json` -- `name`, `purgeHome`, `removeMailSpool`. Also accepts the bare-string shorthand `[ "alice", "bob" ]`.
+
+`remove-user-json` always passes `--yes` to its children (bulk mode cannot be interactive). Removing a missing user is treated as success, so re-running the same JSON is idempotent.
+
+**Example invocations (now in `run.sh --help`):**
+
+```bash
+# edit-user-json (bulk; same record fields as edit-user flags)
+bash run.sh edit-user-json examples/edit-users.json --dry-run
+sudo bash run.sh edit-user-json examples/edit-users.json
+
+# remove-user-json (bulk; --yes is added automatically per record)
+bash run.sh remove-user-json examples/remove-users.json --dry-run
+sudo bash run.sh remove-user-json examples/remove-users.json
+# bare-string shorthand: ["alice","bob"]  -> name-only records
+```
+
+**Files touched:**
+- `scripts-linux/68-user-mgmt/edit-user-from-json.sh` (new)
+- `scripts-linux/68-user-mgmt/remove-user-from-json.sh` (new)
+- `scripts-linux/68-user-mgmt/run.sh` (+2 subverbs, expanded examples)
+- `scripts-linux/68-user-mgmt/readme.md` (Bulk edit / remove section)
+- `.lovable/memory/features/bulk-edit-remove-user-json.md` (new)
+- `scripts/version.json` 0.197.0 -> 0.198.0
+
 ## [v0.74.0] -- 2026-04-22
 
 ### Added: Script 49 (WhatsApp) -- post-uninstall registry + shortcut sweep
