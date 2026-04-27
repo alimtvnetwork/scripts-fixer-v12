@@ -7,8 +7,22 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import baseConfig from "../../scripts/52-vscode-folder-repair/config.json";
+import {
+  bridgeTokenSchema,
+  bridgeUrlSchema,
+  script52OptionsSchema,
+} from "@/lib/configSchema";
+import { diffJson, summarizeDiff, type DiffEntry } from "@/lib/jsonDiff";
 
 type Edition = "stable" | "insiders";
 type BridgeStatus = "unknown" | "checking" | "online" | "offline";
@@ -17,6 +31,20 @@ const BRIDGE_KEY = "config-bridge-url";
 const TOKEN_KEY = "config-bridge-token";
 const SCRIPT_ID = "52";
 const CONFIG_PATH = "scripts/52-vscode-folder-repair/config.json";
+
+// Deep-merge mirrors the bridge's Merge-Config so the preview matches what
+// will actually land on disk.
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+const deepMerge = (base: unknown, patch: unknown): unknown => {
+  if (!isPlainObject(base) || !isPlainObject(patch)) return patch;
+  const out: Record<string, unknown> = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    out[k] = k in out ? deepMerge(out[k], v) : v;
+  }
+  return out;
+};
 
 const Settings = () => {
   const [edition, setEdition] = useState<Edition>("stable");
@@ -33,9 +61,16 @@ const Settings = () => {
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("unknown");
   const [isSaving, setIsSaving] = useState(false);
 
-  const merged = useMemo(
+  // Diff/confirm state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [diff, setDiff] = useState<DiffEntry[]>([]);
+  const [storedConfig, setStoredConfig] = useState<unknown>(null);
+  const [mergedPreview, setMergedPreview] = useState<unknown>(null);
+  const [isPreparing, setIsPreparing] = useState(false);
+
+  // The patch we POST to the bridge — only the fields the user can change.
+  const patch = useMemo(
     () => ({
-      ...(baseConfig as Record<string, unknown>),
       enabledEditions: [edition],
       requireAdmin: adminOnly,
       nonInteractive,
@@ -44,11 +79,16 @@ const Settings = () => {
     [edition, adminOnly, nonInteractive, requireSignature],
   );
 
-  // Persist bridge URL/token between visits
+  // Local preview = baseline (file shipped in repo) merged with patch.
+  // The diff dialog uses the bridge's live copy instead.
+  const localPreview = useMemo(
+    () => deepMerge(baseConfig as Record<string, unknown>, patch),
+    [patch],
+  );
+
   useEffect(() => { localStorage.setItem(BRIDGE_KEY, bridgeUrl); }, [bridgeUrl]);
   useEffect(() => { localStorage.setItem(TOKEN_KEY, bridgeToken); }, [bridgeToken]);
 
-  // Probe bridge health on mount + when URL changes
   useEffect(() => {
     let cancelled = false;
     const probe = async () => {
@@ -66,7 +106,7 @@ const Settings = () => {
 
   const handleDownload = () => {
     try {
-      const blob = new Blob([JSON.stringify(merged, null, 2)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(localPreview, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -89,24 +129,100 @@ const Settings = () => {
     }
   };
 
-  const handleSaveToBridge = async () => {
+  // STEP 1: validate, pull current stored config, compute diff, open dialog
+  const handlePrepareSave = async () => {
+    // Client-side validation (mirrors server Zod surface)
+    const opts = script52OptionsSchema.safeParse(patch);
+    if (!opts.success) {
+      const first = opts.error.issues[0];
+      toast({
+        title: "Invalid options",
+        description: `${first.path.join(".") || "options"} — ${first.message}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const url = bridgeUrlSchema.safeParse(bridgeUrl);
+    if (!url.success) {
+      toast({
+        title: "Invalid bridge URL",
+        description: url.error.issues[0].message,
+        variant: "destructive",
+      });
+      return;
+    }
+    const tok = bridgeTokenSchema.safeParse(bridgeToken);
+    if (!tok.success) {
+      toast({
+        title: "Invalid bridge token",
+        description: tok.error.issues[0].message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPreparing(true);
+    const endpoint = `${url.data.replace(/\/$/, "")}/config?script=${SCRIPT_ID}`;
+    try {
+      const headers: Record<string, string> = {};
+      if (tok.data) headers["X-Bridge-Token"] = tok.data;
+
+      const res = await fetch(endpoint, { method: "GET", headers });
+      let current: unknown = {};
+      if (res.ok) {
+        const text = await res.text();
+        try {
+          // Bridge returns the raw file contents as a JSON string
+          const parsedOuter = JSON.parse(text);
+          current = typeof parsedOuter === "string" ? JSON.parse(parsedOuter) : parsedOuter;
+        } catch {
+          current = {};
+        }
+      } else if (res.status !== 404) {
+        const data = await res.json().catch(() => ({}));
+        const reason =
+          (data as { reason?: string; error?: string }).reason ??
+          (data as { error?: string }).error ??
+          `HTTP ${res.status}`;
+        throw new Error(`path: ${endpoint} — reason: ${reason}`);
+      }
+
+      const next = deepMerge(current, patch);
+      const entries = diffJson(current, next).filter((e) => e.kind !== "unchanged");
+
+      setStoredConfig(current);
+      setMergedPreview(next);
+      setDiff(entries);
+      setConfirmOpen(true);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      setBridgeStatus("offline");
+      toast({
+        title: "Could not load current config",
+        description: reason.includes("path:")
+          ? reason
+          : `path: ${endpoint} — reason: ${reason}. Is config-bridge.ps1 running?`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsPreparing(false);
+    }
+  };
+
+  // STEP 2: user confirmed — actually PATCH
+  const handleConfirmSave = async () => {
     setIsSaving(true);
-    // PATCH = deep-merge the chosen options into the stored config model.
-    // The bridge returns the updated config JSON in `data.config`.
     const endpoint = `${bridgeUrl.replace(/\/$/, "")}/config?script=${SCRIPT_ID}`;
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (bridgeToken) headers["X-Bridge-Token"] = bridgeToken;
-
       const res = await fetch(endpoint, {
         method: "PATCH",
         headers,
-        body: JSON.stringify(merged),
+        body: JSON.stringify(patch),
       });
-
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // CODE RED: include exact path + reason
         const path = (data as { path?: string }).path ?? CONFIG_PATH;
         const reason =
           (data as { reason?: string; error?: string }).reason ??
@@ -114,19 +230,14 @@ const Settings = () => {
           `HTTP ${res.status}`;
         throw new Error(`path: ${path} — reason: ${reason}`);
       }
-
       const savedPath = (data as { path?: string }).path ?? CONFIG_PATH;
       const bytes = (data as { bytes?: number }).bytes ?? "?";
-      const updated = (data as { config?: unknown }).config;
-      if (updated !== undefined) {
-        // eslint-disable-next-line no-console
-        console.info("[bridge] updated config:", updated);
-      }
       toast({
         title: "Saved to local config.json",
-        description: `${savedPath} (${bytes} bytes) — options merged into stored config`,
+        description: `${savedPath} (${bytes} bytes) — ${diff.length} change(s) applied`,
       });
       setBridgeStatus("online");
+      setConfirmOpen(false);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       setBridgeStatus("offline");
@@ -142,6 +253,8 @@ const Settings = () => {
     }
   };
 
+  const summary = summarizeDiff(diff);
+
   return (
     <main className="min-h-screen bg-background px-6 py-12">
       <div className="mx-auto max-w-2xl space-y-6">
@@ -151,9 +264,9 @@ const Settings = () => {
           </Link>
           <h1 className="text-3xl font-bold tracking-tight">Script 52 settings</h1>
           <p className="text-sm text-muted-foreground">
-            Configure VS Code folder context-menu repair, then save directly to{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">{CONFIG_PATH}</code>{" "}
-            via the local bridge (or download the JSON).
+            Configure VS Code folder context-menu repair. Saving asks for
+            confirmation and shows the exact diff against{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">{CONFIG_PATH}</code>.
           </p>
         </header>
 
@@ -227,11 +340,14 @@ const Settings = () => {
         <Card>
           <CardHeader>
             <CardTitle>Preview</CardTitle>
-            <CardDescription>Generated config.json (existing keys preserved).</CardDescription>
+            <CardDescription>
+              Local merge against the in-repo baseline (the diff dialog compares
+              against the live file on disk).
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <pre className="max-h-72 overflow-auto rounded-md bg-muted p-4 text-xs">
-              {JSON.stringify(merged, null, 2)}
+              {JSON.stringify(localPreview, null, 2)}
             </pre>
           </CardContent>
         </Card>
@@ -256,6 +372,7 @@ const Settings = () => {
                   value={bridgeUrl}
                   onChange={(e) => setBridgeUrl(e.target.value)}
                   placeholder="http://127.0.0.1:7531"
+                  maxLength={255}
                 />
               </div>
               <div className="space-y-1">
@@ -268,6 +385,7 @@ const Settings = () => {
                   value={bridgeToken}
                   onChange={(e) => setBridgeToken(e.target.value)}
                   placeholder="leave blank if -Token not set"
+                  maxLength={256}
                 />
               </div>
             </div>
@@ -288,13 +406,66 @@ const Settings = () => {
             Download config.json
           </Button>
           <Button
-            onClick={handleSaveToBridge}
-            disabled={isSaving || bridgeStatus !== "online"}
+            onClick={handlePrepareSave}
+            disabled={isPreparing || isSaving || bridgeStatus !== "online"}
           >
-            {isSaving ? "Saving…" : "Save to local config.json"}
+            {isPreparing ? "Loading current…" : "Review & save"}
           </Button>
         </div>
       </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Confirm changes to config.json</DialogTitle>
+            <DialogDescription>
+              {summary.total === 0
+                ? "No effective changes — the merge would leave the file identical."
+                : `${summary.total} change(s): ${summary.added} added, ${summary.changed} modified, ${summary.removed} removed.`}{" "}
+              Target: <code className="text-xs">{CONFIG_PATH}</code>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="max-h-64 overflow-auto rounded-md border border-border">
+              {diff.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">
+                  Stored config already matches your selection.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border font-mono text-xs">
+                  {diff.map((d) => (
+                    <li key={d.path} className="px-3 py-2">
+                      <DiffRow entry={d} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                Show full merged JSON
+              </summary>
+              <pre className="mt-2 max-h-56 overflow-auto rounded-md bg-muted p-3">
+                {JSON.stringify(mergedPreview ?? storedConfig, null, 2)}
+              </pre>
+            </details>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmSave}
+              disabled={isSaving || diff.length === 0}
+            >
+              {isSaving ? "Saving…" : `Confirm & save (${summary.total})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 };
@@ -337,6 +508,45 @@ const StatusDot = ({ status }: { status: BridgeStatus }) => {
       aria-label={`bridge ${status}`}
       className={`inline-block h-2.5 w-2.5 rounded-full ${color}`}
     />
+  );
+};
+
+const fmtVal = (v: unknown) => {
+  if (v === undefined) return "∅";
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+};
+
+const DiffRow = ({ entry }: { entry: DiffEntry }) => {
+  const tone =
+    entry.kind === "added"
+      ? "text-green-600 dark:text-green-400"
+      : entry.kind === "removed"
+      ? "text-red-600 dark:text-red-400"
+      : "text-amber-600 dark:text-amber-400";
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <span className={`uppercase tracking-wide ${tone}`}>{entry.kind}</span>
+        <span className="text-foreground">{entry.path}</span>
+      </div>
+      {entry.kind === "changed" && (
+        <div className="text-muted-foreground">
+          <span className="text-red-600 dark:text-red-400">- {fmtVal(entry.before)}</span>
+          {"  "}
+          <span className="text-green-600 dark:text-green-400">+ {fmtVal(entry.after)}</span>
+        </div>
+      )}
+      {entry.kind === "added" && (
+        <div className="text-green-600 dark:text-green-400">+ {fmtVal(entry.after)}</div>
+      )}
+      {entry.kind === "removed" && (
+        <div className="text-red-600 dark:text-red-400">- {fmtVal(entry.before)}</div>
+      )}
+    </div>
   );
 };
 
