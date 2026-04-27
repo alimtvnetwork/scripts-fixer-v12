@@ -180,6 +180,40 @@ _write_install_fingerprint() {
 EOF
     log_info "[01] Wrote install fingerprint: $FINGERPRINT_FILE (method=$method edition=$edition version=$version)"
 }
+
+# --- Scoped allow-list reader ----------------------------------------------
+# Read a jq array path and return only entries that match the active scope.
+# Each array entry can be either:
+#   "string"                                  (no scope tags -> always allowed)
+#   { "name": "...", "methods":[...], "editions":[...] }
+#   { "path": "...", "methods":[...], "editions":[...] }
+# Outputs one matching value per line (the .name, .path, or the bare string).
+# Args: $1 = jq path (e.g. '.mimeCleanup.desktopFiles'), $2 = key for the
+# value field (defaults to "name"; pass "path" for path-style arrays).
+# Outputs lines on stdout. Caller mapfiles them.
+_scoped_filter() {
+    local jq_path="$1" value_key="${2:-name}"
+    local methods_json editions_json
+    # Convert space-separated scope to JSON arrays for jq.
+    methods_json=$(printf '%s\n' $SCOPE_METHODS  | jq -R . | jq -s .)
+    editions_json=$(printf '%s\n' $SCOPE_EDITIONS | jq -R . | jq -s .)
+    jq -r --argjson m "$methods_json" --argjson e "$editions_json" --arg vk "$value_key" "
+        ${jq_path}[]
+        | if type == \"string\" then
+              {value: ., methods: null, editions: null}
+          else
+              {value: (.[\$vk] // .name // .path // \"\"),
+               methods: (.methods // null),
+               editions: (.editions // null)}
+          end
+        | select(
+            (.methods  == null or any(.methods[];  IN(\$m[])))
+            and
+            (.editions == null or any(.editions[]; IN(\$e[])))
+          )
+        | .value
+    " "$CONFIG"
+}
 # --- MIME cleanup -----------------------------------------------------------
 # Scrub VS Code's shell-integration MIME defaults (the apt/snap postinst hooks
 # register code.desktop as the default handler for dozens of text/source MIME
