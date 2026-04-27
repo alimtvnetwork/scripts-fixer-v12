@@ -187,6 +187,7 @@ while [ $# -gt 0 ]; do
     --sudo)            UM_SUDO=1; shift ;;
     --system)          UM_SYSTEM=1; shift ;;
     --dry-run)         UM_DRY_RUN=1; shift ;;
+    --ask)             UM_ASK=1; shift ;;
     --ssh-key)         UM_SSH_KEYS+=("${2:-}"); shift 2 ;;
     --ssh-key-file)    UM_SSH_KEY_FILES+=("${2:-}"); shift 2 ;;
     --ssh-key-url)     UM_SSH_KEY_URLS+=("${2:-}"); shift 2 ;;
