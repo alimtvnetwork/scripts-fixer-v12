@@ -345,9 +345,7 @@ if [ "$VS_PRINT_SCHEMA" = "1" ]; then
     '{ optIn: $opt, builtin: $builtin }')
 
   jq -n \
-    --arg     toolVersion    "$(jq -r '.version // "unknown"' "$__UM_TOOLKIT_ROOT/version.json" 2>/dev/null \
-                                || jq -r '.version // "unknown"' "$SCRIPT_DIR/../../scripts/version.json" 2>/dev/null \
-                                || echo "unknown")" \
+    --arg     toolVersion    "$(jq -r '.version // "unknown"' "$SCRIPT_DIR/../../scripts/version.json" 2>/dev/null || echo "unknown")" \
     --argjson rules         "$_vs_rules_json" \
     '
     {
