@@ -1,0 +1,14 @@
+{
+  "name": "k8s-kubeadm",
+  "version": "1.31.0",
+  "description": "Kubernetes v1.31 with CRI-O on Ubuntu, ported from aukgit/kubernetes-training-v1/03-kube-Installer",
+  "osCompatibility": ["ubuntu", "debian"],
+  "steps": [
+    { "file": "01-prereq.sh",        "roles": ["control-plane", "worker"] },
+    { "file": "02-install.sh",       "roles": ["control-plane", "worker"] },
+    { "file": "03-init-control.sh",  "roles": ["control-plane"] },
+    { "file": "04-join-worker.sh",   "roles": ["worker"], "requires": ["control-plane joined-token"] },
+    { "file": "05-cni-weave.sh",     "roles": ["control-plane"] },
+    { "file": "06-helm.sh",          "roles": ["control-plane"] }
+  ]
+}
