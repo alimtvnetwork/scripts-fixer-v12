@@ -39,6 +39,20 @@
     "sshUrlNotAllowed":    "ssh key URL host '%s' is not in the allowlist (failure: refusing to fetch from '%s'; allowed hosts: %s; pass --ssh-key-url-allowlist to extend)",
     "sshUrlTooBig":        "ssh key URL '%s' returned more than %s bytes (failure: refusing oversized response; raise --ssh-key-url-max-bytes if intentional)",
     "sshUrlInsecure":      "ssh key URL '%s' uses insecure scheme (failure: only https:// is allowed; pass --allow-insecure-url to override at your own risk)",
-    "sshUrlNoCurl":        "neither curl nor wget is on PATH -- cannot fetch ssh key URLs (failure: install curl)"
+    "sshUrlNoCurl":        "neither curl nor wget is on PATH -- cannot fetch ssh key URLs (failure: install curl)",
+    "manifestWritten":     "wrote ssh-key manifest '%s' (run-id=%s, user=%s, %s key(s) tracked)",
+    "manifestWriteFail":   "failed to write ssh-key manifest '%s' (failure: %s -- rollback for this run will not be possible)",
+    "manifestNotFound":    "ssh-key manifest not found for run-id '%s' (looked in '%s'; failure: cannot roll back -- list available runs with --list)",
+    "manifestParseFail":   "ssh-key manifest '%s' is not valid JSON (failure: %s)",
+    "manifestListHeader":  "=== tracked ssh-key runs (manifest dir: %s) ===",
+    "manifestListRow":     "  %-14s  %-19s  user=%-16s  keys=%s  source=%s",
+    "manifestListEmpty":   "no ssh-key manifests found in '%s' (nothing to roll back)",
+    "removeNoUser":        "user '%s' from manifest no longer exists on this host (failure: cannot edit their authorized_keys)",
+    "removeNoAuthKeys":    "authorized_keys file '%s' does not exist for user '%s' (nothing to roll back -- already clean)",
+    "removeKeyMissing":    "fingerprint '%s' from manifest not present in '%s' (skipping -- already removed or rotated)",
+    "removeKeyDropped":    "removed key fingerprint '%s' from '%s' (source=%s)",
+    "removeSummary":       "rollback complete for run-id '%s': %s tracked / %s removed / %s already-missing (file: %s)",
+    "removeWriteFail":     "failed to rewrite '%s' after rollback (failure: %s -- ORIGINAL FILE PRESERVED at '%s.bak.%s')",
+    "removeBackupMade":    "backed up '%s' to '%s' before rollback (restore with: mv '%s' '%s')"
   }
 }
