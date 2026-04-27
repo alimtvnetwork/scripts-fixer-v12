@@ -1,0 +1,6 @@
+{
+  "users": [
+    { "name": "alice", "enable": true },
+    { "name": "bob",   "shell": "/bin/bash", "comment": "Bob (cleanup)" }
+  ]
+}
