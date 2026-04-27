@@ -239,8 +239,18 @@ _clean_vscode_desktop_entries() {
         local _changed=1
         if command -v cmp >/dev/null 2>&1; then
             cmp -s "$path" "$tmp" && _changed=0
-        else
+        elif command -v diff >/dev/null 2>&1; then
             diff -q "$path" "$tmp" >/dev/null 2>&1 && _changed=0
+        elif command -v md5sum >/dev/null 2>&1; then
+            local h1 h2
+            h1=$($sudo_pfx md5sum "$path" | awk '{print $1}')
+            h2=$(md5sum "$tmp" | awk '{print $1}')
+            [ "$h1" = "$h2" ] && _changed=0
+        else
+            # Last-resort: byte-for-byte string compare via shell read.
+            local s1 s2
+            s1=$($sudo_pfx cat "$path"); s2=$(cat "$tmp")
+            [ "$s1" = "$s2" ] && _changed=0
         fi
         if [ "$_changed" -eq 0 ]; then
             log_info "[01]   no MimeType=/Actions= in: $path"
