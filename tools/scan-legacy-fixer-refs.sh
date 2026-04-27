@@ -52,14 +52,18 @@ if command -v rg >/dev/null 2>&1; then
         --glob '!.lovable/compliance-reports/**' \
         --glob '!tools/*-legacy-fixer-refs.*' \
         --glob '!tools/*legacy-refs.*' \
+        --glob '!tools/readme.md' \
         --glob '!legacy-fix-report.json' \
+        --glob '!.legacy-fix-backups/**' \
         -nH "$PATTERN" . 2>/dev/null || true)"
 else
     OUTPUT="$(cd "$ROOT" && grep -RnHE \
         --binary-files=without-match \
         --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build \
+        --exclude-dir=.legacy-fix-backups \
         --exclude='*-legacy-fixer-refs.*' \
         --exclude='*legacy-refs.*' \
+        --exclude='readme.md' \
         --exclude='legacy-fix-report.json' \
         "$PATTERN" . 2>/dev/null || true)"
 fi

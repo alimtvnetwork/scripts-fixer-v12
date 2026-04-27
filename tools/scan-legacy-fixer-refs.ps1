@@ -16,7 +16,7 @@
 param(
     [string]$Root = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)),
     [int[]]$Versions = @(8, 9, 10),
-    [string[]]$ExcludeDirs = @('.git', 'node_modules', 'dist', 'build', '.next', '.lovable\compliance-reports'),
+    [string[]]$ExcludeDirs = @('.git', 'node_modules', 'dist', 'build', '.next', '.lovable\compliance-reports', '.legacy-fix-backups'),
     [switch]$Quiet
 )
 
@@ -62,12 +62,13 @@ try {
 }
 
 foreach ($file in $files) {
-    # Never flag this scanner itself, the auto-fix tools, or the verify
-    # pipeline whose own header comments legitimately mention the legacy
-    # versions they rewrite (v8/v9/v10 -> v11). Also skip the JSON report.
+    # Never flag this scanner itself, the auto-fix tools, the verify pipeline,
+    # the migration README, or the JSON report (all legitimately mention v8/v9/v10).
     if ($file.FullName -ieq $scriptSelf) { continue }
     if ($file.Name -imatch '-legacy-(fixer-refs|refs)\.(ps1|sh)$') { continue }
     if ($file.Name -ieq 'legacy-fix-report.json') { continue }
+    $relForCheck = $file.FullName.Substring($Root.Length).TrimStart('\','/').Replace('/','\')
+    if ($relForCheck -ieq 'tools\readme.md') { continue }
 
     # Skip excluded directories (path-segment match, case-insensitive)
     $rel = $file.FullName.Substring($Root.Length).TrimStart('\','/')

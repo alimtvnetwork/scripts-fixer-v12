@@ -11,13 +11,20 @@
 # --------------------------------------------------------------------------
 [CmdletBinding()]
 param(
-    [string]   $RepoRoot   = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
-    [int[]]    $Versions   = @(8, 9, 10),
-    [string]   $Target     = 'v11',
+    [string]   $RepoRoot    = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+    [int[]]    $Versions    = @(8, 9, 10),
+    [string]   $Target      = 'v11',
     [switch]   $DryRun,
     # JSON summary report. Pass an empty string to suppress, or a path
     # (relative paths resolve against -RepoRoot).
-    [string]   $ReportFile = 'legacy-fix-report.json'
+    [string]   $ReportFile  = 'legacy-fix-report.json',
+    # Timestamped backups: when -Backup is set each rewritten file is copied
+    # to <BackupRoot>\<BackupStamp>\<repo-relative-path> BEFORE being
+    # overwritten. The chosen backup directory is also written to the JSON
+    # report under "backupDir" so orchestrators can restore from it later.
+    [switch]   $Backup,
+    [string]   $BackupRoot  = '.legacy-fix-backups',
+    [string]   $BackupStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,7 +43,7 @@ if (-not (Test-Path -LiteralPath $RepoRoot)) {
 }
 
 $skipDirs = @('.git', 'node_modules', 'dist', 'build', '.next', '.turbo',
-              '.cache', 'coverage', '.lovable')
+              '.cache', 'coverage', '.lovable', '.legacy-fix-backups')
 $skipExts = @('.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf',
               '.zip', '.gz', '.tgz', '.7z', '.rar', '.exe', '.dll',
               '.bin', '.lockb', '.woff', '.woff2', '.ttf', '.otf',
@@ -44,12 +51,30 @@ $skipExts = @('.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf',
 $selfNames = @('fix-legacy-fixer-refs.ps1', 'fix-legacy-fixer-refs.sh',
                'scan-legacy-fixer-refs.ps1', 'scan-legacy-fixer-refs.sh',
                'fix-and-verify-legacy-refs.ps1', 'fix-and-verify-legacy-refs.sh')
+# Documentation files we never rewrite (they intentionally describe the migration).
+$skipRelDocs = @('tools\readme.md', 'tools/readme.md')
 
 $patterns = $Versions | ForEach-Object { "scripts-fixer-v$_" }
 
 Write-Info "repo:     $RepoRoot"
 Write-Info "rewrite:  $($patterns -join ', ') -> scripts-fixer-$Target"
 Write-Info "mode:     $([string]::Format('{0}', $(if ($DryRun) {'dry-run'} else {'apply'})))"
+
+# Resolve backup directory (only used when -Backup AND not -DryRun)
+$backupDir    = $null
+$backupActive = $false
+if ($Backup -and -not $DryRun) {
+    $backupBase = if ([System.IO.Path]::IsPathRooted($BackupRoot)) { $BackupRoot } else { Join-Path $RepoRoot $BackupRoot }
+    $backupDir  = Join-Path $backupBase $BackupStamp
+    try {
+        New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
+        $backupActive = $true
+        Write-Info "backup:   $backupDir"
+    } catch {
+        Write-FileError $backupDir "cannot create backup directory: $($_.Exception.Message) -- aborting"
+        exit 2
+    }
+}
 
 $changedFiles = @()
 $totalReplacements = 0
@@ -58,10 +83,12 @@ $errors = 0
 $allFiles = Get-ChildItem -LiteralPath $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
     Where-Object {
         $rel = $_.FullName.Substring($RepoRoot.Length).TrimStart('\','/')
+        $relLower = $rel.ToLower()
         $parts = $rel -split '[\\/]'
         ($parts | Where-Object { $skipDirs -contains $_ }).Count -eq 0 -and
         ($skipExts -notcontains $_.Extension.ToLower()) -and
-        ($selfNames -notcontains $_.Name)
+        ($selfNames -notcontains $_.Name) -and
+        ($skipRelDocs -notcontains $relLower)
     }
 
 foreach ($file in $allFiles) {
@@ -92,6 +119,22 @@ foreach ($file in $allFiles) {
         $totalReplacements += $fileReplacements
 
         if (-not $DryRun) {
+            # Timestamped backup BEFORE we touch the file. Backup failure
+            # is fatal for that file (we never want a half-baked rollback set).
+            if ($backupActive) {
+                $bdest = Join-Path $backupDir $rel
+                $bdir  = Split-Path -Parent $bdest
+                try {
+                    if ($bdir -and -not (Test-Path -LiteralPath $bdir)) {
+                        New-Item -ItemType Directory -Path $bdir -Force -ErrorAction Stop | Out-Null
+                    }
+                    Copy-Item -LiteralPath $file.FullName -Destination $bdest -Force -ErrorAction Stop
+                } catch {
+                    Write-FileError $bdest "backup copy failed (source: $($file.FullName)): $($_.Exception.Message)"
+                    $errors++
+                    continue
+                }
+            }
             try {
                 # Preserve original encoding best-effort: write as UTF8 no BOM
                 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -133,6 +176,7 @@ if (-not [string]::IsNullOrEmpty($ReportFile)) {
             mode           = $(if ($DryRun) { 'dry-run' } else { 'apply' })
             target         = "scripts-fixer-$Target"
             legacyVersions = $Versions
+            backupDir      = $backupDir   # $null when -Backup was not set
             totals         = [ordered]@{
                 filesChanged      = $changedFiles.Count
                 totalReplacements = $totalReplacements

@@ -26,6 +26,13 @@ DRY_RUN="${DRY_RUN:-0}"
 # JSON summary report. Set REPORT_FILE="" to suppress, or pass an absolute/
 # relative path. Relative paths resolve against $REPO_ROOT.
 REPORT_FILE="${REPORT_FILE-legacy-fix-report.json}"
+# Timestamped backups: when BACKUP=1 each rewritten file is copied to
+# $BACKUP_ROOT/<timestamp>/<repo-relative-path> BEFORE being overwritten.
+# The chosen backup directory path is also written to the JSON report so
+# orchestrators (or humans) can restore from it later.
+BACKUP="${BACKUP:-0}"
+BACKUP_ROOT="${BACKUP_ROOT:-.legacy-fix-backups}"
+BACKUP_STAMP="${BACKUP_STAMP:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo run)}"
 
 if [ ! -d "$REPO_ROOT" ]; then
   file_error "$REPO_ROOT" "repo root does not exist"
@@ -36,14 +43,33 @@ info "repo:     $REPO_ROOT"
 info "rewrite:  $(for v in $FIX_VERSIONS; do printf 'scripts-fixer-v%s ' "$v"; done)-> scripts-fixer-$FIX_TARGET"
 if [ "$DRY_RUN" = "1" ]; then info "mode:     dry-run"; else info "mode:     apply"; fi
 
+# Resolve backup directory (only used when BACKUP=1 AND not DRY_RUN)
+case "$BACKUP_ROOT" in
+  /*) backup_base="$BACKUP_ROOT" ;;
+  *)  backup_base="$REPO_ROOT/$BACKUP_ROOT" ;;
+esac
+backup_dir="$backup_base/$BACKUP_STAMP"
+backup_active=0
+if [ "$BACKUP" = "1" ] && [ "$DRY_RUN" != "1" ]; then
+  if mkdir -p "$backup_dir" 2>/dev/null; then
+    backup_active=1
+    info "backup:   $backup_dir"
+  else
+    file_error "$backup_dir" "cannot create backup directory -- aborting"
+    exit 2
+  fi
+fi
+
 # Build a single regex alternation: scripts-fixer-v(8|9|10)
 alt="$(echo "$FIX_VERSIONS" | tr ' ' '|')"
 match_re="scripts-fixer-v(${alt})"
 
 # Skip patterns
-prune_dirs='-name .git -o -name node_modules -o -name dist -o -name build -o -name .next -o -name .turbo -o -name .cache -o -name coverage -o -name .lovable'
+prune_dirs='-name .git -o -name node_modules -o -name dist -o -name build -o -name .next -o -name .turbo -o -name .cache -o -name coverage -o -name .lovable -o -name .legacy-fix-backups'
 skip_ext_re='\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tgz|7z|rar|exe|dll|bin|lockb|woff2?|ttf|otf|mp3|mp4|mov|wav)$'
 self_re='-legacy-(fixer-refs|refs)\.(sh|ps1)$'
+# Documentation files we never rewrite (they intentionally describe the migration).
+docs_re='^tools/readme\.md$'
 
 changed_files=0
 total_replacements=0
@@ -55,6 +81,8 @@ while IFS= read -r -d '' f; do
   rel="${f#$REPO_ROOT/}"
   [[ "$rel" =~ $skip_ext_re ]] && continue
   [[ "$rel" =~ $self_re ]] && continue
+  rel_lc="$(printf '%s' "$rel" | tr 'A-Z' 'a-z')"
+  [[ "$rel_lc" =~ $docs_re ]] && continue
 
   if ! grep -Eq "$match_re" "$f" 2>/dev/null; then
     continue
@@ -65,6 +93,23 @@ while IFS= read -r -d '' f; do
   [ -z "$count" ] || [ "$count" = "0" ] && continue
 
   if [ "$DRY_RUN" != "1" ]; then
+    # Timestamped backup BEFORE we touch the file. Backup failure is fatal
+    # for that file (we never want a half-backed rollback set).
+    if [ "$backup_active" = "1" ]; then
+      bdest="$backup_dir/$rel"
+      bdir="$(dirname "$bdest")"
+      if ! mkdir -p "$bdir" 2>/dev/null; then
+        file_error "$bdir" "cannot create backup subdir"
+        errors=$((errors+1))
+        continue
+      fi
+      if ! cp -p "$f" "$bdest" 2>/dev/null; then
+        file_error "$bdest" "backup copy failed (source: $f)"
+        errors=$((errors+1))
+        continue
+      fi
+    fi
+
     tmp="${f}.fixlegacy.$$"
     if ! sed -E "s/scripts-fixer-v(${alt})\b/scripts-fixer-${FIX_TARGET}/g" "$f" > "$tmp" 2>/dev/null; then
       file_error "$f" "sed rewrite failed"
@@ -117,6 +162,12 @@ if [ -n "$REPORT_FILE" ]; then
       printf '  "mode": "%s",\n' "$mode_str"
       printf '  "target": "scripts-fixer-%s",\n' "$FIX_TARGET"
       printf '  "legacyVersions": %s,\n' "$versions_json"
+      backup_json="null"
+      if [ "$backup_active" = "1" ]; then
+        esc_bdir="$(printf '%s' "$backup_dir" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+        backup_json="\"$esc_bdir\""
+      fi
+      printf '  "backupDir": %s,\n' "$backup_json"
       printf '  "totals": { "filesChanged": %d, "totalReplacements": %d, "errors": %d },\n' \
              "$changed_files" "$total_replacements" "$errors"
       printf '  "files": ['

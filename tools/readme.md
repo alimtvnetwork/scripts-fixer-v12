@@ -100,34 +100,56 @@ a per-version summary) · `2` error (logs exact path + reason).
 
 **Single command** that runs the full migration safety net in one shot:
 
-1. Dry-run the fixer to **preview** every file that would change (no writes).
-2. Apply the rewrite (`scripts-fixer-v8/v9/v10` -> `scripts-fixer-v11`) and
-   write the JSON summary to `legacy-fix-report.json`.
-3. Run the scanner. The whole command **only exits 0 when the scanner
-   reports PASS**, so a green exit guarantees the repo is clean.
+1. **Dry-run** the fixer to preview every file that would change (no writes).
+2. **Apply** the rewrite with **timestamped backups** under
+   `.legacy-fix-backups/<UTC-timestamp>/<repo-relative-path>`. Backups are
+   on by default and the chosen directory is recorded in
+   `legacy-fix-report.json` under `backupDir`.
+3. **Scan** the result. If the scanner reports FAIL, the pipeline
+   **automatically rolls back** every file from the backup so the repo is
+   restored to its pre-apply state. The whole command only exits `0` when
+   the scanner reports PASS, so a green exit guarantees the repo is clean.
 
-If the dry-run or apply step fails, the pipeline aborts before later steps
-run and exits `2` (no destructive action on a broken preview).
+If the dry-run or apply step itself fails, the pipeline aborts before later
+steps run and exits `2` (no destructive action on a broken preview). Empty
+backup directories left behind by no-op runs are auto-removed on success.
 
 ```powershell
 # Windows
-.\tools\fix-and-verify-legacy-refs.ps1                    # full preview -> apply -> scan
-.\tools\fix-and-verify-legacy-refs.ps1 -SkipApply         # preview + scan only (no writes)
-.\tools\fix-and-verify-legacy-refs.ps1 -ReportFile r.json # custom JSON report path
+.\tools\fix-and-verify-legacy-refs.ps1                       # preview -> apply (with backups) -> scan -> rollback on FAIL
+.\tools\fix-and-verify-legacy-refs.ps1 -SkipApply            # preview + scan only (no writes, no backup, no rollback)
+.\tools\fix-and-verify-legacy-refs.ps1 -NoBackup             # apply without backups (rollback disabled)
+.\tools\fix-and-verify-legacy-refs.ps1 -NoRollback           # keep changes even if the scanner FAILs
+.\tools\fix-and-verify-legacy-refs.ps1 -ReportFile r.json    # custom JSON report path
+.\tools\fix-and-verify-legacy-refs.ps1 -BackupRoot D:\bk     # custom backup root (default: .legacy-fix-backups)
 ```
 
 ```bash
 # Unix / macOS
-bash tools/fix-and-verify-legacy-refs.sh                   # full preview -> apply -> scan
-SKIP_APPLY=1 bash tools/fix-and-verify-legacy-refs.sh      # preview + scan only (no writes)
-REPORT_FILE=r.json bash tools/fix-and-verify-legacy-refs.sh
+bash tools/fix-and-verify-legacy-refs.sh                     # preview -> apply (with backups) -> scan -> rollback on FAIL
+SKIP_APPLY=1   bash tools/fix-and-verify-legacy-refs.sh      # preview + scan only (no writes, no backup, no rollback)
+NO_BACKUP=1    bash tools/fix-and-verify-legacy-refs.sh      # apply without backups (rollback disabled)
+NO_ROLLBACK=1  bash tools/fix-and-verify-legacy-refs.sh      # keep changes even if the scanner FAILs
+REPORT_FILE=r.json   bash tools/fix-and-verify-legacy-refs.sh
+BACKUP_ROOT=/tmp/bk  bash tools/fix-and-verify-legacy-refs.sh
+```
+
+You can also call the fixer directly with the same backup flags:
+
+```bash
+BACKUP=1 BACKUP_ROOT=.legacy-fix-backups bash tools/fix-legacy-fixer-refs.sh
+```
+
+```powershell
+.\tools\fix-legacy-fixer-refs.ps1 -Backup -BackupRoot .legacy-fix-backups
 ```
 
 Exit codes:
 
-| Code | Meaning                                                                  |
-| ---- | ------------------------------------------------------------------------ |
-| `0`  | dry-run + apply succeeded **and** scanner reports PASS (repo is clean)   |
-| `1`  | scanner reports FAIL after apply (legacy refs still present somewhere)   |
-| `2`  | dry-run, apply, or required-script error (exact file + reason logged)    |
+| Code | Meaning                                                                                |
+| ---- | -------------------------------------------------------------------------------------- |
+| `0`  | dry-run + apply succeeded **and** scanner reports PASS (repo is clean)                 |
+| `1`  | scanner reports FAIL; auto-rollback was attempted unless `-NoBackup` / `-NoRollback`   |
+| `2`  | dry-run, apply, rollback, or required-script error (exact file + reason logged)        |
+
 
