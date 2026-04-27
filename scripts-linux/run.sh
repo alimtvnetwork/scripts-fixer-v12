@@ -98,6 +98,18 @@ while [ $# -gt 0 ]; do
         VERB="usr-passthrough"; USR_SUB="cli";  shift; USR_REST=("$@"); break ;;
     add-users-from-json|users-from-json|add-user-from-json|user-from-json)
         VERB="usr-passthrough"; USR_SUB="json"; shift; USR_REST=("$@"); break ;;
+    # ---- top-level shortcuts to script 68 (edit / remove user) ----
+    # Mirrors add-user shortcuts above. CLI form forwards to edit-user.sh
+    # / remove-user.sh; JSON form forwards to the *-from-json.sh loaders
+    # which now share helpers/_schema.sh for strict validation.
+    edit-user|user-edit|modify-user|edituser)
+        VERB="usr-passthrough"; USR_SUB="edit-cli";   shift; USR_REST=("$@"); break ;;
+    edit-users-from-json|edit-user-from-json|modify-user-from-json|edit-user-json|modify-user-json)
+        VERB="usr-passthrough"; USR_SUB="edit-json";  shift; USR_REST=("$@"); break ;;
+    remove-user|user-remove|delete-user|deluser|removeuser)
+        VERB="usr-passthrough"; USR_SUB="remove-cli"; shift; USR_REST=("$@"); break ;;
+    remove-users-from-json|remove-user-from-json|delete-user-from-json|remove-user-json|delete-user-json)
+        VERB="usr-passthrough"; USR_SUB="remove-json"; shift; USR_REST=("$@"); break ;;
     # ---- top-level shortcut: one-page cheat-sheet for the DIRECT CLI ----
     # surface of script 68 (no JSON required). Read-only, no side effects.
     #   ./run.sh useradm-help        -> users + groups + examples
