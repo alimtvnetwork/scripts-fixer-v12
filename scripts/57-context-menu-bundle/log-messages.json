@@ -1,0 +1,35 @@
+{
+  "scriptName": "57 - Context Menu Bundle",
+  "help": {
+    "synopsis": "Run PowerShell Here (script 31) + VS Code folder repair (script 52) in one guided pass.",
+    "usage": [
+      ".\\run.ps1                 # guided install (prompts per component)",
+      ".\\run.ps1 install         # same as default",
+      ".\\run.ps1 install -Yes    # non-interactive, install both",
+      ".\\run.ps1 uninstall       # guided removal of both",
+      ".\\run.ps1 dry-run         # preview only, no registry writes",
+      ".\\run.ps1 status          # show what each component would touch"
+    ],
+    "notes": [
+      "Requires Administrator (both child scripts write to HKCR).",
+      "Each component logs its own changes; this bundle prints a final summary.",
+      "Use -Yes to skip prompts; -Skip pwsh|vscode to exclude one component."
+    ]
+  },
+  "messages": {
+    "banner":            "Context Menu Bundle -- PowerShell Here + VS Code folder repair",
+    "notAdmin":          "Administrator privileges required. Re-run from an elevated PowerShell.",
+    "scriptDisabled":    "Bundle disabled in config.json (enabled=false).",
+    "promptComponent":   "Run '{0}'? [Y/n] ",
+    "skipComponent":     "  [SKIP] {0} (user declined)",
+    "skipFlag":          "  [SKIP] {0} (excluded via -Skip)",
+    "runComponent":      "==> {0}",
+    "componentOk":       "  [ OK ] {0}",
+    "componentFail":     "  [FAIL] {0} -- exit code {1}",
+    "componentMissing":  "  [FAIL] Component path not found: {0} (reason: missing run.ps1)",
+    "dryRunHeader":      "DRY-RUN -- no registry writes will occur. Planned changes:",
+    "summaryHeader":     "------------------- Summary -------------------",
+    "summaryRow":        "  {0,-40} {1}",
+    "summaryFooter":     "-----------------------------------------------"
+  }
+}

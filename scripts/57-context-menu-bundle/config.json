@@ -1,0 +1,35 @@
+{
+  "_comment": "Script 57 -- Context Menu Bundle. Runs script 31 (PowerShell Here) and 52 (VS Code folder repair) in one guided flow.",
+  "enabled": true,
+  "components": [
+    {
+      "id": "pwsh-context-menu",
+      "scriptId": "31",
+      "folder": "31-pwsh-context-menu",
+      "title": "PowerShell Here (normal + admin)",
+      "description": "Adds 'Open PowerShell Here' and 'Open PowerShell Here (Admin)' to folder + folder background right-click menus.",
+      "registryTargets": [
+        "HKCR\\Directory\\shell\\PowerShellHere",
+        "HKCR\\Directory\\shell\\PowerShellHereAdmin",
+        "HKCR\\Directory\\Background\\shell\\PowerShellHere",
+        "HKCR\\Directory\\Background\\shell\\PowerShellHereAdmin"
+      ],
+      "installArgs": [],
+      "uninstallArgs": ["uninstall"]
+    },
+    {
+      "id": "vscode-folder-repair",
+      "scriptId": "52",
+      "folder": "52-vscode-folder-repair",
+      "title": "VS Code folder context menu repair",
+      "description": "Restores 'Open with Code' on folders, removes redundant file/background entries, and refreshes Explorer.",
+      "registryTargets": [
+        "HKCR\\Directory\\shell\\VSCode",
+        "HKCR\\Directory\\Background\\shell\\VSCode (cleaned)",
+        "HKCR\\*\\shell\\VSCode (cleaned)"
+      ],
+      "installArgs": ["repair"],
+      "uninstallArgs": ["rollback"]
+    }
+  ]
+}
