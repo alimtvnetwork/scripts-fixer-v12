@@ -9,6 +9,7 @@
 
     Flags:
       --purge-profile   Also delete C:\Users\<name> (DESTRUCTIVE)
+      --purge-home      Alias of --purge-profile (Unix-friendly name)
       --yes             Skip the confirmation prompt
       --ask             Prompt interactively
       --dry-run         Print what would be removed
@@ -39,7 +40,7 @@ $i = 0
 while ($i -lt $Argv.Count) {
     $a = $Argv[$i]
     switch -Regex ($a) {
-        '^--purge-profile$' { $purge = $true }
+        '^--purge-profile$|^--purge-home$' { $purge = $true }
         '^--yes$|^-y$'      { $autoYes = $true }
         '^--ask$'           { $hasAsk = $true }
         '^--dry-run$'       { $hasDryRun = $true }
