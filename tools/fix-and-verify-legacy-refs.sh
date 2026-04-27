@@ -100,11 +100,12 @@ fi
 # --- Step 3: scanner verdict (gates exit code, triggers rollback) ---------
 step "Step 3/3  post-apply scanner (PASS required)"
 info "running: bash $SCANNER"
-if bash "$SCANNER"; then
+bash "$SCANNER"
+scan_rc=$?
+if [ "$scan_rc" = "0" ]; then
   ok "scanner reports PASS -- repo is clean"
   exit 0
 fi
-scan_rc=$?
 if [ "$scan_rc" != "1" ]; then
   fail "scanner errored (exit $scan_rc)"
   exit 2
