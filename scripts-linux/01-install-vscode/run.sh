@@ -319,6 +319,133 @@ _clean_vscode_desktop_entries() {
     return 0
 }
 
+# --- Context menu cleanup --------------------------------------------------
+# Removes the "Open with Code" Nautilus / Nemo / Caja shell scripts and
+# Thunar uca.xml.d entries, plus the helper shims VS Code itself drops
+# under its install tree (e.g. resources/app/bin/code-context.sh).
+#
+# STRICT rules:
+#   * We delete a file ONLY when its BASENAME matches one of the
+#     allow-listed names AND its PARENT DIR is one of the allow-listed
+#     locations. No globbing, no recursion, no "rm -rf <dir>".
+#   * Sibling scripts the user wrote themselves (e.g. an "Open with
+#     Sublime" script next to "Open with Code") are byte-for-byte
+#     untouched.
+#   * Directories themselves are NEVER removed -- only matching files
+#     inside them.
+#   * Each delete is preceded by a `.bak-01ctx-<ts>` snapshot copy so
+#     the user can restore if needed.
+_clean_context_menu_entries() {
+    has_jq || { log_warn "[01] jq not available -- skipping context menu cleanup"; return 0; }
+
+    local enabled
+    enabled=$(jq -r '.mimeCleanup.contextMenu.enabled // false' "$CONFIG")
+    if [ "$enabled" != "true" ]; then
+        log_info "[01] mimeCleanup.contextMenu.enabled=false -- skipping context menu cleanup"
+        return 0
+    fi
+
+    mapfile -t SCRIPT_NAMES < <(jq -r '.mimeCleanup.contextMenu.fileNames[]?       // empty' "$CONFIG")
+    mapfile -t SCRIPT_DIRS  < <(jq -r '.mimeCleanup.contextMenu.searchDirs[]?      // empty' "$CONFIG")
+    mapfile -t ACTION_NAMES < <(jq -r '.mimeCleanup.contextMenu.actionFileNames[]? // empty' "$CONFIG")
+    mapfile -t ACTION_DIRS  < <(jq -r '.mimeCleanup.contextMenu.actionDirs[]?      // empty' "$CONFIG")
+    mapfile -t INT_NAMES    < <(jq -r '.mimeCleanup.contextMenu.integrationFiles[]? // empty' "$CONFIG")
+    mapfile -t INT_ROOTS    < <(jq -r '.mimeCleanup.contextMenu.integrationRoots[]? // empty' "$CONFIG")
+
+    log_info "[01] Context menu cleanup: scanning Nautilus/Nemo/Caja/Thunar + VS Code integration paths"
+
+    local ts; ts=$(date +%Y%m%d-%H%M%S)
+    local rc=0 removed=0
+
+    _ctx_remove_one() {
+        # $1 = full path, $2 = sudo prefix ("" or "sudo"), $3 = label for log
+        local path="$1" sudo_pfx="$2" label="$3"
+        if [ ! -e "$path" ]; then
+            return 0
+        fi
+        # Refuse to delete a directory -- our allow-list is files only.
+        if [ -d "$path" ] && [ ! -L "$path" ]; then
+            log_warn "[01]   refuse to delete directory (allow-list is files only): $path"
+            return 0
+        fi
+        # Snapshot before delete so the user can recover.
+        local backup="${path}.bak-01ctx-${ts}"
+        if ! $sudo_pfx cp -p "$path" "$backup" 2>/dev/null; then
+            # Symlinks: cp -p preserves the link itself; a follow-up rm is
+            # still safe. Only fail hard if the file actually existed and
+            # we couldn't snapshot it.
+            if [ -L "$path" ]; then
+                log_info "[01]   $label is a symlink -- removing without backup: $path"
+            else
+                log_file_error "$backup" "snapshot copy failed -- NOT deleting $path"
+                return 1
+            fi
+        fi
+        if ! $sudo_pfx rm -f "$path"; then
+            log_file_error "$path" "$label removal failed (backup at $backup)"
+            return 1
+        fi
+        log_ok "[01]   removed $label: $path${backup:+ (backup: $backup)}"
+        removed=$((removed+1))
+        return 0
+    }
+
+    _ctx_sudo_for() {
+        # Decide sudo prefix based on path location.
+        case "$1" in
+            "$HOME"/*) printf '' ;;
+            *)         printf 'sudo' ;;
+        esac
+    }
+
+    # 1. Nautilus / Nemo / Caja / Thunar shell-script integrations.
+    local d_raw d basename path sudo_pfx
+    for d_raw in "${SCRIPT_DIRS[@]}"; do
+        d="${d_raw//\$\{HOME\}/$HOME}"
+        if [ ! -d "$d" ]; then
+            continue
+        fi
+        sudo_pfx="$(_ctx_sudo_for "$d")"
+        for basename in "${SCRIPT_NAMES[@]}"; do
+            path="$d/$basename"
+            _ctx_remove_one "$path" "$sudo_pfx" "context-menu script" || rc=1
+        done
+    done
+
+    # 2. Nautilus/Nemo/Caja XML/.desktop action files.
+    for d_raw in "${ACTION_DIRS[@]}"; do
+        d="${d_raw//\$\{HOME\}/$HOME}"
+        if [ ! -d "$d" ]; then
+            continue
+        fi
+        sudo_pfx="$(_ctx_sudo_for "$d")"
+        for basename in "${ACTION_NAMES[@]}"; do
+            path="$d/$basename"
+            _ctx_remove_one "$path" "$sudo_pfx" "file-manager action" || rc=1
+        done
+    done
+
+    # 3. VS Code install-tree integration scripts.
+    for d_raw in "${INT_ROOTS[@]}"; do
+        d="${d_raw//\$\{HOME\}/$HOME}"
+        if [ ! -d "$d" ]; then
+            continue
+        fi
+        sudo_pfx="$(_ctx_sudo_for "$d")"
+        for basename in "${INT_NAMES[@]}"; do
+            path="$d/$basename"
+            _ctx_remove_one "$path" "$sudo_pfx" "VS Code integration shim" || rc=1
+        done
+    done
+
+    if [ "$rc" -ne 0 ]; then
+        log_warn "[01] Context menu cleanup completed with $removed file(s) removed and one or more errors (see above)"
+    else
+        log_ok "[01] Context menu cleanup complete ($removed file(s) removed)"
+    fi
+    return 0
+}
+
 install_via_ms_repo() {
   log_info "[01] Adding Microsoft apt repo + key"
   has_curl || { log_err "[01] curl required for Microsoft key"; return 1; }
