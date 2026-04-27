@@ -124,5 +124,95 @@ else
   _fail "remove-user nonexistent" "rc=0" "rc=$rc out=$out"
 fi
 
+# 13. edit-user multi-flag plan banner renders rename + add-group + shell + comment
+out=$(bash "$RUN" edit-user someuser --rename newname --promote \
+        --add-group docker --shell /bin/zsh --comment "X" --dry-run 2>&1)
+if echo "$out" | grep -q "edit-user plan for 'someuser'" \
+   && echo "$out" | grep -q "rename 'someuser' -> 'newname'" \
+   && echo "$out" | grep -q "add groups: docker,sudo" \
+   && echo "$out" | grep -q "set shell: /bin/zsh"; then
+  _pass "edit-user multi-flag plan banner renders all changes"
+else
+  _fail "edit-user multi-flag plan" "rename+groups+shell lines present" "$(echo "$out" | head -10)"
+fi
+
+# 14. edit-user --enable + --disable mutual exclusion -> exit 64
+out=$(bash "$RUN" edit-user someuser --enable --disable --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ]; then
+  _pass "edit-user --enable+--disable rejected (exit 64)"
+else
+  _fail "edit-user --enable+--disable" "rc=64" "rc=$rc out=$out"
+fi
+
+# 15. remove-user --purge-profile (Windows alias) accepted on Unix
+out=$(bash "$RUN" remove-user no-such-user-xyz --purge-profile --yes --dry-run 2>&1); rc=$?
+if [ $rc -eq 0 ] && echo "$out" | grep -q "remove-user plan for 'no-such-user-xyz'"; then
+  _pass "remove-user --purge-profile alias accepted on Unix"
+else
+  _fail "remove-user --purge-profile" "rc=0 + plan banner" "rc=$rc out=$out"
+fi
+
+# 16. JSON loaders: edit-user-json + remove-user-json + bare-string list
+if command -v jq >/dev/null 2>&1; then
+  for pair in \
+      "edit-user-json:examples/edit-users.json:loaded [0-9]+ user-edit record" \
+      "edit-user-json:examples/edit-users-wrapped.json:loaded [0-9]+ user-edit record" \
+      "remove-user-json:examples/remove-users.json:loaded [0-9]+ user-removal record" \
+      "remove-user-json:examples/remove-users-wrapped.json:loaded [0-9]+ user-removal record" \
+      "remove-user-json:examples/remove-users-bare.json:loaded [0-9]+ user-removal record"
+  do
+    sub=${pair%%:*}; rest=${pair#*:}
+    file=${rest%%:*}; needle=${rest#*:}
+    full="$SCRIPT_DIR/$file"
+    if [ ! -f "$full" ]; then
+      _fail "example exists: $file" "file present" "missing at $full"; continue
+    fi
+    out=$(bash "$RUN" "$sub" "$full" --dry-run 2>&1)
+    if echo "$out" | grep -qE "$needle"; then
+      _pass "JSON loader $sub parses $(basename "$file")"
+    else
+      _fail "JSON loader $sub: $file" "$needle" "$(echo "$out" | head -3)"
+    fi
+  done
+
+  # 17. edit-user-json: per-record promote+demote rejection propagates
+  tmp="${TMPDIR:-/tmp}/68-smoke-bad-edit-$$.json"
+  printf '[{"name":"x","promote":true,"demote":true}]' > "$tmp"
+  out=$(bash "$RUN" edit-user-json "$tmp" --dry-run 2>&1); rc=$?
+  if [ $rc -ne 0 ]; then
+    _pass "edit-user-json per-record promote+demote rejected"
+  else
+    _fail "edit-user-json promote+demote" "non-zero rc" "rc=$rc out=$(echo "$out" | head -5)"
+  fi
+  rm -f "$tmp"
+
+  # 18. remove-user-json missing file -> exit 2 + FILE-ERROR with exact path
+  bogus=/nonexistent/path/remove-users.json
+  out=$(bash "$RUN" remove-user-json "$bogus" 2>&1); rc=$?
+  if [ $rc -eq 2 ] && echo "$out" | grep -q "FILE-ERROR" && echo "$out" | grep -q "$bogus"; then
+    _pass "remove-user-json missing file: rc=2 + FILE-ERROR with exact path"
+  else
+    _fail "remove-user-json missing file" "rc=2 + FILE-ERROR exact path" "rc=$rc out=$out"
+  fi
+else
+  printf '  [SKIP] edit-user-json/remove-user-json tests need jq\n'
+fi
+
+# 19. dispatcher aliases: modify-user-json + delete-user-json route correctly
+if command -v jq >/dev/null 2>&1; then
+  out=$(bash "$RUN" modify-user-json "$SCRIPT_DIR/examples/edit-users.json" --dry-run 2>&1)
+  if echo "$out" | grep -qE 'loaded [0-9]+ user-edit record'; then
+    _pass "dispatcher alias modify-user-json routes to edit-user-json"
+  else
+    _fail "alias modify-user-json" "loaded N user-edit record(s)" "$(echo "$out" | head -3)"
+  fi
+  out=$(bash "$RUN" delete-user-json "$SCRIPT_DIR/examples/remove-users-bare.json" --dry-run 2>&1)
+  if echo "$out" | grep -qE 'loaded [0-9]+ user-removal record'; then
+    _pass "dispatcher alias delete-user-json routes to remove-user-json"
+  else
+    _fail "alias delete-user-json" "loaded N user-removal record(s)" "$(echo "$out" | head -3)"
+  fi
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 test "$fail" -eq 0
