@@ -217,3 +217,50 @@ for forensics. Verified against live wordpress.org with 5 scenarios:
 clean pass, 1-byte corruption (SHA1 mismatch caught with exact expected/got),
 missing checksum URL strict (abort), missing checksum URL with skip flag
 (warn + continue), and empty file (fail fast).
+
+### Reconfigure verb + --keep-salts (v0.179.0)
+New top-level verb `reconfigure` (aliases: `reconfig`, `rewrite-config`)
+regenerates wp-config.php from the existing extracted WordPress files
+using current `WP_DB_NAME` / `WP_DB_USER` / `WP_DB_PASS` / `WP_MYSQL_PORT`
+/ `WP_INSTALL_PATH`. NO download, NO extract, NO chown of the docroot.
+
+Refactor: extracted shared helpers in `components/wordpress.sh`:
+- `_wp_write_config <path> <db_name> <db_user> <db_pass> <db_host> <db_port> [keep_salts]`
+  -- single source of truth for cp + sed + salt block + verify; called by
+  both install and reconfigure.
+- `_wp_save_credentials_record <path> <engine> <host> <port> <name> <user> <pass>`
+  -- writes the chmod-600 .installed/70-wordpress-credentials.json.
+- `component_wordpress_reconfigure` -- validates install dir + sample,
+  backs up existing wp-config.php to `wp-config.php.bak.<UTC-ts>`,
+  applies idempotent MySQL grant (CREATE ... IF NOT EXISTS + ALTER USER),
+  calls `_wp_write_config`, refreshes credentials record.
+
+New flag `--keep-salts` (sets `WP_KEEP_SALTS=1`): preserves the existing
+8 salt define() lines so active user sessions / password reset cookies
+remain valid -- only DB credentials change. Default behaviour rotates
+salts from `api.wordpress.org/secret-key/1.1/salt/` for safety.
+If --keep-salts is set but the existing config has fewer than 8 salts,
+falls back to fresh fetch with a WARN.
+
+**Bonus bug fix discovered during testing**: the awk salt-strip regex
+(`...);$`) failed against `wp-config-sample.php` because WordPress ships
+it with **CRLF** line endings (the trailing `\r` sits between `;` and
+`\n`, so the EOL anchor never matched). Pre-existing bug -- caused
+duplicate salts on any operator-edited wp-config.php. Fixed by adding
+`sudo sed -i 's/\r$//' "$cfg"` immediately before the awk filter so it
+works for both fresh-from-upstream (CRLF) and post-write (LF) files.
+
+Verified end-to-end with 4 unit tests against a real wp-config-sample.php
+from upstream: default reconfigure rotates salts and applies new DB creds;
+--keep-salts preserves all 8 known salts exactly once while applying new
+DB creds; missing wp-config-sample.php aborts with FILE-ERR; missing
+install dir aborts with FILE-ERR. All backups created at
+`<install_path>/wp-config.php.bak.<UTC-ts>` for one-mv rollback.
+
+Usage:
+```
+./run.sh reconfigure --db-pass NEW_PASSWORD            # rotate password + salts
+./run.sh reconfigure --db-pass NEW_PASSWORD --keep-salts  # rotate password, keep sessions
+./run.sh reconfigure --port 3307 --keep-salts          # MySQL port changed, no session loss
+./run.sh reconfigure -i                                # interactive prompts
+```
