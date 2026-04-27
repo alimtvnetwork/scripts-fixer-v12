@@ -121,6 +121,63 @@ SSH-key install summary export (v0.182.0):
   --no-summary-json            Disable summary export even if
                                UM_SUMMARY_JSON is set in the env. Use
                                in batch loaders that already aggregate.
+
+Dry-run effect per flag (with --dry-run, every mutating action is logged
+as "[dry-run] <command>" and the host is not modified; root is NOT
+required so the plan can be previewed by any user):
+  <name>                       would call useradd/sysadminctl to create
+                               the account (skipped with [WARN] if it
+                               already exists -- group + key sync still
+                               proceed in plan mode)
+  --password / --password-file would pipe '<name>:<masked>' to chpasswd
+                               (Linux) or dscl . -passwd (macOS); the
+                               password value is NEVER logged
+  --uid N                      would pass --uid N to useradd / set
+                               UniqueID=N via dscl
+  --primary-group G            would create G via groupadd if missing
+                               (Linux) and pass --gid G to useradd; on
+                               macOS G must already exist
+  --groups g1,g2,...           would call usermod -aG (Linux) / dseditgroup
+                               -o edit -a <name> -t user g (macOS) per group
+  --shell PATH                 would pass --shell PATH to useradd / set
+                               UserShell=PATH via dscl
+  --home  PATH                 would pass --home-dir PATH --create-home
+                               (Linux) / set NFSHomeDirectory + run
+                               createhomedir -c -u (macOS) for the seed
+  --comment "..."              would pass --comment "..." to useradd /
+                               set RealName via dscl
+  --sudo                       would add to 'sudo' (Linux) / 'admin' (macOS)
+  --system                     would pass --system to useradd (Linux);
+                               silently ignored on macOS
+  --ask                        prompt happens BEFORE the dry-run plan; the
+                               collected values still drive the would-do log
+  --ssh-key / --ssh-key-file / --ssh-key-url
+                               would parse + de-dupe sources and log
+                               "[dry-run] would install N unique ssh key(s)
+                               to <home>/.ssh/authorized_keys (mode 0600,
+                               dir 0700, owner=<name>:<pgroup>)" plus one
+                               "[dry-run]   key fingerprint: SHA256:..."
+                               line per unique key. URLs are still fetched
+                               in dry-run so fingerprints can be computed;
+                               nothing is written to disk.
+  --ssh-key-url-timeout / --ssh-key-url-max-bytes / --ssh-key-url-allowlist
+                               affect the URL fetch above (still honoured
+                               under --dry-run); no host mutation
+  --allow-insecure-url         affects URL scheme validation only; no
+                               additional dry-run side effect
+  --run-id / --manifest-dir / --no-manifest
+                               manifest writing is SKIPPED entirely under
+                               --dry-run (rollback would not be possible
+                               anyway because no keys were installed)
+  --summary-json [TARGET]      summary file write is SKIPPED under
+                               --dry-run; the path that WOULD be written
+                               is logged at INFO so callers can verify
+                               TARGET resolution
+  --no-summary-json            no-op flag; just suppresses the path log
+                               above. Safe to combine with --dry-run.
+  --dry-run                    this flag itself; emits the dry-run banner
+                               and gates every um_run / chpasswd / dscl /
+                               key-install / manifest-prune call
 EOF
 }
 
