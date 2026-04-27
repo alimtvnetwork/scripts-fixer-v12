@@ -23,54 +23,30 @@ function Install-Git {
         $LogMessages
     )
 
+    # Delegates the detect/upgrade/install/track flow to the shared
+    # Ensure-Tool helper so the same logic runs whether the user invokes
+    # script 07 directly or via the "advanced" profile in script 12.
     $packageName = $Config.chocoPackageName
+    $alwaysUpgrade = [bool]$Config.alwaysUpgradeToLatest
 
-    $existing = Get-Command git -ErrorAction SilentlyContinue
-    if ($existing) {
-        $currentVersion = try { & git --version 2>$null } catch { $null }
-        $hasVersion = -not [string]::IsNullOrWhiteSpace($currentVersion)
-
-        # Check .installed/ tracking -- skip if version matches
-        if ($hasVersion) {
-            $isAlreadyTracked = Test-AlreadyInstalled -Name "git" -CurrentVersion $currentVersion
-            if ($isAlreadyTracked) {
-                Write-Log ($LogMessages.messages.gitAlreadyInstalled -replace '\{version\}', $currentVersion) -Level "info"
-                return
-            }
-        }
-
-        Write-Log ($LogMessages.messages.gitAlreadyInstalled -replace '\{version\}', $currentVersion) -Level "info"
-
-        if ($Config.alwaysUpgradeToLatest) {
-            try {
-                Upgrade-ChocoPackage -PackageName $packageName
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
-                $newVersion = try { & git --version 2>$null } catch { $null }
-                $isVersionEmpty = [string]::IsNullOrWhiteSpace($newVersion)
-                if ($isVersionEmpty) { $newVersion = "(version pending)" }
-                Write-Log ($LogMessages.messages.gitUpgradeSuccess -replace '\{version\}', $newVersion) -Level "success"
-                Save-InstalledRecord -Name "git" -Version "$newVersion".Trim()
-            } catch {
-                Write-Log "Git upgrade failed: $_" -Level "error"
-                Save-InstalledError -Name "git" -ErrorMessage "$_"
-            }
-        }
+    $ensureParams = @{
+        Name         = "git"
+        Command      = "git"
+        ChocoPackage = $packageName
+        FriendlyName = "Git"
     }
-    else {
-        Write-Log $LogMessages.messages.gitNotFound -Level "info"
-        try {
-            Install-ChocoPackage -PackageName $packageName
+    if ($alwaysUpgrade) { $ensureParams.AlwaysUpgradeToLatest = $true }
 
-            # Refresh PATH
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $result = Ensure-Tool @ensureParams
 
-            $installedVersion = & git --version 2>$null
-            Write-Log ($LogMessages.messages.gitInstallSuccess -replace '\{version\}', $installedVersion) -Level "success"
-            Save-InstalledRecord -Name "git" -Version $installedVersion
-        } catch {
-            Write-Log "Git install failed: $_" -Level "error"
-            Save-InstalledError -Name "git" -ErrorMessage "$_"
-        }
+    # Map Ensure-Tool outcome back onto the per-script log message catalog so
+    # the on-screen output stays consistent with what users saw before.
+    $version = if ($result.Version) { $result.Version } else { "unknown" }
+    switch ($result.Action) {
+        "skipped"   { Write-Log ($LogMessages.messages.gitAlreadyInstalled -replace '\{version\}', $version) -Level "info" }
+        "installed" { Write-Log ($LogMessages.messages.gitInstallSuccess  -replace '\{version\}', $version) -Level "success" }
+        "upgraded"  { Write-Log ($LogMessages.messages.gitUpgradeSuccess  -replace '\{version\}', $version) -Level "success" }
+        "failed"    { Write-Log "Git install/upgrade failed: $($result.Error)" -Level "error" }
     }
 }
 

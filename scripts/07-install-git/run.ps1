@@ -25,6 +25,8 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "path-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "tool-version.ps1")
+. (Join-Path $sharedDir "ensure-tool.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\git.ps1")
