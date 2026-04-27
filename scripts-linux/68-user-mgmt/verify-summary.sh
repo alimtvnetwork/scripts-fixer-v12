@@ -850,25 +850,46 @@ vs_validate_one() {
   # Soft consistency checks (only meaningful if counters parsed).
   if [ "${#errors[@]}" -eq 0 ]; then
     if [ "$kind" != "batch" ]; then
-      local cons
-      cons=$(printf '%s' "$parsed" | jq -r '
+      # Pull each consistency signal independently so we can route it to
+      # warning OR rule-error depending on which --rule flags are active.
+      # Tagged TSV: <tag>\t<message>
+      local cons_lines
+      cons_lines=$(printf '%s' "$parsed" | jq -r '
         .summary as $s
+        | (.ok // true) as $ok
+        | .sources as $src
         | [
-            (if ($s.keys_installed_new + $s.keys_preserved) != $s.keys_unique
-                then "installed_new(\($s.keys_installed_new))+preserved(\($s.keys_preserved))!=unique(\($s.keys_unique))"
+            (if $ok and (($s.keys_installed_new + $s.keys_preserved) != $s.keys_unique)
+                then "installed-plus-preserved-eq-unique\tinstalled_new(\($s.keys_installed_new))+preserved(\($s.keys_preserved))!=unique(\($s.keys_unique))"
                 else empty end),
             (if $s.keys_unique > $s.keys_parsed
-                then "unique(\($s.keys_unique))>parsed(\($s.keys_parsed))"
+                then "unique-le-parsed\tunique(\($s.keys_unique))>parsed(\($s.keys_parsed))"
                 else empty end),
             (if $s.keys_installed_new > $s.keys_parsed
-                then "installed_new(\($s.keys_installed_new))>parsed(\($s.keys_parsed))"
+                then "installed-le-parsed\tinstalled_new(\($s.keys_installed_new))>parsed(\($s.keys_parsed))"
+                else empty end),
+            # Pure-inline rule: file==0, url==0, inline>0 -> parsed==unique==sources_requested.
+            # We always emit the candidate violation; rule gating decides if it becomes an error.
+            (if (($src.file // 0) == 0) and (($src.url // 0) == 0) and (($src.inline // 0) > 0)
+                and (($s.keys_parsed != $s.keys_unique) or ($s.keys_unique != $s.sources_requested))
+                then "pure-inline-eq-sources\tpure-inline run (inline=\($src.inline)) but parsed(\($s.keys_parsed))/unique(\($s.keys_unique))/sources_requested(\($s.sources_requested)) disagree"
                 else empty end)
           ] | .[]')
-      if [ -n "$cons" ]; then
-        while IFS= read -r line; do
-          [ -z "$line" ] && continue
-          warnings+=("counter consistency: $line (warning: counters look internally inconsistent)")
-        done <<< "$cons"
+      if [ -n "$cons_lines" ]; then
+        while IFS= read -r _ln; do
+          [ -z "$_ln" ] && continue
+          local _rule="${_ln%%$'\t'*}"
+          local _msg="${_ln#*$'\t'}"
+          if [ -n "${VS_RULES_ENABLED[$_rule]:-}" ]; then
+            errors+=("[rule:$_rule] $_msg (failure: rule '$_rule' is enabled and was violated)")
+          else
+            # The pure-inline rule has no legacy soft-warning equivalent;
+            # without the flag we stay completely silent (opt-in only).
+            if [ "$_rule" != "pure-inline-eq-sources" ]; then
+              warnings+=("counter consistency: $_msg (warning: counters look internally inconsistent -- enable --rule $_rule to make this an error)")
+            fi
+          fi
+        done <<< "$cons_lines"
       fi
     else
       # Batch: aggregate must equal sum across users[].summary.
