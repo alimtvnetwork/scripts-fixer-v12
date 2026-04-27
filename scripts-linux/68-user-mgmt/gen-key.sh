@@ -77,6 +77,18 @@ SSH_DIR="${HOME}/.ssh"
 [ -z "$UM_OUT" ]     && UM_OUT="$SSH_DIR/id_$UM_TYPE"
 [ -z "$UM_COMMENT" ] && UM_COMMENT="$(id -un 2>/dev/null || echo user)@$(hostname 2>/dev/null || echo host)"
 
+# Re-derive SSH_DIR from --out so cross-user / non-default --out paths get
+# the same hardening as the default $HOME/.ssh path.
+SSH_DIR="$(dirname -- "$UM_OUT")"
+
+# Detect "owning user" of SSH_DIR for cross-OS perm hardening:
+# if the parent of SSH_DIR is /home/<u> or /Users/<u>, treat <u> as target.
+UM_TARGET_USER=""
+_ssh_parent="$(dirname -- "$SSH_DIR")"
+case "$_ssh_parent" in
+  /home/*|/Users/*) UM_TARGET_USER="$(basename -- "$_ssh_parent")" ;;
+esac
+
 if [ "$UM_ASK" = "1" ] && [ "$UM_NO_PASS" = "0" ] && [ -z "$UM_PASSPHRASE" ]; then
   if [ -f "$_PROMPT_SH" ]; then
     # shellcheck disable=SC1090
@@ -102,7 +114,10 @@ if [ ! -d "$SSH_DIR" ]; then
     log_err "Failed to create SSH dir at exact path: '$SSH_DIR' (failure: mkdir refused)"
     exit 1
   fi
-  chmod 700 "$SSH_DIR" 2>/dev/null || true
+  if ! chmod 700 "$SSH_DIR"; then
+    log_err "chmod 0700 failed on SSH dir at exact path: '$SSH_DIR' (failure: chmod refused)"
+    exit 1
+  fi
 fi
 
 if [ "$UM_DRY_RUN" = "1" ]; then
@@ -138,8 +153,39 @@ if [ ! -f "${UM_OUT}.pub" ]; then
   log_err "Public key was not produced at exact path: '${UM_OUT}.pub' (failure: ssh-keygen ran but output missing)"
   exit 1
 fi
-chmod 600 "$UM_OUT" 2>/dev/null || true
-chmod 644 "${UM_OUT}.pub" 2>/dev/null || true
+if ! chmod 600 "$UM_OUT"; then
+  log_err "chmod 0600 failed on private key at exact path: '$UM_OUT' (failure: chmod refused)"
+  exit 1
+fi
+if ! chmod 644 "${UM_OUT}.pub"; then
+  log_err "chmod 0644 failed on public key at exact path: '${UM_OUT}.pub' (failure: chmod refused)"
+  exit 1
+fi
+
+# CODE RED: hand the artefacts to the owning user with a NUMERIC gid
+# (alice:20 not alice:staff). macOS dscl group names occasionally differ
+# from /etc/group; numeric form is unambiguous on every OS. Only run when
+# we're root AND a target user can be inferred from the path layout.
+if [ -n "$UM_TARGET_USER" ] && [ "$(id -u)" = "0" ]; then
+  _pg_gid="$(um_resolve_pg_gid "$UM_TARGET_USER")"
+  if [ -z "$_pg_gid" ]; then
+    log_warn "macPgGidMissing: numeric primary GID unresolved for user='$UM_TARGET_USER' at SSH dir='$SSH_DIR' (failure: id -g + dscl PrimaryGroupID both empty; falling back to name-based chown)"
+    _chown_target="$UM_TARGET_USER"
+  else
+    _chown_target="$UM_TARGET_USER:$_pg_gid"
+  fi
+  # Chown dir BEFORE files so an interrupted run never leaves a
+  # root-owned .ssh dir blocking sshd for the target user.
+  if ! chown "$_chown_target" "$SSH_DIR"; then
+    log_err "sshOwnerWarn: chown '$_chown_target' failed on SSH dir at exact path: '$SSH_DIR' (failure: chown refused)"
+    exit 1
+  fi
+  if ! chown "$_chown_target" "$UM_OUT" "${UM_OUT}.pub"; then
+    log_err "sshOwnerWarn: chown '$_chown_target' failed on key files at exact paths: '$UM_OUT' '${UM_OUT}.pub' (failure: chown refused)"
+    exit 1
+  fi
+  log_info "sshChownNumeric: applied chown '$_chown_target' to SSH dir + keypair at '$SSH_DIR'"
+fi
 
 FP=""
 if FP_LINE=$(ssh-keygen -lf "${UM_OUT}.pub" 2>/dev/null); then
