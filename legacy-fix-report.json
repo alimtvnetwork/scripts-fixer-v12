@@ -1,13 +1,11 @@
 {
   "tool": "fix-legacy-fixer-refs.sh",
-  "generatedAt": "2026-04-27T22:58:16Z",
+  "generatedAt": "2026-04-27T23:00:55Z",
   "repoRoot": "/dev-server",
   "mode": "apply",
   "target": "scripts-fixer-v11",
   "legacyVersions": [8,9,10],
-  "backupDir": "/dev-server/.legacy-fix-backups/20260427T225807Z",
-  "totals": { "filesChanged": 1, "totalReplacements": 1, "errors": 0 },
-  "files": [
-    { "path": "tools/readme.md", "count": 1 }
-  ]
+  "backupDir": "/dev-server/.legacy-fix-backups/20260427T230030Z",
+  "totals": { "filesChanged": 0, "totalReplacements": 0, "errors": 0 },
+  "files": []
 }
