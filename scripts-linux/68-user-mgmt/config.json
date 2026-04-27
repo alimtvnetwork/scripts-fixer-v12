@@ -28,5 +28,12 @@
     "_comment": "JSON inputs may be a single object or an array. Both shapes auto-detected at parse time.",
     "userKeys":  ["name", "password", "passwordFile", "uid", "groups", "primaryGroup", "shell", "home", "comment", "sudo", "system"],
     "groupKeys": ["name", "gid", "system"]
+  },
+  "manifestRetention": {
+    "_comment": "Auto-cleanup policy for ssh-key rollback manifests under /var/lib/68-user-mgmt/ssh-key-runs. Applied (a) by remove-ssh-keys.sh --prune, and (b) opportunistically after a successful add-user.sh run that wrote a manifest, so the dir self-maintains. Disable per-run with --no-auto-prune (or UM_NO_AUTO_PRUNE=1). Each policy is OR-combined: a manifest is removed if it matches ANY enabled policy. Set a value to 0 to disable that specific policy.",
+    "olderThanDays":     90,
+    "keepLastPerUser":   20,
+    "maxTotal":          500,
+    "autoPruneOnInstall": true
   }
 }

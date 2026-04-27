@@ -14,6 +14,9 @@
 #   ./remove-ssh-keys.sh --run-id <id> [--dry-run] [--manifest-dir DIR]
 #                                      [--keep-manifest]
 #   ./remove-ssh-keys.sh --manifest <path> [--dry-run] [--keep-manifest]
+#   ./remove-ssh-keys.sh --prune [--older-than DAYS] [--keep-last N]
+#                                [--max-total N] [--dry-run]
+#                                [--manifest-dir DIR]
 #
 # Exit codes:
 #   0  success (or dry-run completed cleanly)
@@ -24,6 +27,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
+. "$SCRIPT_DIR/helpers/_manifest_prune.sh"
 
 um_usage() {
   cat <<EOF
@@ -40,6 +44,17 @@ Usage:
   remove-ssh-keys.sh --manifest <path> [--dry-run] [--keep-manifest]
       Roll back from a specific manifest file (useful when the manifest
       lives outside the default dir, e.g. on a backup volume).
+
+  remove-ssh-keys.sh --prune [--older-than DAYS] [--keep-last N]
+                              [--max-total N] [--dry-run]
+                              [--manifest-dir DIR]
+      Retention-based cleanup of the manifest dir. All three policies
+      are OR-combined; pass 0 to disable a specific one. Defaults come
+      from config.json (manifestRetention.*).
+        --older-than DAYS    delete manifests with mtime older than DAYS
+        --keep-last N        keep only the N most recent PER USER
+        --max-total N        cap the total file count in the dir
+      Corrupt manifests are SKIPPED, never deleted (forensics preserved).
 
 Options:
   --dry-run         Show what would be removed; touch nothing.
@@ -64,11 +79,20 @@ UM_RUN_ID=""
 UM_MANIFEST_PATH=""
 UM_LIST=0
 UM_KEEP_MANIFEST=0
+UM_PRUNE=0
+# Empty = "use config.json default". Numeric = explicit override.
+UM_PRUNE_OLDER_THAN_DAYS_CLI=""
+UM_PRUNE_KEEP_LAST_CLI=""
+UM_PRUNE_MAX_TOTAL_CLI=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)        um_usage; exit 0 ;;
     --list)           UM_LIST=1; shift ;;
+    --prune)          UM_PRUNE=1; shift ;;
+    --older-than)     UM_PRUNE_OLDER_THAN_DAYS_CLI="${2:-}"; shift 2 ;;
+    --keep-last)      UM_PRUNE_KEEP_LAST_CLI="${2:-}"; shift 2 ;;
+    --max-total)      UM_PRUNE_MAX_TOTAL_CLI="${2:-}"; shift 2 ;;
     --run-id)         UM_RUN_ID="${2:-}"; shift 2 ;;
     --manifest)       UM_MANIFEST_PATH="${2:-}"; shift 2 ;;
     --manifest-dir)   UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
@@ -102,6 +126,36 @@ _fp_of_line() {
     [ -z "$fp" ] && fp="literal-only"
     printf '%s' "$fp"
 }
+
+# ---- --prune mode ----------------------------------------------------------
+# Resolves policy from CLI overrides on top of config.json defaults, then
+# delegates to um_manifest_prune (helpers/_manifest_prune.sh). Needs root
+# to actually delete manifests (dir is 0700 root); dry-run runs unprivileged.
+if [ "$UM_PRUNE" = "1" ]; then
+  cfg="$SCRIPT_DIR/config.json"
+  cfg_older=90
+  cfg_keep=20
+  cfg_max=500
+  if [ -r "$cfg" ]; then
+    cfg_older=$(jq -r '.manifestRetention.olderThanDays   // 90'  "$cfg" 2>/dev/null) || cfg_older=90
+    cfg_keep=$( jq -r '.manifestRetention.keepLastPerUser // 20'  "$cfg" 2>/dev/null) || cfg_keep=20
+    cfg_max=$(  jq -r '.manifestRetention.maxTotal        // 500' "$cfg" 2>/dev/null) || cfg_max=500
+  else
+    log_warn "config.json not readable at '$cfg' (failure: using built-in defaults olderThanDays=90 keepLastPerUser=20 maxTotal=500)"
+  fi
+
+  export UM_PRUNE_DIR="$UM_MANIFEST_DIR"
+  export UM_PRUNE_OLDER_THAN_DAYS="${UM_PRUNE_OLDER_THAN_DAYS_CLI:-$cfg_older}"
+  export UM_PRUNE_KEEP_LAST="${UM_PRUNE_KEEP_LAST_CLI:-$cfg_keep}"
+  export UM_PRUNE_MAX_TOTAL="${UM_PRUNE_MAX_TOTAL_CLI:-$cfg_max}"
+  export UM_PRUNE_DRY_RUN="$UM_DRY_RUN"
+  export UM_PRUNE_QUIET=0
+
+  if [ "$UM_DRY_RUN" != "1" ]; then um_require_root || exit $?; fi
+  if [ "$UM_DRY_RUN" = "1" ]; then log_warn "$(um_msg dryRunBanner)"; fi
+  um_manifest_prune
+  exit $?
+fi
 
 # ---- --list mode -----------------------------------------------------------
 if [ "$UM_LIST" = "1" ]; then

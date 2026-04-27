@@ -60,5 +60,14 @@
     ,"macHomeSeedFail":     "failed to seed macOS home '%s' for user '%s' (failure: %s -- check 'createhomedir -c -u %s' manually)"
     ,"macPgGidMissing":     "could not resolve numeric primary GID for user '%s' (failure: id/dscl returned nothing -- chown will use name '%s' as a fallback which may not match dscl)"
     ,"sshChownNumeric":     "set ownership of '%s' to %s:%s (uid:gid resolved numerically -- safe across name/dscl drift)"
+    ,"manifestPruneHeader": "=== pruning ssh-key manifests in '%s' (policy: olderThanDays=%s, keepLastPerUser=%s, maxTotal=%s, dryRun=%s) ==="
+    ,"manifestPruneScanFail":"could not scan manifest dir '%s' (failure: %s -- skipping prune for this run)"
+    ,"manifestPruneSkipParse":"manifest '%s' is not valid JSON (failure: %s -- skipped, NOT deleted)"
+    ,"manifestPruneCandidate":"prune candidate '%s' (user=%s, age=%sd, reason=%s)"
+    ,"manifestPruneRemoved": "removed ssh-key manifest '%s' (reason=%s, dryRun=%s)"
+    ,"manifestPruneRemoveFail":"could not delete ssh-key manifest '%s' (failure: %s -- left in place; re-run with sudo or fix permissions)"
+    ,"manifestPruneSummary": "ssh-key manifest prune summary: scanned=%s kept=%s removed=%s failed=%s skipped=%s (dir=%s, dryRun=%s)"
+    ,"manifestPruneNothing": "no ssh-key manifests matched the prune policy in '%s' (nothing to remove)"
+    ,"manifestAutoPruneFail":"opportunistic ssh-key manifest prune failed (failure: %s -- continuing; install was successful, run 'remove-ssh-keys.sh --prune' manually to retry)"
   }
 }

@@ -18,6 +18,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
+. "$SCRIPT_DIR/helpers/_manifest_prune.sh"
 
 um_usage() {
   cat <<EOF
@@ -119,6 +120,12 @@ UM_SSH_URL_ALLOWLIST_DEFAULT="github.com,gitlab.com,codeberg.org,bitbucket.org,l
 UM_RUN_ID="${UM_RUN_ID:-}"
 UM_MANIFEST_DIR="${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}"
 UM_NO_MANIFEST="${UM_NO_MANIFEST:-0}"
+# Auto-prune knob (v0.181.0). Best-effort housekeeping after a successful
+# manifest write so the dir self-maintains. Reads policy from config.json
+# (manifestRetention.*). Opt-out via --no-auto-prune or UM_NO_AUTO_PRUNE=1.
+# Failures during auto-prune NEVER fail the install -- they're warned and
+# the operator is told to run `remove-ssh-keys.sh --prune` manually.
+UM_NO_AUTO_PRUNE="${UM_NO_AUTO_PRUNE:-0}"
 # Per-key source tags accumulated during the install pass. Same length /
 # order as the de-duplicated key buffer, used by the manifest writer to
 # remember WHERE each tracked key came from.
@@ -148,6 +155,7 @@ while [ $# -gt 0 ]; do
     --run-id)                UM_RUN_ID="${2:-}"; shift 2 ;;
     --manifest-dir)          UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
     --no-manifest)           UM_NO_MANIFEST=1; shift ;;
+    --no-auto-prune)         UM_NO_AUTO_PRUNE=1; shift ;;
     --) shift; break ;;
     -*)
       log_err "unknown option: '$1' (failure: see --help)"
@@ -798,6 +806,34 @@ if [ "$UM_SSH_SOURCES_REQUESTED" -gt 0 ]; then
                 NF && !seen[$0] { print }
             ' <(printf '%s\n' "$existing") <(printf '%s\n' "$_ssh_buf"))
             _um_write_manifest "$UM_NAME" "$_ssh_file" "$_new_only" "$UM_SSH_KEYS_INSTALLED_NEW"
+
+            # v0.181.0: opportunistic prune so the manifest dir self-maintains.
+            # Best-effort: a failure here MUST NOT fail the install. Policy
+            # comes from config.json (manifestRetention.*) -- if the file
+            # is missing or unreadable, we fall through to the documented
+            # built-in defaults (90 days / keep-last 20 / max 500). The
+            # operator can disable this entirely with --no-auto-prune.
+            if [ "$UM_NO_AUTO_PRUNE" != "1" ] && [ "$UM_DRY_RUN" != "1" ]; then
+              _ap_cfg="$SCRIPT_DIR/config.json"
+              _ap_enabled=1
+              _ap_older=90; _ap_keep=20; _ap_max=500
+              if [ -r "$_ap_cfg" ] && command -v jq >/dev/null 2>&1; then
+                _ap_enabled=$(jq -r '.manifestRetention.autoPruneOnInstall // true | if . then 1 else 0 end' "$_ap_cfg" 2>/dev/null) || _ap_enabled=1
+                _ap_older=$( jq -r '.manifestRetention.olderThanDays   // 90'  "$_ap_cfg" 2>/dev/null) || _ap_older=90
+                _ap_keep=$(  jq -r '.manifestRetention.keepLastPerUser // 20'  "$_ap_cfg" 2>/dev/null) || _ap_keep=20
+                _ap_max=$(   jq -r '.manifestRetention.maxTotal        // 500' "$_ap_cfg" 2>/dev/null) || _ap_max=500
+              fi
+              if [ "$_ap_enabled" = "1" ]; then
+                UM_PRUNE_DIR="$UM_MANIFEST_DIR" \
+                UM_PRUNE_OLDER_THAN_DAYS="$_ap_older" \
+                UM_PRUNE_KEEP_LAST="$_ap_keep" \
+                UM_PRUNE_MAX_TOTAL="$_ap_max" \
+                UM_PRUNE_DRY_RUN=0 \
+                UM_PRUNE_QUIET=1 \
+                  um_manifest_prune || \
+                    log_warn "$(um_msg manifestAutoPruneFail "rc=$?")"
+              fi
+            fi
           fi
         fi
       fi

@@ -115,3 +115,68 @@ New names: `UM_SSH_SOURCES_REQUESTED`, `UM_SSH_KEYS_PARSED`,
 `UM_SSH_KEYS_UNIQUE`, `UM_SSH_KEYS_INSTALLED_NEW`,
 `UM_SSH_KEYS_PRESERVED`. `sshKeyInstalled` log template now takes 6
 args; `sshKeyNoneValid` wording clarified to "source(s)".
+
+## v0.181.0 -- automatic manifest cleanup
+
+The manifest dir grows by one file per `add-user.sh` run. v0.181.0
+adds retention-based cleanup so it self-maintains:
+
+### CLI: `remove-ssh-keys.sh --prune`
+
+| Flag                    | Default (config.json)             | Notes |
+|-------------------------|-----------------------------------|-------|
+| `--older-than DAYS`     | `manifestRetention.olderThanDays` (90) | mtime-based; 0 = disable |
+| `--keep-last N`         | `manifestRetention.keepLastPerUser` (20) | per-user retention; 0 = disable |
+| `--max-total N`         | `manifestRetention.maxTotal` (500) | dir-wide cap; 0 = disable |
+| `--dry-run`             | off                                | preview only, never deletes |
+| `--manifest-dir DIR`    | `/var/lib/68-user-mgmt/ssh-key-runs` | override |
+
+Policies are OR-combined and evaluated in order: `olderThanDays` first
+(stale files don't count toward the keep budget), then
+`keepLastPerUser` (per-user), then `maxTotal` (dir-wide). Manifests are
+sorted newest-first before evaluation so the oldest are always the ones
+evicted under the count caps.
+
+### Auto-prune on install
+
+`add-user.sh` and `add-user-from-json.sh` (via the same code path) call
+the prune helper opportunistically AFTER a successful manifest write.
+Best-effort: a prune failure NEVER fails the install -- it logs a clear
+warning telling the operator to run `remove-ssh-keys.sh --prune`
+manually. Disable with `--no-auto-prune` or `UM_NO_AUTO_PRUNE=1`. Also
+disablable via `manifestRetention.autoPruneOnInstall: false`.
+
+### Safety
+
+1. **Corrupt JSON is SKIPPED, never deleted** -- forensics preserved.
+   Reported as `skipped=N` in the summary; operator handles by hand.
+2. **Non-numeric policy values abort with rc=2** before any delete --
+   prevents surprise behaviour from a typo'd `--older-than abc`.
+3. **Dry-run always available** for both the verb and the helper.
+4. **CODE RED**: every delete failure logs the exact path + a precise
+   reason (permission / mount-ro / vanished mid-prune) via
+   `manifestPruneRemoveFail` + `log_file_error`.
+
+### Implementation
+
+- Shared helper: `helpers/_manifest_prune.sh` exporting
+  `um_manifest_prune` (sourced by both `remove-ssh-keys.sh` and
+  `add-user.sh`).
+- Config: `config.json -> manifestRetention.{olderThanDays,
+  keepLastPerUser, maxTotal, autoPruneOnInstall}`.
+- Log keys: `manifestPruneHeader`, `manifestPruneCandidate`,
+  `manifestPruneRemoved`, `manifestPruneRemoveFail`,
+  `manifestPruneSummary`, `manifestPruneSkipParse`,
+  `manifestPruneScanFail`, `manifestPruneNothing`,
+  `manifestAutoPruneFail`.
+
+### Verified end-to-end (8 scenarios)
+
+1. Empty dir -> rc=0, "nothing to prune".
+2. All-young manifests + age policy -> nothing removed.
+3. Mixed young/old + `--older-than 30` -> exactly the old set removed.
+4. `--keep-last 2` with 5 same-user files -> 3 oldest removed.
+5. `--max-total 1` with 3 files -> 2 oldest evicted.
+6. `--dry-run` reports the would-remove plan and touches nothing.
+7. Corrupt JSON manifest SKIPPED + counted in summary, file preserved.
+8. Non-numeric policy aborts rc=2 before any delete.
