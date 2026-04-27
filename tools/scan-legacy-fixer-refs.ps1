@@ -62,8 +62,10 @@ try {
 }
 
 foreach ($file in $files) {
-    # Never flag this scanner itself
+    # Never flag this scanner itself, or the auto-fix tools whose own headers
+    # legitimately mention the legacy versions they rewrite (v8/v9/v10 -> v11).
     if ($file.FullName -ieq $scriptSelf) { continue }
+    if ($file.Name -imatch '^(scan|fix)-legacy-fixer-refs\.(ps1|sh)$') { continue }
 
     # Skip excluded directories (path-segment match, case-insensitive)
     $rel = $file.FullName.Substring($Root.Length).TrimStart('\','/')

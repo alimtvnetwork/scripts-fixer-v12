@@ -51,12 +51,14 @@ if command -v rg >/dev/null 2>&1; then
         --glob '!.git' --glob '!node_modules' --glob '!dist' --glob '!build' \
         --glob '!.lovable/compliance-reports/**' \
         --glob '!tools/scan-legacy-fixer-refs.*' \
+        --glob '!tools/fix-legacy-fixer-refs.*' \
         -nH "$PATTERN" . 2>/dev/null || true)"
 else
     OUTPUT="$(cd "$ROOT" && grep -RnHE \
         --binary-files=without-match \
         --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build \
         --exclude='scan-legacy-fixer-refs.*' \
+        --exclude='fix-legacy-fixer-refs.*' \
         "$PATTERN" . 2>/dev/null || true)"
 fi
 
