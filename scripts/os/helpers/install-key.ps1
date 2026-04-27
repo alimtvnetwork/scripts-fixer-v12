@@ -24,6 +24,30 @@
       6. Record every install in ~/.lovable/ssh-keys-state.json.
 
     CODE-RED: every file/path error logs the EXACT path + reason.
+
+    Dry-run effect per flag (with --dry-run, the diff against the
+    target authorized_keys is computed and logged but NO file is
+    rewritten, NO .bak is created, and the ledger at
+    ~/.lovable/ssh-keys-state.json is NOT updated):
+      --key "<line>"     would log "[dry-run] would append key
+                         <fingerprint> to <user>\.ssh\authorized_keys"
+                         per unique incoming key. Keys whose body is
+                         already present are reported as "already
+                         installed" (no append).
+      --key-file <path>  same as --key but each file is parsed for one
+                         or many keys (blanks/# comments skipped). Path
+                         existence + readability are checked even in
+                         dry-run.
+      --user <name>      affects target resolution only; the planned
+                         path is included in every dry-run log line
+      --backup           default ON; under --dry-run no .bak is
+                         actually written but the planned filename
+                         "<file>.<ts>.bak" is logged
+      --no-backup        suppresses the .bak plan line
+      --ask              prompts BEFORE the dry-run banner; collected
+                         key still drives the would-do log lines
+      --dry-run          this flag itself; gates every authorized_keys
+                         rewrite, .bak creation, and ledger write
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
