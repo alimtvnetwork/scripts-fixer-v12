@@ -14,5 +14,12 @@
   "prompt_db_pass":     "[70][wp] database password (blank = auto-generate)",
   "summary_header":     "[70] === WordPress installation summary ===",
   "verify_ok":          "[70][verify] OK -- all components reachable",
-  "verify_fail":        "[70][verify] FAILED -- see lines above for the failing component"
+  "verify_fail":        "[70][verify] FAILED -- see lines above for the failing component",
+  "prereqs_apt_skip":      "[70][prereqs][apt] skipped (mode=none)",
+  "prereqs_apt_start":     "[70][prereqs][apt] %s -- refreshing package index before MySQL + PHP-FPM",
+  "prereqs_apt_update_ok": "[70][prereqs][apt] apt-get update OK",
+  "prereqs_apt_upgrade_ok":"[70][prereqs][apt] apt-get %s OK",
+  "prereqs_apt_fail":      "[70][prereqs][apt] FAILED (mode=%s) -- continuing, MySQL/PHP install may fail if mirrors are stale",
+  "prereqs_apt_invalid":   "[70][prereqs][apt] invalid mode '%s' (expected: none|update|upgrade|dist-upgrade) -- defaulting to 'none'",
+  "prompt_apt_refresh":    "[70][prereqs] apt refresh mode (none|update|upgrade|dist-upgrade)"
 }
