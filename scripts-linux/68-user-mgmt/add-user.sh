@@ -236,11 +236,16 @@ else
     um_run dscl . -create "/Users/$UM_NAME" UniqueID       "$UM_UID"            || true
     um_run dscl . -create "/Users/$UM_NAME" PrimaryGroupID "$pg_gid"            || true
     um_run dscl . -create "/Users/$UM_NAME" NFSHomeDirectory "$UM_HOME"         || true
-    if [ "$UM_DRY_RUN" != "1" ] && [ ! -d "$UM_HOME" ]; then
-      um_run mkdir -p "$UM_HOME" \
-        || log_file_error "$UM_HOME" "could not create home dir"
-      um_run chown "$UM_NAME:$pg_gid" "$UM_HOME" 2>/dev/null || true
-    fi
+    # Materialise the home dir via Apple's createhomedir (preferred:
+    # populates ~/Library skeleton, applies ACLs, owner+mode 0755). Falls
+    # back to mkdir+chown when createhomedir is absent (CI runners). We
+    # always pass the NUMERIC gid so chown can't drift on dscl-vs-getpwnam
+    # name resolution. Best effort -- a failure here is logged with the
+    # exact path + reason but does not abort the rest of user creation
+    # (the operator can still chpasswd / add to groups even without a
+    # ready home dir; SSH key install will detect the missing home and
+    # warn separately).
+    um_seed_macos_home "$UM_NAME" "$UM_HOME" "$pg_gid" || true
     log_ok "$(um_msg userCreated "$UM_NAME" "$UM_UID" "$UM_PRIMARY_GROUP")"
     um_summary_add "ok" "user" "$UM_NAME" "uid=$UM_UID"
   fi
