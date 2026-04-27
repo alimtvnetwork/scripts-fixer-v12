@@ -69,5 +69,8 @@
     ,"manifestPruneSummary": "ssh-key manifest prune summary: scanned=%s kept=%s removed=%s failed=%s skipped=%s (dir=%s, dryRun=%s)"
     ,"manifestPruneNothing": "no ssh-key manifests matched the prune policy in '%s' (nothing to remove)"
     ,"manifestAutoPruneFail":"opportunistic ssh-key manifest prune failed (failure: %s -- continuing; install was successful, run 'remove-ssh-keys.sh --prune' manually to retry)"
+    ,"summaryJsonWritten":  "wrote ssh-key install summary JSON to '%s' (run-id=%s, user=%s, mode=%s)"
+    ,"summaryJsonWriteFail":"failed to write ssh-key install summary JSON to '%s' (failure: %s -- user creation succeeded; re-run with --summary-json=stdout to capture the data)"
+    ,"summaryJsonBatchWritten":"wrote batch ssh-key install summary JSON to '%s' (run-id=%s, %s user(s) aggregated)"
   }
 }
