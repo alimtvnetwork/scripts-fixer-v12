@@ -79,11 +79,20 @@ UM_RUN_ID=""
 UM_MANIFEST_PATH=""
 UM_LIST=0
 UM_KEEP_MANIFEST=0
+UM_PRUNE=0
+# Empty = "use config.json default". Numeric = explicit override.
+UM_PRUNE_OLDER_THAN_DAYS_CLI=""
+UM_PRUNE_KEEP_LAST_CLI=""
+UM_PRUNE_MAX_TOTAL_CLI=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)        um_usage; exit 0 ;;
     --list)           UM_LIST=1; shift ;;
+    --prune)          UM_PRUNE=1; shift ;;
+    --older-than)     UM_PRUNE_OLDER_THAN_DAYS_CLI="${2:-}"; shift 2 ;;
+    --keep-last)      UM_PRUNE_KEEP_LAST_CLI="${2:-}"; shift 2 ;;
+    --max-total)      UM_PRUNE_MAX_TOTAL_CLI="${2:-}"; shift 2 ;;
     --run-id)         UM_RUN_ID="${2:-}"; shift 2 ;;
     --manifest)       UM_MANIFEST_PATH="${2:-}"; shift 2 ;;
     --manifest-dir)   UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
