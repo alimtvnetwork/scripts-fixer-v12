@@ -238,3 +238,25 @@ requested target). Envelope adds `kind:"batch"`, `userCount`, and an
 4. `auto` + `--no-manifest` falls back to stdout with a clear warning.
 5. Empty target = no-op (rc=0); `UM_NO_SUMMARY_JSON=1` forcibly disables.
 6. Nonexistent parent dir → CODE-RED `log_file_error`, no crash.
+### Summary JSON validator (v0.183.0)
+
+`verify-summary.sh` (also `run.sh verify-summary`) is a READ-ONLY validator
+for the JSON docs `--summary-json` writes. Inputs: `--file`, `--dir`,
+`--auto` (= `<UM_MANIFEST_DIR>/summaries`), `--run-id` filter. Output
+modes: pretty (default) or `--json` NDJSON + final summary line. Use
+`--strict` to promote consistency warnings to errors.
+
+Checks: required top-level fields per kind (per-user vs `kind:"batch"`),
+`summaryVersion == 1`, every counter in `summary{}` / `aggregate{}` /
+`sources{}` is present, JSON `type=="number"`, integer, `>= 0`, and `ok`
+is boolean. Soft consistency warnings: `installed_new + preserved ==
+unique`, `unique <= parsed`, `installed_new <= parsed`. Batch docs also
+verify `aggregate.X == sum(users[].summary.X)` for all 5 counters as a
+hard error. CODE-RED rule honored: every file/parse error logs the exact
+path and the precise jq/stat reason.
+
+Verified scenarios: valid per-user pass, malformed JSON (jq parser
+error surfaced), negative counter, wrong-type counter (string), batch
+aggregate mismatch (hard fail), internal inconsistency (warn by default,
+fail under `--strict`), `--run-id` filter narrowing, `--auto` against a
+missing summaries dir (CODE-RED log + rc=2).

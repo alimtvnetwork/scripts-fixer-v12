@@ -72,5 +72,11 @@
     ,"summaryJsonWritten":  "wrote ssh-key install summary JSON to '%s' (run-id=%s, user=%s, mode=%s)"
     ,"summaryJsonWriteFail":"failed to write ssh-key install summary JSON to '%s' (failure: %s -- user creation succeeded; re-run with --summary-json=stdout to capture the data)"
     ,"summaryJsonBatchWritten":"wrote batch ssh-key install summary JSON to '%s' (run-id=%s, %s user(s) aggregated)"
+    ,"summaryVerifyHeader":  "=== verify-summary scanning %s file(s) (strict=%s) ==="
+    ,"summaryVerifyBadJson": "summary JSON '%s' is not valid JSON (failure: %s)"
+    ,"summaryVerifyMissingField": "summary JSON '%s' is missing required field '%s' (failure: schema v1 %s doc requires it)"
+    ,"summaryVerifyBadCounter":"summary JSON '%s' counter '%s.%s' is invalid: %s (failure: counters must be non-negative integers)"
+    ,"summaryVerifyBatchMismatch":"summary JSON '%s' batch aggregate '%s' (%s) != sum across users (%s) (failure: rollup is inconsistent)"
+    ,"summaryVerifyTally":   "verify-summary: %s pass / %s warn / %s fail (of %s)"
   }
 }

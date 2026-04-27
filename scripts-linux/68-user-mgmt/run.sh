@@ -40,6 +40,10 @@ Subverbs:
   verify          [verify.sh flags]         READ-ONLY pass/fail check of the
                                             current user/group state. See:
                                               bash run.sh verify --help
+  verify-summary  [verify-summary.sh flags] validate ssh-key install summary
+                                            JSON files (schema, required
+                                            fields, numeric counters). See:
+                                              bash run.sh verify-summary --help
 
 Common flags:
   --dry-run       print what would happen, change nothing
@@ -76,6 +80,8 @@ case "$SUBVERB" in
     exec bash "$SCRIPT_DIR/orchestrate.sh" "$@" ;;
   verify|check|verify-state)
     exec bash "$SCRIPT_DIR/verify.sh" "$@" ;;
+  verify-summary|check-summary|verify-ssh-summary)
+    exec bash "$SCRIPT_DIR/verify-summary.sh" "$@" ;;
   *)
     log_err "unknown subverb: '$SUBVERB' (failure: see --help for the list)"
     usage
