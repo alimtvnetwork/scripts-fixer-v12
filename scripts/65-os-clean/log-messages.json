@@ -1,0 +1,30 @@
+{
+  "scriptName": "OS Clean (Windows)",
+  "scriptId": "65",
+  "synopsis": "Cross-OS user/system cleanup (Windows side). Thin dispatcher onto `scripts/os/run.ps1 clean` with plan-then-confirm and --dry-run.",
+  "usage": [
+    ".\\run.ps1 -I 65                       # plan -> confirm -> apply -> verify",
+    ".\\run.ps1 -I 65 -- --dry-run          # preview only (no deletions, no prompt)",
+    ".\\run.ps1 -I 65 -- --yes              # apply without confirmation",
+    ".\\run.ps1 -I 65 -- --bucket D         # only browser caches",
+    ".\\run.ps1 -I 65 -- --only chrome,edge # only listed categories",
+    ".\\run.ps1 -I 65 -- --skip ms-search   # skip listed categories",
+    ".\\run.ps1 -I 65 -- --json             # machine-readable summary"
+  ],
+  "messages": {
+    "PlanStart":      "Building plan via `os clean --dry-run`...",
+    "PlanEmpty":      "Plan is empty -- nothing queued. Exiting.",
+    "PlanRendered":   "Rendered plan with {0} category(ies).",
+    "ConfirmYes":     "Confirmed -- proceeding with apply.",
+    "ConfirmNo":      "Aborted by operator. No changes made.",
+    "ConfirmAuto":    "Confirmation skipped: -Yes / --yes supplied.",
+    "ApplyStart":     "Applying cleanup via `os clean`...",
+    "ApplyDone":      "Apply finished (rc={0}).",
+    "VerifyStart":    "Re-running `os clean --dry-run` to verify.",
+    "VerifyPass":     "VERIFY: {0} category(ies) PASS, no residue detected.",
+    "VerifyFail":     "VERIFY: {0} category(ies) FAIL -- residue rows remain (see summary).",
+    "DryRunBanner":   "[DRY-RUN] Preview only. No deletions, no service stops, no prompts.",
+    "ManifestWrote":  "Manifest written: {0}",
+    "FileError":      "[FILE-ERROR] path={0} reason={1}"
+  }
+}

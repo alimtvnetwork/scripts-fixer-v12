@@ -1,0 +1,24 @@
+{
+  "_comment": "Windows side of cross-OS cleanup. Thin dispatcher onto scripts/os/run.ps1 clean. Plan-then-confirm by default; pass --dry-run for preview only.",
+  "id": "65",
+  "name": "65-os-clean",
+  "title": "OS Clean (Windows)",
+  "platform": "windows",
+  "pairsWith": "scripts-linux/65-os-clean",
+  "delegatesTo": "scripts/os/run.ps1",
+  "delegatesAction": "clean",
+  "logsDir": ".logs/65",
+  "applyByDefault": true,
+  "destructiveCategories": [
+    "recycle",
+    "ms-search",
+    "obs-recordings",
+    "windows-update-old"
+  ],
+  "destructiveRequiresYes": true,
+  "verify": {
+    "enabled": true,
+    "method": "rerun-dry-after-apply",
+    "_comment": "After apply, re-invoke `os clean --dry-run` and any category whose row count drops to 0 is PASS. Categories where rows persist are FAIL(n)."
+  }
+}
