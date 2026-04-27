@@ -58,6 +58,22 @@ Write-Info "repo:     $RepoRoot"
 Write-Info "rewrite:  $($patterns -join ', ') -> scripts-fixer-$Target"
 Write-Info "mode:     $([string]::Format('{0}', $(if ($DryRun) {'dry-run'} else {'apply'})))"
 
+# Resolve backup directory (only used when -Backup AND not -DryRun)
+$backupDir    = $null
+$backupActive = $false
+if ($Backup -and -not $DryRun) {
+    $backupBase = if ([System.IO.Path]::IsPathRooted($BackupRoot)) { $BackupRoot } else { Join-Path $RepoRoot $BackupRoot }
+    $backupDir  = Join-Path $backupBase $BackupStamp
+    try {
+        New-Item -ItemType Directory -Path $backupDir -Force -ErrorAction Stop | Out-Null
+        $backupActive = $true
+        Write-Info "backup:   $backupDir"
+    } catch {
+        Write-FileError $backupDir "cannot create backup directory: $($_.Exception.Message) -- aborting"
+        exit 2
+    }
+}
+
 $changedFiles = @()
 $totalReplacements = 0
 $errors = 0
