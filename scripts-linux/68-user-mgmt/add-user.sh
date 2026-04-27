@@ -223,6 +223,28 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# ---- --ask: interactive prompt for missing required fields ----------------
+# Lazy-load the prompt helper only when needed so non-interactive runs don't
+# touch /dev/tty. Mirrors the Windows add-user.ps1 --ask flow.
+if [ "$UM_ASK" = "1" ]; then
+  if [ ! -f "$_UM_PROMPT_SH" ]; then
+    log_err "--ask requested but helper not found at exact path: '$_UM_PROMPT_SH' (failure: cannot prompt)"
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$_UM_PROMPT_SH"
+  [ -z "$UM_NAME" ] && UM_NAME=$(um_prompt_string "Username" "" 1)
+  if [ -z "$UM_PASSWORD_CLI" ] && [ -z "$UM_PASSWORD_FILE" ]; then
+    UM_PASSWORD_CLI=$(um_prompt_secret "Password (blank = no password set)" 0)
+  fi
+  if [ -z "$UM_COMMENT" ]; then
+    UM_COMMENT=$(um_prompt_string "Comment / GECOS (blank to skip)" "" 0)
+  fi
+  if [ "$UM_SUDO" = "0" ]; then
+    if um_prompt_confirm "Grant sudo (admin) access?" 0; then UM_SUDO=1; fi
+  fi
+fi
+
 if [ -z "$UM_NAME" ]; then
   log_err "missing required <name> (failure: nothing to create)"
   um_usage; exit 64
