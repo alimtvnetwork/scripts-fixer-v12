@@ -1,0 +1,18 @@
+{
+  "name": "ssh-keys-fanout",
+  "version": "0.1.0",
+  "description": "Distribute one or more SSH public keys to a target user on every host. Idempotent (trim/split/compare). Records install in ~/.lovable/ssh-keys-state.json on each host. Aggregates per-host ledger snapshots back to the controller for central audit.",
+  "osCompatibility": ["ubuntu", "debian", "rhel", "centos", "alpine", "macos"],
+  "inputs": {
+    "KEY_FILE":       "Local path to a file containing one or more pubkey lines",
+    "TARGET_USER":    "Local user on each remote whose authorized_keys gets the keys (default: same as SSH login user)",
+    "REMOTE_TMP":     "Temp dir on each remote (default: /tmp)",
+    "USERMGMT_DIR":   "Path to scripts-linux/68-user-mgmt/ on each remote (default: /opt/68-user-mgmt)",
+    "DRY_RUN":        "1 = report only, change nothing"
+  },
+  "steps": [
+    { "file": "01-upload-keys.sh",        "roles": ["all"] },
+    { "file": "02-install-keys.sh",       "roles": ["all"] },
+    { "file": "03-collect-ledger.sh",     "roles": ["all"] }
+  ]
+}

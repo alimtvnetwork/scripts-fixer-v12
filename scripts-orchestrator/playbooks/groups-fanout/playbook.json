@@ -1,0 +1,17 @@
+{
+  "name": "groups-fanout",
+  "version": "0.1.0",
+  "description": "Apply a single groups.json bundle across every host in the target group. Wraps scripts-linux/68-user-mgmt/add-group-from-json.sh on each remote.",
+  "osCompatibility": ["ubuntu", "debian", "rhel", "centos", "alpine", "macos"],
+  "inputs": {
+    "GROUPS_JSON":    "Local path to groups.json bundle on the controller",
+    "REMOTE_TMP":     "Temp dir on each remote (default: /tmp)",
+    "USERMGMT_DIR":   "Path to scripts-linux/68-user-mgmt/ on each remote (default: /opt/68-user-mgmt)",
+    "DRY_RUN":        "1 = pass --dry-run"
+  },
+  "steps": [
+    { "file": "01-upload-bundle.sh",    "roles": ["all"] },
+    { "file": "02-apply-groups.sh",     "roles": ["all"] },
+    { "file": "03-collect-summary.sh",  "roles": ["all"] }
+  ]
+}

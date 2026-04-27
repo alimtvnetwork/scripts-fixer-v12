@@ -1,0 +1,17 @@
+{
+  "name": "users-fanout",
+  "version": "0.1.0",
+  "description": "Apply a single users.json bundle across every host in the target group, idempotently. Wraps scripts-linux/68-user-mgmt/add-user-from-json.sh on each remote.",
+  "osCompatibility": ["ubuntu", "debian", "rhel", "centos", "alpine", "macos"],
+  "inputs": {
+    "USERS_JSON":     "Local path to users.json bundle on the controller (uploaded to each host)",
+    "REMOTE_TMP":     "Temp dir on each remote (default: /tmp)",
+    "USERMGMT_DIR":   "Path to scripts-linux/68-user-mgmt/ on each remote (default: /opt/68-user-mgmt)",
+    "DRY_RUN":        "1 = pass --dry-run to add-user-from-json.sh"
+  },
+  "steps": [
+    { "file": "01-upload-bundle.sh",   "roles": ["all"] },
+    { "file": "02-apply-users.sh",     "roles": ["all"] },
+    { "file": "03-collect-summary.sh", "roles": ["all"] }
+  ]
+}

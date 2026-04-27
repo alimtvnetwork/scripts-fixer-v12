@@ -38,6 +38,12 @@ Usage:
 
   run.sh playbook <name> --group <group> [--role control-plane|worker]
       Run a playbook directory under playbooks/<name>/.
+      Optional, repeatable:
+        --with-env  KEY=VALUE       Export KEY on each remote before each step.
+        --with-file ENV_KEY=path    base64-encode the local file and export it
+                                    as ENV_KEY on each remote (use for the
+                                    fanout playbooks: USERS_JSON_B64 / GROUPS_JSON_B64
+                                    / KEYS_B64).
 
   run.sh inventory list | show <alias>
       Inspect parsed inventory.
@@ -114,11 +120,17 @@ cmd_run() {
 
 cmd_playbook() {
   local name="" group="" role=""
+  local -a env_pairs=()       # KEY=VAL pairs to export on remote
+  local -a file_pairs=()      # ENV_KEY=path pairs to base64-load
   name="$1"; shift || { usage; exit 2; }
   while [ $# -gt 0 ]; do
     case "$1" in
       --group) group="$2"; shift 2;;
       --role)  role="$2";  shift 2;;
+      --with-env)
+        env_pairs+=("$2"); shift 2;;
+      --with-file)
+        file_pairs+=("$2"); shift 2;;
       *) log_error "playbook: unknown flag $1"; exit 2;;
     esac
   done
@@ -133,8 +145,38 @@ cmd_playbook() {
     log_file_error "$manifest" "playbook: playbook.json not found"
     exit 1
   fi
+
+  # Resolve --with-file pairs into additional env_pairs by base64-encoding
+  # the local file. CODE-RED: every missing local file is named explicitly.
+  for fp in "${file_pairs[@]}"; do
+    local fkey="${fp%%=*}"
+    local fpath="${fp#*=}"
+    if [ -z "$fkey" ] || [ "$fkey" = "$fp" ]; then
+      log_error "playbook: --with-file expects KEY=path, got '$fp'"
+      exit 2
+    fi
+    if [ ! -f "$fpath" ]; then
+      log_file_error "$fpath" "playbook: --with-file source not found"
+      exit 1
+    fi
+    local b64
+    b64=$(base64 -w0 < "$fpath" 2>/dev/null || base64 < "$fpath" | tr -d '\n')
+    env_pairs+=("${fkey}=${b64}")
+  done
+
+  # Build the inlined env-export prefix once per playbook run.
+  local env_prefix=""
+  for kv in "${env_pairs[@]}"; do
+    local k="${kv%%=*}"
+    local v="${kv#*=}"
+    env_prefix+="export $(printf '%s=%q' "$k" "$v"); "
+  done
+
   log_step "playbook: $name (group=$group role=${role:-any})"
   log_info  "playbook: see $manifest for ordered steps; this dispatcher runs each .sh in order on matching hosts"
+  if [ "${#env_pairs[@]}" -gt 0 ]; then
+    log_info "playbook: forwarding ${#env_pairs[@]} env var(s) to each host"
+  fi
   local hosts; hosts="$(inventory_hosts_in_group "$group")"
   for h in $hosts; do
     local host_role; host_role="$(inventory_get_field "$h" role)"
@@ -148,7 +190,10 @@ cmd_playbook() {
       local base; base="$(basename "$step")"
       log_info "[$h] step $base"
       ssh_put "$h" "$step" "/tmp/$base" || return 1
-      ssh_run "$h" "chmod +x /tmp/$base && sudo /tmp/$base; rc=\$?; rm -f /tmp/$base; exit \$rc"
+      # Note: we use `sudo -E` so the env we exported is preserved into the
+      # sudo'd step. The env_prefix runs BEFORE sudo so the parent shell
+      # has the vars to forward.
+      ssh_run "$h" "${env_prefix}chmod +x /tmp/$base && sudo -E /tmp/$base; rc=\$?; rm -f /tmp/$base; exit \$rc"
     done
   done
 }
