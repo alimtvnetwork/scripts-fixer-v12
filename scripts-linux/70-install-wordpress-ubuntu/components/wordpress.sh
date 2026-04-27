@@ -114,6 +114,24 @@ component_wordpress_verify() {
 #      duplicates indicate a malformed fetch or sed mishap).
 # Logs every failure with the exact file path + reason via log_file_error
 # (CODE RED rule). Returns 0 only when ALL checks pass.
+#
+# JSON output mode: set WP_VERIFY_JSON=1 to suppress the human log lines
+# and emit a single JSON document on stdout with the full structured
+# finding list. Schema:
+#   {
+#     "verified_at":"<UTC ISO-8601>",
+#     "install_path":"...","wp_config":"<path>",
+#     "expected": {"db_name","db_user","db_host","db_port"},
+#     "summary":  {"ok":<bool>,"errors":<n>,"warnings":<n>,"checks":<n>},
+#     "findings": [
+#       {"severity":"error|warn|info","check":"<id>",
+#        "path":"<file>","message":"<human>",
+#        "expected":"<str|null>","actual":"<str|null>",
+#        "fix":"<remediation hint>"}, ...
+#     ]
+#   }
+# Findings are stable: each check has a fixed `check` ID so downstream
+# scripts can match on it (e.g. salt.AUTH_KEY.placeholder, db.DB_HOST.mismatch).
 component_wordpress_verify_config() {
     local install_path="$1"
     local db_name="$2"
@@ -123,21 +141,43 @@ component_wordpress_verify_config() {
     local db_port="$6"
     local cfg="$install_path/wp-config.php"
     local rc=0
+    local json_mode="${WP_VERIFY_JSON:-0}"
 
-    log_info "[70][wp][verify-config] validating $cfg"
+    # Findings collector -- stays in memory until end-of-function then either
+    # gets logged (text mode) or emitted as JSON. Each entry encoded as a
+    # tab-separated record: severity\tcheck\tpath\tmsg\texpected\tactual\tfix
+    local -a _findings=()
+    _record() {
+        # _record <severity> <check> <path> <message> <expected> <actual> <fix>
+        # Use a tab separator (TAB never appears in our IDs/paths/messages here).
+        _findings+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$1" "$2" "$3" "$4" "$5" "$6" "$7")")
+        if [ "$json_mode" != "1" ]; then
+            case "$1" in
+                error) log_file_error "$3" "$4" ;;
+                warn)  log_warn "[70][wp][verify-config] $4" ;;
+                info)  log_info "[70][wp][verify-config] $4" ;;
+            esac
+        fi
+    }
+
+    if [ "$json_mode" != "1" ]; then
+        log_info "[70][wp][verify-config] validating $cfg"
+    fi
 
     # 1. File presence + non-empty + closing tag/marker
     if [ ! -f "$cfg" ]; then
-        log_file_error "$cfg" "wp-config.php not found after generation step"
-        return 1
+        _record error "file.missing" "$cfg" "wp-config.php not found after generation step" "" "" "run 'install wp' or 'reconfigure' to (re)generate it"
+        _emit_findings_and_return 1 "$install_path" "$cfg" "$db_name" "$db_user" "$db_host" "$db_port" "$json_mode" _findings[@]
+        return $?
     fi
     if [ ! -s "$cfg" ]; then
-        log_file_error "$cfg" "wp-config.php is empty (0 bytes)"
-        return 1
+        _record error "file.empty" "$cfg" "wp-config.php is empty (0 bytes)" "" "0" "delete the file and run 'reconfigure' to regenerate"
+        _emit_findings_and_return 1 "$install_path" "$cfg" "$db_name" "$db_user" "$db_host" "$db_port" "$json_mode" _findings[@]
+        return $?
     fi
     # WordPress wp-config.php ends with: /* That's all, stop editing! Happy publishing. */
     if ! sudo grep -q "stop editing" "$cfg"; then
-        log_file_error "$cfg" "wp-config.php missing 'stop editing' end marker -- file may be truncated"
+        _record error "file.truncated" "$cfg" "wp-config.php missing 'stop editing' end marker -- file may be truncated" "/* That's all, stop editing! ... */" "(absent)" "restore from latest wp-config.php.bak.<ts> or run 'reconfigure'"
         rc=1
     fi
 
@@ -146,11 +186,11 @@ component_wordpress_verify_config() {
         local lint_out
         lint_out="$(sudo php -l "$cfg" 2>&1)"
         if ! echo "$lint_out" | grep -q "No syntax errors"; then
-            log_file_error "$cfg" "PHP syntax check failed: $lint_out"
+            _record error "php.lint" "$cfg" "PHP syntax check failed: $lint_out" "No syntax errors detected" "$lint_out" "fix the PHP syntax error or restore from wp-config.php.bak.<ts>"
             rc=1
         fi
     else
-        log_warn "[70][wp][verify-config] php not on PATH -- skipping syntax lint"
+        _record warn "php.absent" "$cfg" "php not on PATH -- skipping syntax lint" "" "" "install php-cli (e.g. 'apt-get install -y php${WP_PHP_VERSION:-}-cli') if you want lint coverage"
     fi
 
     # 3. DB credentials present
@@ -163,14 +203,14 @@ component_wordpress_verify_config() {
         local line
         line="$(printf '%s\n' "$cfg_dump" | grep -E "define\(\s*['\"]${const}['\"]" | head -1)"
         if [ -z "$line" ]; then
-            log_file_error "$cfg" "missing define('${const}', ...) line"
+            _record error "db.${const}.missing" "$cfg" "missing define('${const}', ...) line" "$expected" "(absent)" "run 'reconfigure' with the correct --db-* flags"
             return 1
         fi
         # Extract the second quoted argument (single OR double quotes).
         local val
         val="$(printf '%s\n' "$line" | sed -E "s/.*define\(\s*['\"]${const}['\"]\s*,\s*['\"]([^'\"]*)['\"].*/\1/")"
         if [ "$val" != "$expected" ]; then
-            log_file_error "$cfg" "define('${const}') = '${val}' but expected '${expected}'"
+            _record error "db.${const}.mismatch" "$cfg" "define('${const}') = '${val}' but expected '${expected}'" "$expected" "$val" "run 'reconfigure --db-${const,,}=$expected' (or matching flag) to align"
             return 1
         fi
         return 0
@@ -183,7 +223,7 @@ component_wordpress_verify_config() {
 
     # Catch any leftover placeholders from wp-config-sample.php
     if printf '%s\n' "$cfg_dump" | grep -qE 'database_name_here|username_here|password_here'; then
-        log_file_error "$cfg" "wp-config.php still contains *_here placeholder(s) -- sed replacement did not run"
+        _record error "db.placeholder.leftover" "$cfg" "wp-config.php still contains *_here placeholder(s) -- sed replacement did not run" "no *_here tokens" "found *_here token" "run 'reconfigure' to rewrite the DB credential lines"
         rc=1
     fi
 
@@ -197,25 +237,25 @@ component_wordpress_verify_config() {
         local count
         count="$(printf '%s\n' "$cfg_dump" | grep -cE "define\(\s*['\"]${k}['\"]")"
         if [ "$count" -eq 0 ]; then
-            log_file_error "$cfg" "salt define('${k}') is missing"
+            _record error "salt.${k}.missing" "$cfg" "salt define('${k}') is missing" "exactly 1 define" "0" "run 'reconfigure' (without --keep-salts) to fetch a fresh set"
             rc=1
             continue
         fi
         if [ "$count" -gt 1 ]; then
-            log_file_error "$cfg" "salt define('${k}') is defined ${count} times (must be exactly 1) -- awk strip likely failed"
+            _record error "salt.${k}.duplicate" "$cfg" "salt define('${k}') is defined ${count} times (must be exactly 1) -- awk strip likely failed" "1" "$count" "run 'reconfigure' to rewrite the salt block from scratch"
             rc=1
         fi
         local sval
         sval="$(printf '%s\n' "$cfg_dump" | grep -E "define\(\s*['\"]${k}['\"]" | head -1 \
                 | sed -E "s/.*define\(\s*['\"]${k}['\"]\s*,\s*['\"]([^'\"]*)['\"].*/\1/")"
         if [ -z "$sval" ]; then
-            log_file_error "$cfg" "salt ${k} has empty value"
+            _record error "salt.${k}.empty" "$cfg" "salt ${k} has empty value" ">= 32 chars" "0 chars" "run 'reconfigure' to fetch a fresh salt set"
             rc=1
         elif [ "$sval" = "$placeholder" ]; then
-            log_file_error "$cfg" "salt ${k} still equals shipped placeholder '${placeholder}' -- api.wordpress.org fetch failed and was not noticed"
+            _record error "salt.${k}.placeholder" "$cfg" "salt ${k} still equals shipped placeholder '${placeholder}' -- api.wordpress.org fetch failed and was not noticed" "random 64-char salt" "$placeholder" "check network access to api.wordpress.org and run 'reconfigure'"
             rc=1
         elif [ "${#sval}" -lt 32 ]; then
-            log_file_error "$cfg" "salt ${k} value is only ${#sval} chars (expected >= 32 from api.wordpress.org)"
+            _record error "salt.${k}.too_short" "$cfg" "salt ${k} value is only ${#sval} chars (expected >= 32 from api.wordpress.org)" ">= 32" "${#sval}" "run 'reconfigure' to fetch a fresh salt set"
             rc=1
         fi
         salt_values+=("$sval")
@@ -226,17 +266,179 @@ component_wordpress_verify_config() {
         local uniq_count
         uniq_count="$(printf '%s\n' "${salt_values[@]}" | sort -u | wc -l)"
         if [ "$uniq_count" -ne 8 ]; then
-            log_file_error "$cfg" "salt values are not mutually unique (${uniq_count}/8 distinct) -- duplicate salt = weakened security"
+            _record error "salt.uniqueness" "$cfg" "salt values are not mutually unique (${uniq_count}/8 distinct) -- duplicate salt = weakened security" "8 distinct" "${uniq_count} distinct" "run 'reconfigure' to fetch a fresh salt set"
             rc=1
         fi
     fi
 
-    if [ "$rc" -eq 0 ]; then
-        log_ok "[70][wp][verify-config] OK -- DB creds match, 8 unique salts present, syntax clean"
+    _emit_findings_and_return "$rc" "$install_path" "$cfg" "$db_name" "$db_user" "$db_host" "$db_port" "$json_mode" _findings[@]
+    return $?
+}
+
+# _json_escape <string>
+# Minimal JSON string escaper for shell-sourced text. Handles backslash,
+# double quote, and the control bytes that can appear in our error messages
+# (newline, tab, carriage return). NUL is impossible in shell vars.
+_json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+# _emit_findings_and_return <rc> <install_path> <cfg> <db_name> <db_user> <db_host> <db_port> <json_mode> <findings_array_name>
+# Closes out a verify run: in text mode prints the OK/FAILED banner; in
+# JSON mode emits the structured document on stdout. Returns the original
+# rc unchanged so callers keep their non-zero exit behaviour.
+_emit_findings_and_return() {
+    local rc="$1" install_path="$2" cfg="$3"
+    local db_name="$4" db_user="$5" db_host="$6" db_port="$7"
+    local json_mode="$8"
+    local arrname="$9"
+    # Pull the array via indirect expansion
+    local -a items=("${!arrname}")
+    local n_err=0 n_warn=0 n_info=0
+    local rec sev rest
+    for rec in "${items[@]}"; do
+        sev="${rec%%$'\t'*}"
+        case "$sev" in
+            error) n_err=$((n_err+1)) ;;
+            warn)  n_warn=$((n_warn+1)) ;;
+            info)  n_info=$((n_info+1)) ;;
+        esac
+    done
+    local total=${#items[@]}
+    local ok="false"; [ "$rc" -eq 0 ] && ok="true"
+
+    if [ "$json_mode" = "1" ]; then
+        # Emit structured JSON to stdout. Pretty-printed for human inspection;
+        # `jq -c` collapses to one line for downstream consumption.
+        printf '{\n'
+        printf '  "verified_at": "%s",\n'  "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        printf '  "install_path": "%s",\n' "$(_json_escape "$install_path")"
+        printf '  "wp_config": "%s",\n'    "$(_json_escape "$cfg")"
+        printf '  "expected": {\n'
+        printf '    "db_name": "%s",\n'    "$(_json_escape "$db_name")"
+        printf '    "db_user": "%s",\n'    "$(_json_escape "$db_user")"
+        printf '    "db_host": "%s",\n'    "$(_json_escape "$db_host")"
+        printf '    "db_port": %s\n'       "$db_port"
+        printf '  },\n'
+        printf '  "summary": { "ok": %s, "errors": %d, "warnings": %d, "info": %d, "checks": %d },\n' \
+               "$ok" "$n_err" "$n_warn" "$n_info" "$total"
+        printf '  "findings": ['
+        local first=1 i
+        for rec in "${items[@]}"; do
+            # severity\tcheck\tpath\tmsg\texpected\tactual\tfix
+            IFS=$'\t' read -r f_sev f_chk f_path f_msg f_exp f_act f_fix <<<"$rec"
+            if [ "$first" = "1" ]; then printf '\n'; first=0; else printf ',\n'; fi
+            printf '    { "severity": "%s", "check": "%s", "path": "%s", "message": "%s", "expected": "%s", "actual": "%s", "fix": "%s" }' \
+                   "$(_json_escape "$f_sev")" \
+                   "$(_json_escape "$f_chk")" \
+                   "$(_json_escape "$f_path")" \
+                   "$(_json_escape "$f_msg")" \
+                   "$(_json_escape "$f_exp")" \
+                   "$(_json_escape "$f_act")" \
+                   "$(_json_escape "$f_fix")"
+        done
+        if [ "$first" = "0" ]; then printf '\n  ]\n'; else printf ']\n'; fi
+        printf '}\n'
     else
-        log_err "[70][wp][verify-config] FAILED -- see [70][wp][verify-config] errors above"
+        if [ "$rc" -eq 0 ]; then
+            log_ok "[70][wp][verify-config] OK -- DB creds match, 8 unique salts present, syntax clean"
+        else
+            log_err "[70][wp][verify-config] FAILED -- $n_err error(s), $n_warn warning(s) -- see [70][wp][verify-config] errors above"
+        fi
     fi
     return "$rc"
+}
+
+# component_wordpress_verify_diff <baseline.json>
+# Compare a previously-snapshotted verify JSON document (typically the
+# wp-config.php.bak.<ts>.verify.json file written by reconfigure) to the
+# CURRENT verify state and emit a structured before/after/changes JSON
+# document on stdout. Lets operators answer "what actually changed when
+# I rotated DB credentials?" in a script-friendly way.
+#
+# Output schema:
+#   {
+#     "diffed_at":"<UTC>",
+#     "baseline":"<path>",
+#     "before": <full baseline doc>,
+#     "after":  <full current doc>,
+#     "changes": [
+#       {"check":"<id>", "transition":"resolved|introduced|persisted|severity_changed",
+#        "before": <finding|null>, "after": <finding|null>}
+#     ],
+#     "summary": {
+#       "before_ok":<bool>, "after_ok":<bool>,
+#       "resolved":<n>, "introduced":<n>, "persisted":<n>, "severity_changed":<n>
+#     }
+#   }
+#
+# Requires `jq` -- if not installed, logs a clear error and returns 2.
+component_wordpress_verify_diff() {
+    local baseline="$1"
+    local install_path="${WP_INSTALL_PATH:-/var/www/wordpress}"
+    local db_name="${WP_DB_NAME:-wordpress}"
+    local db_user="${WP_DB_USER:-wp_user}"
+    local db_pass="${WP_DB_PASS:-}"
+    local db_host="127.0.0.1"
+    local db_port="${WP_MYSQL_PORT:-3306}"
+
+    if [ ! -f "$baseline" ]; then
+        log_file_error "$baseline" "baseline JSON file not found -- pass a previously-snapshotted verify document (look in <install_path>/wp-config.php.bak.*.verify.json)"
+        return 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        log_err "[70][wp][diff] jq is required for --diff (install with 'apt-get install -y jq')"
+        return 2
+    fi
+
+    # Capture the current state as JSON (suppresses logger output via
+    # WP_VERIFY_JSON=1). Returns nonzero if findings exist -- we don't
+    # fail the diff on that, the diff itself is the answer.
+    local after_json
+    after_json="$(WP_VERIFY_JSON=1 component_wordpress_verify_config \
+        "$install_path" "$db_name" "$db_user" "$db_pass" "$db_host" "$db_port")" || true
+
+    # Use jq to compute the change set: keyed by `check` ID.
+    jq -n --slurpfile before "$baseline" \
+          --argjson after  "$after_json" \
+          --arg     baseln "$baseline" '
+        ($before[0]) as $b |
+        $after as $a |
+        ($b.findings // []) as $bf |
+        ($a.findings // []) as $af |
+        ($bf | map({(.check): .}) | add // {}) as $bmap |
+        ($af | map({(.check): .}) | add // {}) as $amap |
+        (($bmap | keys) + ($amap | keys) | unique) as $allkeys |
+        ($allkeys | map(. as $k |
+            ($bmap[$k]) as $bv |
+            ($amap[$k]) as $av |
+            if   $bv == null and $av != null then {check:$k, transition:"introduced",       before:null, after:$av}
+            elif $bv != null and $av == null then {check:$k, transition:"resolved",         before:$bv,  after:null}
+            elif $bv.severity != $av.severity then {check:$k, transition:"severity_changed",before:$bv,  after:$av}
+            else                                  {check:$k, transition:"persisted",       before:$bv,  after:$av}
+            end)) as $changes |
+        {
+          diffed_at: (now | todate),
+          baseline:  $baseln,
+          before:    $b,
+          after:     $a,
+          changes:   $changes,
+          summary: {
+            before_ok:        $b.summary.ok,
+            after_ok:         $a.summary.ok,
+            resolved:         ($changes | map(select(.transition=="resolved"))         | length),
+            introduced:       ($changes | map(select(.transition=="introduced"))       | length),
+            persisted:        ($changes | map(select(.transition=="persisted"))        | length),
+            severity_changed: ($changes | map(select(.transition=="severity_changed")) | length)
+          }
+        }'
+    return 0
 }
 
 _wp_mysql_run() {
