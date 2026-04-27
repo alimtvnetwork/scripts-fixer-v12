@@ -11,10 +11,13 @@
 # --------------------------------------------------------------------------
 [CmdletBinding()]
 param(
-    [string]   $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
-    [int[]]    $Versions = @(8, 9, 10),
-    [string]   $Target   = 'v11',
-    [switch]   $DryRun
+    [string]   $RepoRoot   = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+    [int[]]    $Versions   = @(8, 9, 10),
+    [string]   $Target     = 'v11',
+    [switch]   $DryRun,
+    # JSON summary report. Pass an empty string to suppress, or a path
+    # (relative paths resolve against -RepoRoot).
+    [string]   $ReportFile = 'legacy-fix-report.json'
 )
 
 $ErrorActionPreference = 'Stop'
