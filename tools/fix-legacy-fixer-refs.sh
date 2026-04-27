@@ -23,6 +23,9 @@ REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FIX_TARGET="${FIX_TARGET:-v11}"
 FIX_VERSIONS="${FIX_VERSIONS:-8 9 10}"
 DRY_RUN="${DRY_RUN:-0}"
+# JSON summary report. Set REPORT_FILE="" to suppress, or pass an absolute/
+# relative path. Relative paths resolve against $REPO_ROOT.
+REPORT_FILE="${REPORT_FILE-legacy-fix-report.json}"
 
 if [ ! -d "$REPO_ROOT" ]; then
   file_error "$REPO_ROOT" "repo root does not exist"
@@ -89,6 +92,61 @@ echo '-----------------------------'
 echo "files changed:    $changed_files"
 echo "total rewrites:   $total_replacements"
 echo "errors:           $errors"
+
+# ---- JSON report ------------------------------------------------------------
+if [ -n "$REPORT_FILE" ]; then
+  case "$REPORT_FILE" in
+    /*) report_path="$REPORT_FILE" ;;
+    *)  report_path="$REPO_ROOT/$REPORT_FILE" ;;
+  esac
+  report_dir="$(dirname "$report_path")"
+  if ! mkdir -p "$report_dir" 2>/dev/null; then
+    file_error "$report_dir" "cannot create report directory"
+  else
+    mode_str="apply"
+    [ "$DRY_RUN" = "1" ] && mode_str="dry-run"
+    versions_json="$(echo "$FIX_VERSIONS" | tr -s ' ' | sed 's/^ *//; s/ *$//' | tr ' ' ',' )"
+    versions_json="[${versions_json}]"
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo unknown)"
+
+    {
+      printf '{\n'
+      printf '  "tool": "fix-legacy-fixer-refs.sh",\n'
+      printf '  "generatedAt": "%s",\n' "$ts"
+      printf '  "repoRoot": "%s",\n' "$REPO_ROOT"
+      printf '  "mode": "%s",\n' "$mode_str"
+      printf '  "target": "scripts-fixer-%s",\n' "$FIX_TARGET"
+      printf '  "legacyVersions": %s,\n' "$versions_json"
+      printf '  "totals": { "filesChanged": %d, "totalReplacements": %d, "errors": %d },\n' \
+             "$changed_files" "$total_replacements" "$errors"
+      printf '  "files": ['
+      first=1
+      while IFS= read -r line; do
+        # lines look like:  "  1234x  some/rel/path"
+        cnt="$(echo "$line" | sed -E 's/^[[:space:]]*([0-9]+)x.*/\1/')"
+        path="$(echo "$line" | sed -E 's/^[[:space:]]*[0-9]+x[[:space:]]+//')"
+        # JSON-escape backslashes and double quotes in the path
+        esc_path="$(printf '%s' "$path" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')"
+        if [ $first -eq 1 ]; then
+          printf '\n    { "path": "%s", "count": %s }' "$esc_path" "$cnt"
+          first=0
+        else
+          printf ',\n    { "path": "%s", "count": %s }' "$esc_path" "$cnt"
+        fi
+      done < "$summary_file"
+      [ $first -eq 0 ] && printf '\n  '
+      printf ']\n'
+      printf '}\n'
+    } > "$report_path" 2>/dev/null
+
+    if [ -s "$report_path" ]; then
+      info "report:   $report_path"
+    else
+      file_error "$report_path" "failed to write JSON report"
+    fi
+  fi
+fi
+
 rm -f "$summary_file"
 
 if [ "$DRY_RUN" = "1" ]; then warn "dry-run: no files were modified"; fi
