@@ -30,6 +30,11 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 
+# As of v0.203.0 this loader applies each record IN-PROCESS via the shared
+# um_user_delete + um_purge_home helpers rather than forking
+# `bash remove-user.sh` per row. Confirmation prompts are skipped because
+# bulk-from-JSON is non-interactive by design.
+
 UM_ALLOWED_FIELDS="name purgeHome purgeProfile removeMailSpool"
 
 _validate_remove_record() {
@@ -141,6 +146,39 @@ rm -f /tmp/68-jq-err.$$
 count=$(jq 'length' <<< "$normalised")
 log_info "loaded $count user-removal record(s) from '$UM_FILE'"
 
+# In-process applicator. Resolves the user's home dir BEFORE deleting the
+# account so we can purge it after (matches remove-user.sh semantics).
+_apply_remove_record() {
+  local name="$1" is_purge="$2" is_mail="$3"
+  local home="" rc=0 linux_purged_home=0
+
+  log_info "$(um_msg removePlanHeader "$name" 2>/dev/null || echo "remove-user plan for '$name':")"
+  log_info "  - delete user account"
+
+  if um_user_exists "$name"; then
+    if [ "$UM_OS" = "linux" ]; then
+      home=$(getent passwd "$name" | awk -F: '{print $6}')
+    else
+      home=$(dscl . -read "/Users/$name" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+    fi
+  fi
+  [ "$is_purge" = "1" ] && [ -n "$home" ] && log_info "  - delete home dir: $home (DESTRUCTIVE)"
+  [ "$is_mail"  = "1" ] && [ "$UM_OS" = "linux" ] && log_info "  - delete /var/mail/$name (Linux mail spool)"
+
+  # Linux: userdel -r covers home + mail spool atomically when either flag set.
+  if [ "$UM_OS" = "linux" ] && { [ "$is_purge" = "1" ] || [ "$is_mail" = "1" ]; }; then
+    um_user_delete "$name" --remove-mail-spool || rc=1
+    linux_purged_home=1
+  else
+    um_user_delete "$name" || rc=1
+  fi
+
+  if [ "$is_purge" = "1" ] && [ "$linux_purged_home" = "0" ] && [ -n "$home" ]; then
+    um_purge_home "$home" || rc=1
+  fi
+  return $rc
+}
+
 rc_total=0
 i=0
 while [ "$i" -lt "$count" ]; do
@@ -179,15 +217,8 @@ while [ "$i" -lt "$count" ]; do
   is_purge=$(jq -r 'if (.purgeHome == true) or (.purgeProfile == true) then "1" else "" end' <<< "$rec")
   is_mail=$(jq -r  'if .removeMailSpool == true then "1" else "" end' <<< "$rec")
 
-  args=("$name" --yes)   # bulk = always non-interactive
-  [ "$is_purge" = "1" ] && args+=(--purge-home)
-  [ "$is_mail"  = "1" ] && args+=(--remove-mail-spool)
-  [ "$UM_DRY_RUN" = "1" ] && args+=(--dry-run)
-
   log_info "--- record $((i+1))/$count: remove user='$name'$([ "$is_purge" = "1" ] && echo " (+purge home)") ---"
-  if ! bash "$SCRIPT_DIR/remove-user.sh" "${args[@]}"; then
-    rc_total=1
-  fi
+  _apply_remove_record "$name" "$is_purge" "$is_mail" || rc_total=1
   i=$((i+1))
 done
 
