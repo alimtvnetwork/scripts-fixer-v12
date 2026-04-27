@@ -264,3 +264,55 @@ Usage:
 ./run.sh reconfigure --port 3307 --keep-salts          # MySQL port changed, no session loss
 ./run.sh reconfigure -i                                # interactive prompts
 ```
+
+### Verify --json + before/after --diff (v0.180.0)
+`component_wordpress_verify_config` refactored to collect findings into a
+structured array via internal `_record` helper, then emit them either as
+human log lines (text mode, default) OR as a single JSON document on
+stdout when `WP_VERIFY_JSON=1` is set. Each finding has a stable schema:
+`{severity, check, path, message, expected, actual, fix}`. Check IDs are
+stable strings (e.g. `db.DB_PASSWORD.mismatch`, `salt.AUTH_KEY.placeholder`,
+`salt.uniqueness`, `php.lint`, `file.truncated`) so downstream scripts
+can match on them.
+
+New top-level `verify` verb in `run.sh` exposes three modes:
+1. `verify`                  -- text mode (existing behaviour, preserved)
+2. `verify --json`           -- emit structured findings JSON to stdout
+3. `verify --snapshot <file>` -- write JSON to file (also stdout if --json)
+4. `verify --diff <baseline>` -- compare current verify state to a
+   previously-snapshotted JSON document and emit a structured
+   before/after/changes JSON with per-check transitions
+   (resolved | introduced | persisted | severity_changed). Implies --json.
+   Requires `jq` -- aborts with rc=2 + clear remediation if missing.
+
+`component_wordpress_reconfigure` now auto-writes a BEFORE-snapshot at
+`<install>/wp-config.php.bak.<UTC-ts>.verify.json` paired with each backup
+(uses old credentials from `.installed/70-wordpress-credentials.json` when
+available, else marks expected fields as `(unknown baseline)`). After a
+reconfigure the operator can run `./run.sh verify --diff <bak>.verify.json`
+to see exactly what changed -- the diff hint is logged for copy/paste.
+
+**Bug fix during implementation**: initial encoding used TAB (`\t`) as the
+findings record delimiter, but `IFS=$'\t' read` collapses runs of TABs
+(POSIX whitespace IFS rule), so empty middle fields shifted later fields
+left -- making `expected`/`actual`/`fix` misalign. Switched to ASCII
+Unit Separator (`\x1f`), which is non-whitespace and preserves empty
+fields exactly.
+
+Verified end-to-end with 6 scenarios using a real upstream
+wp-config-sample.php: text mode unchanged; JSON parses cleanly under
+`jq`; intentional DB_PASSWORD mismatch produces correct expected/actual/
+fix fields with the right `--db-pass` flag hint; reconfigure auto-writes
+the .verify.json snapshot with old creds; --diff produces correct
+before_expected/after_expected (db1→db2, port 3306→3307); missing
+baseline aborts with CODE-RED file error.
+
+Usage:
+```
+./run.sh verify --json                                      # current state, JSON
+./run.sh verify --snapshot /tmp/before.json                 # save baseline
+./run.sh reconfigure --db-pass NEWPASS                      # makes a change
+./run.sh verify --diff /tmp/before.json                     # show what changed
+# After any reconfigure, the auto-written snapshot is also usable:
+./run.sh verify --diff /var/www/wordpress/wp-config.php.bak.20260427T...Z.verify.json
+```
