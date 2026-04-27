@@ -119,6 +119,12 @@ UM_SSH_URL_ALLOWLIST_DEFAULT="github.com,gitlab.com,codeberg.org,bitbucket.org,l
 UM_RUN_ID="${UM_RUN_ID:-}"
 UM_MANIFEST_DIR="${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}"
 UM_NO_MANIFEST="${UM_NO_MANIFEST:-0}"
+# Auto-prune knob (v0.181.0). Best-effort housekeeping after a successful
+# manifest write so the dir self-maintains. Reads policy from config.json
+# (manifestRetention.*). Opt-out via --no-auto-prune or UM_NO_AUTO_PRUNE=1.
+# Failures during auto-prune NEVER fail the install -- they're warned and
+# the operator is told to run `remove-ssh-keys.sh --prune` manually.
+UM_NO_AUTO_PRUNE="${UM_NO_AUTO_PRUNE:-0}"
 # Per-key source tags accumulated during the install pass. Same length /
 # order as the de-duplicated key buffer, used by the manifest writer to
 # remember WHERE each tracked key came from.
