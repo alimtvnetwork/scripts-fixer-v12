@@ -17,7 +17,15 @@ UM_SCHEMA_FIELDS="name:nestr gid:uid system:bool"
 
 um_usage() {
   cat <<EOF
+# add-group-json -- bulk groups from JSON; see readme.md for record schema.
 Usage: add-group-from-json.sh <file.json> [--dry-run]
+
+Accepts a JSON file containing a single object **or** array -- auto-detected.
+Three accepted shapes (mirrors readme.md "JSON examples"):
+  - single object : { "name": "devs", "gid": 2000 }
+  - array         : [ { "name": "devs", ... }, { "name": "ops", ... } ]
+  - wrapped       : { "groups": [ ... ] }
+Each record fans out to add-group.sh.
 EOF
 }
 

@@ -25,6 +25,7 @@ _UM_PROMPT_SH="$SCRIPT_DIR/helpers/_prompt.sh"
 
 um_usage() {
   cat <<EOF
+# add-user -- create one local user (Linux | macOS); see readme.md.
 Usage: add-user.sh <name> [options]
 
 Required:

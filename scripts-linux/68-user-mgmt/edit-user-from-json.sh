@@ -50,15 +50,22 @@ UM_SCHEMA_MUTEX="promote,demote enable,disable"
 
 um_usage() {
   cat <<EOF
+# edit-user-json -- bulk user edits from JSON; see readme.md for schema.
 Usage: edit-user-from-json.sh <file.json> [--dry-run]
 
-Accepts a JSON file containing one user-edit object, an array of edit
-objects, or { "users": [ ... ] }. Each record fans out to edit-user.sh.
+Accepts a JSON file containing a single object **or** array -- auto-detected.
+Three accepted shapes (mirrors readme.md "Bulk edit / remove"):
+  - single object : { "name": "alice", "rename": "alyssa" }
+  - array         : [ { "name": "...", ... }, ... ]
+  - wrapped       : { "users": [ ... ] }
+Each record applies in-process via the um_user_modify shared helper.
 
 Per-record schema (every field optional except 'name'):
   name, rename, password, passwordFile, promote, demote,
   addGroups[], removeGroups[], shell, comment, enable, disable.
 
+Mutually-exclusive intents (e.g. promote+demote, enable+disable) are
+rejected up front so a half-applied batch is impossible.
 Records with zero applicable changes are skipped with a [WARN] line --
 still exit 0 if every other record succeeded.
 EOF

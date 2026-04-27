@@ -10,6 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 um_usage() {
   cat <<EOF
+# add-group -- create one local group (Linux | macOS); see readme.md.
 Usage: add-group.sh <name> [options]
 
 Required:

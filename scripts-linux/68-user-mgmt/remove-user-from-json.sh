@@ -43,15 +43,18 @@ UM_SCHEMA_FIELDS="name:nestr purgeHome:bool purgeProfile:bool removeMailSpool:bo
 
 um_usage() {
   cat <<EOF
+# remove-user-json -- bulk user removal from JSON; see readme.md for schema.
 Usage: remove-user-from-json.sh <file.json> [--dry-run]
 
-Accepts a JSON file in any of:
+Accepts a JSON file containing a single object **or** array -- auto-detected.
+Four accepted shapes (mirrors readme.md "Bulk edit / remove"):
   - single object   : { "name": "alice", "purgeHome": true }
   - array           : [ { ... }, { ... } ]
   - wrapped         : { "users": [ ... ] }
   - bare-string list: [ "alice", "bob" ]   (shorthand: name only)
 
-Each record fans out to remove-user.sh with --yes (no per-record prompts).
+Each record applies in-process via the um_user_delete shared helper and
+always passes --yes (no per-record confirmation prompts in bulk mode).
 Removing a missing user is a no-op (idempotent), so this is safe to re-run.
 EOF
 }

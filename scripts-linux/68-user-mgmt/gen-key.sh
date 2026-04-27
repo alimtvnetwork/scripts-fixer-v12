@@ -24,6 +24,7 @@ _PROMPT_SH="$SCRIPT_DIR/helpers/_prompt.sh"
 
 um_usage() {
   cat <<EOF
+# gen-key -- generate ed25519 / rsa / ecdsa key pair (--ask ok); see readme.md.
 Usage: gen-key.sh [options]
 
 Options:

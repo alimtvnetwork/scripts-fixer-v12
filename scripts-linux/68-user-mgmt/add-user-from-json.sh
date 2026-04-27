@@ -30,10 +30,15 @@ UM_SCHEMA_FIELDS="name:nestr password:nestr passwordFile:nestr shell:nestr home:
 
 um_usage() {
   cat <<EOF
+# add-user-json -- bulk users from JSON; see readme.md for record schema.
 Usage: add-user-from-json.sh <file.json> [--dry-run]
 
-Accepts a JSON file containing one user object, an array of user objects,
-or { "users": [ ... ] }. Each record fans out to add-user.sh.
+Accepts a JSON file containing a single object **or** array -- auto-detected.
+Three accepted shapes (mirrors readme.md "JSON examples"):
+  - single object : { "name": "dan", "password": "...", "groups": ["sudo"] }
+  - array         : [ { "name": "alice", ... }, { "name": "bob", ... } ]
+  - wrapped       : { "users": [ ... ] }
+Each record fans out to add-user.sh.
 EOF
 }
 
