@@ -176,3 +176,25 @@ New markers: `.installed/70-https.dns`, `.installed/70-https.wildcard`.
 Spec: `scripts-linux/70-install-wordpress-ubuntu/spec/01-ssl-automation.md`
 (provider tables, IAM policy, wildcard expansion rules, failure-mode
 remediation). macOS confirmed out of scope by user.
+
+### wp-config.php strict validator (v0.177.0)
+`components/wordpress.sh` adds `component_wordpress_verify_config <path>
+<db_name> <db_user> <db_pass> <db_host> <db_port>`, called from
+`component_wordpress_install` immediately after the salts step (3b). Hard
+aborts the install when wp-config.php is broken. Checks:
+1. File exists, non-empty, contains "stop editing" end marker (truncation).
+2. `php -l` syntax check (skipped with warn if php not on PATH).
+3. `define('DB_NAME'|'DB_USER'|'DB_PASSWORD'|'DB_HOST')` values match the
+   credentials we just installed (DB_HOST = `host:port`).
+4. No leftover `database_name_here|username_here|password_here` placeholders.
+5. All 8 salts (AUTH_KEY, SECURE_AUTH_KEY, LOGGED_IN_KEY, NONCE_KEY,
+   AUTH_SALT, SECURE_AUTH_SALT, LOGGED_IN_SALT, NONCE_SALT) defined exactly
+   once each, value length >= 32 chars.
+6. None of the 8 salts equal the shipped placeholder
+   "put your unique phrase here" (catches silent api.wordpress.org failure).
+7. The 8 salt values are mutually unique (sort -u must give 8 lines).
+
+Every failure logs via `log_file_error path='...' reason='...'` (CODE RED).
+Verified end-to-end with 7 unit-test scenarios: 1 clean pass + 6 distinct
+failure modes (wrong DB pass, leftover placeholder, duplicate salts,
+shipped placeholder salt, missing salt, missing end marker).
