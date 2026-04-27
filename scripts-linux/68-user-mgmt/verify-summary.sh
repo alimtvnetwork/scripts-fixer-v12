@@ -324,6 +324,181 @@ if [ "$VS_LIST_RULES" = "1" ]; then
   exit 0
 fi
 
+# --print-schema short-circuits all input handling. Emits a self-describing
+# JSON catalog covering BOTH the per-user and batch summary doc shapes that
+# add-user.sh (--summary-json) and add-user-from-json.sh produce. The catalog
+# is the same source of truth the validator uses internally (required field
+# lists, counter names, source names, version), so consumers never drift.
+# Requires jq -- summary docs are JSON, and the validator already requires
+# jq for everything else.
+if [ "$VS_PRINT_SCHEMA" = "1" ]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    log_err "$(um_msg missingTool "jq")"
+    exit 127
+  fi
+
+  # Build the rule catalog as JSON so consumers can cross-reference fields
+  # against the --rule names that gate them.
+  _vs_rules_json=$(jq -n \
+    --argjson opt     "$(printf '%s\n' "${VS_RULE_CATALOG[@]}" | jq -R . | jq -s '[.[]|select(.!="")]')" \
+    --argjson builtin "$(printf '%s\n' "${VS_RULE_BUILTIN[@]}" | jq -R . | jq -s '[.[]|select(.!="")]')" \
+    '{ optIn: $opt, builtin: $builtin }')
+
+  jq -n \
+    --arg     toolVersion    "$(jq -r '.version // "unknown"' "$__UM_TOOLKIT_ROOT/version.json" 2>/dev/null \
+                                || jq -r '.version // "unknown"' "$SCRIPT_DIR/../../scripts/version.json" 2>/dev/null \
+                                || echo "unknown")" \
+    --argjson rules         "$_vs_rules_json" \
+    '
+    {
+      schemaCatalogVersion: 1,
+      tool:        "verify-summary",
+      toolVersion: $toolVersion,
+      summaryVersionsSupported: [1],
+
+      # Per-user document (one .summary.json per (run-id,user)).
+      user: {
+        kind:        "user",
+        description: "Per-user SSH-key install summary written by add-user.sh --summary-json. One file per (runId,user).",
+        required: [
+          "summaryVersion","writtenAt","host","user","runId",
+          "authorizedKeysFile","summary","sources","ok"
+        ],
+        optional: [
+          "kind","scriptVersion","manifestFile"
+        ],
+        fields: {
+          summaryVersion:     { type: "integer", const: 1, description: "Schema version. Validator only knows v1." },
+          kind:               { type: "string",  enum: ["user"], default: "user", description: "Discriminator. Absent or 'user' for per-user docs." },
+          writtenAt:          { type: "string",  format: "date-time", description: "ISO-8601 timestamp the summary was emitted (UTC preferred)." },
+          host:               { type: "string",  minLength: 1, description: "Hostname of the machine that ran add-user.sh." },
+          user:               { type: "string",  minLength: 1, description: "Unix username the keys were installed for." },
+          runId:              { type: "string",  pattern: "^[0-9]{8}-[0-9]{6}-.+$", description: "Rollback run-id; matches the manifest filename '<run-id>__<user>.json'." },
+          scriptVersion:      { type: "string",  description: "scripts/version.json value at install time." },
+          authorizedKeysFile: { type: "string",  description: "Absolute path of the authorized_keys file the keys were appended to." },
+          manifestFile:       { type: ["string","null"], description: "Absolute path of the rollback manifest, or null when --no-manifest was used." },
+          ok:                 { type: "boolean", description: "Overall install success flag; false when at least one source failed." },
+
+          summary: {
+            type: "object",
+            description: "5-stage SSH-key counter pipeline. Every value: integer >= 0.",
+            required: [
+              "sources_requested","keys_parsed","keys_unique",
+              "keys_installed_new","keys_preserved"
+            ],
+            fields: {
+              sources_requested:  { type: "integer", minimum: 0, description: "Count of --ssh-key + --ssh-key-file + --ssh-key-url flags (one per flag, regardless of how many keys each carries)." },
+              keys_parsed:        { type: "integer", minimum: 0, description: "Non-blank, non-comment, algo-valid key lines read from all sources -- BEFORE intra-run de-dup." },
+              keys_unique:        { type: "integer", minimum: 0, description: "keys_parsed minus duplicates within this run." },
+              keys_installed_new: { type: "integer", minimum: 0, description: "Net-new lines actually appended to authorized_keys." },
+              keys_preserved:     { type: "integer", minimum: 0, description: "Pre-existing lines we left untouched." }
+            }
+          },
+
+          sources: {
+            type: "object",
+            description: "Source-class breakdown of sources_requested.",
+            required: ["inline","file","url"],
+            fields: {
+              inline: { type: "integer", minimum: 0, description: "Number of --ssh-key flags." },
+              file:   { type: "integer", minimum: 0, description: "Number of --ssh-key-file flags." },
+              url:    { type: "integer", minimum: 0, description: "Number of --ssh-key-url flags." }
+            }
+          }
+        },
+
+        # How rules cross-reference fields. Operators can grep this to learn
+        # which --rule controls which identity.
+        crossFieldRules: [
+          { name: "pure-inline-eq-sources",
+            scope: ["sources.inline","sources.file","sources.url",
+                    "summary.sources_requested","summary.keys_parsed","summary.keys_unique"],
+            check: "sources.file==0 AND sources.url==0 AND sources.inline>0 => keys_parsed==keys_unique==sources_requested",
+            default: "off", severity: "error" },
+          { name: "installed-plus-preserved-eq-unique",
+            scope: ["ok","summary.keys_installed_new","summary.keys_preserved","summary.keys_unique"],
+            check: "ok==true => keys_installed_new + keys_preserved == keys_unique",
+            default: "off", severity: "error",
+            softWarningWhenDisabled: true },
+          { name: "unique-le-parsed",
+            scope: ["summary.keys_unique","summary.keys_parsed"],
+            check: "keys_unique <= keys_parsed",
+            default: "off", severity: "error",
+            softWarningWhenDisabled: true },
+          { name: "installed-le-parsed",
+            scope: ["summary.keys_installed_new","summary.keys_parsed"],
+            check: "keys_installed_new <= keys_parsed",
+            default: "off", severity: "error",
+            softWarningWhenDisabled: true }
+        ]
+      },
+
+      # Batch document (one rollup per add-user-from-json.sh run).
+      batch: {
+        kind:        "batch",
+        description: "Batch SSH-key install summary written by add-user-from-json.sh --summary-json. Aggregates every per-user doc from the same runId.",
+        required: [
+          "summaryVersion","writtenAt","runId","sourceFile",
+          "userCount","aggregate","users"
+        ],
+        optional: [
+          "kind","scriptVersion","host"
+        ],
+        discriminator: { field: "kind", value: "batch" },
+        fields: {
+          summaryVersion: { type: "integer", const: 1, description: "Schema version. Validator only knows v1." },
+          kind:           { type: "string",  enum: ["batch"], description: "Discriminator. MUST equal 'batch' for batch rollups." },
+          writtenAt:      { type: "string",  format: "date-time" },
+          runId:          { type: "string",  pattern: "^[0-9]{8}-[0-9]{6}-.+$", description: "Shared run-id across the whole batch." },
+          sourceFile:     { type: "string",  description: "Absolute path of the input JSON file the batch was loaded from." },
+          userCount:      { type: "integer", minimum: 0, description: "Number of entries in users[]." },
+          scriptVersion:  { type: "string" },
+          host:           { type: "string" },
+
+          aggregate: {
+            type: "object",
+            description: "Sum of every counter across users[].summary. Validator enforces equality (builtin rule batch-aggregate-matches-users).",
+            required: [
+              "sources_requested","keys_parsed","keys_unique",
+              "keys_installed_new","keys_preserved"
+            ],
+            fields: {
+              sources_requested:  { type: "integer", minimum: 0 },
+              keys_parsed:        { type: "integer", minimum: 0 },
+              keys_unique:        { type: "integer", minimum: 0 },
+              keys_installed_new: { type: "integer", minimum: 0 },
+              keys_preserved:     { type: "integer", minimum: 0 }
+            }
+          },
+
+          users: {
+            type: "array",
+            description: "Per-user summary docs embedded in-line. Each element MUST conform to the per-user schema above (minus its own writtenAt/host -- those default from the batch envelope).",
+            itemRef: "user"
+          }
+        },
+
+        crossFieldRules: [
+          { name: "batch-aggregate-matches-users",
+            scope: ["aggregate.*","users[].summary.*"],
+            check: "for every counter K: aggregate[K] == sum(users[].summary[K])",
+            default: "on", severity: "error", builtin: true }
+        ]
+      },
+
+      rules: $rules,
+
+      notes: [
+        "Counter names are the v0.173.0 5-stage pipeline; the older sshRequestedCount/sshInstalledCount names are gone.",
+        "All counters MUST be JSON numbers, integer-valued, and >= 0; the validator rejects strings, fractionals, and negatives.",
+        "writtenAt is a string -- no automatic parse is enforced unless a rule references it (e.g. --since via run-id resolution).",
+        "Operators that want strict cross-field identities should pair --print-schema with --rule all to bind every documented identity to a hard error."
+      ]
+    }
+    '
+  exit 0
+fi
+
 # Mutual exclusion: --json and --results-json speak different formats.
 if [ "$VS_JSON" = "1" ] && [ "$VS_RESULTS_JSON" = "1" ]; then
   log_err "--json and --results-json are mutually exclusive (failure: pick one wire format -- NDJSON-per-file vs single consolidated report)"
