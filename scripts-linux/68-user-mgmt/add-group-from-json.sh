@@ -9,6 +9,11 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
+. "$SCRIPT_DIR/helpers/_schema.sh"
+
+UM_ALLOWED_FIELDS="name gid system"
+UM_SCHEMA_REQUIRED="name"
+UM_SCHEMA_FIELDS="name:nestr gid:uid system:bool"
 
 um_usage() {
   cat <<EOF
@@ -48,22 +53,9 @@ um_detect_os || exit $?
 um_require_root || exit $?
 if [ "$UM_DRY_RUN" = "1" ]; then log_warn "$(um_msg dryRunBanner)"; fi
 
-normalised=$(jq -c '
-  if type == "object" and has("groups") and (.groups|type=="array") then .groups
-  elif type == "array" then .
-  elif type == "object" then [ . ]
-  else error("top-level must be object or array")
-  end
-' "$UM_FILE" 2>/tmp/68-jqg-err.$$)
-jq_rc=$?
-if [ "$jq_rc" -ne 0 ]; then
-  err_text=$(cat /tmp/68-jqg-err.$$ 2>/dev/null); rm -f /tmp/68-jqg-err.$$
-  log_err "$(um_msg jsonParseFail "$UM_FILE" "$err_text")"
-  exit 2
-fi
-rm -f /tmp/68-jqg-err.$$
-
-count=$(jq 'length' <<< "$normalised")
+um_schema_normalize_array "$UM_FILE" "groups" || exit 2
+normalised="$UM_NORMALIZED_JSON"
+count="$UM_NORMALIZED_COUNT"
 log_info "loaded $count group record(s) from '$UM_FILE'"
 
 UM_SUMMARY_FILE="${UM_SUMMARY_FILE:-$(mktemp -t 68-summary.XXXXXX)}"
@@ -73,12 +65,18 @@ rc_total=0
 i=0
 while [ "$i" -lt "$count" ]; do
   rec=$(jq -c ".[$i]" <<< "$normalised")
-  name=$(jq -r '.name // empty'   <<< "$rec")
-  if [ -z "$name" ]; then
-    log_err "$(um_msg jsonRecordBad "$i" "$UM_FILE" "name")"
+
+  validation_out=$(um_schema_validate_record "$rec" "$UM_ALLOWED_FIELDS" \
+    "$UM_SCHEMA_REQUIRED" "$UM_SCHEMA_FIELDS")
+  um_schema_report "$i" "$UM_FILE" "$validation_out" "plain"
+  name=$(um_schema_record_name "$rec")
+
+  if [ "$UM_SCHEMA_ERR_COUNT" -gt 0 ]; then
+    log_err "rejected record #$i in '$UM_FILE' for group='$name' ($UM_SCHEMA_ERR_COUNT schema error(s))"
     rc_total=1
     i=$((i+1)); continue
   fi
+
   gid=$(jq -r    '.gid // empty'                       <<< "$rec")
   is_sys=$(jq -r 'if .system == true then "1" else "" end' <<< "$rec")
 
