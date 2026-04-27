@@ -76,6 +76,25 @@ Examples:
   bash run.sh add-user-json examples/users.json --dry-run
   bash run.sh add-group-json examples/groups.json
 
+  # edit-user (single account; every flag optional)
+  bash run.sh edit-user alice --rename alyssa --comment "Alyssa P. Hacker"
+  bash run.sh edit-user bob   --promote --add-group docker --shell /bin/zsh
+  bash run.sh edit-user dave  --reset-password 'N3w!' --disable --dry-run
+
+  # edit-user-json (bulk; same record fields as edit-user flags)
+  bash run.sh edit-user-json examples/edit-users.json --dry-run
+  sudo bash run.sh edit-user-json examples/edit-users.json
+
+  # remove-user (single account; --yes skips the confirm prompt)
+  bash run.sh remove-user olduser1 --yes --dry-run
+  sudo bash run.sh remove-user olduser1 --purge-home --yes
+  sudo bash run.sh remove-user olduser2 --purge-home --remove-mail-spool --yes
+
+  # remove-user-json (bulk; --yes is added automatically per record)
+  bash run.sh remove-user-json examples/remove-users.json --dry-run
+  sudo bash run.sh remove-user-json examples/remove-users.json
+  # bare-string shorthand also accepted: ["alice","bob"]  -> name-only records
+
 Each subverb has its own --help with the full option list.
 The subverbs map 1:1 to standalone leaf scripts in this folder; you can
 invoke them directly if you'd rather skip the dispatcher.
