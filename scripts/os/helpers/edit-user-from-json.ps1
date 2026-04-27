@@ -56,6 +56,37 @@
 
     Usage:
       .\run.ps1 os edit-user-json <file.json> [--dry-run]
+
+    Dry-run effect per JSON field (with --dry-run, every record is
+    validated + planned but no host mutation occurs. Each field maps to
+    a single Invoke-UserModify call which logs "[dry-run] <command>"
+    with the resolved arguments. Schema validation -- including mutex
+    checks -- ALWAYS runs.):
+      name          would resolve the account; missing user -> [FAIL] +
+                    record marked failed; loader continues with the next row
+      rename        would call Rename-LocalUser -Name <name> -NewName
+                    <newName>; applied LAST so other ops still target the
+                    original name
+      password      would call Set-LocalUser -Password <masked>; value
+                    NEVER logged
+      passwordFile  IGNORED on Windows (Linux/macOS only; no log line)
+      promote       would call Add-LocalGroupMember -Group Administrators
+      demote        would call Remove-LocalGroupMember -Group Administrators
+      addGroups     one Add-LocalGroupMember call per array entry
+      removeGroups  one Remove-LocalGroupMember call per array entry
+      shell         no-op on Windows; logged at INFO ("would set shell
+                    PATH (no Windows equivalent)")
+      comment       would call net.exe user <name> /comment:"..."; empty
+                    string CLEARS the field
+      enable        would call Enable-LocalUser -Name <name>
+      disable       would call Disable-LocalUser -Name <name>
+
+    Loader-level dry-run notes:
+      - Mutex violations (promote+demote, enable+disable) are rejected by
+        the validator BEFORE any record runs, so a half-applied batch is
+        impossible.
+      - Records with zero applicable changes log [WARN] and are skipped;
+        the loader still exits 0 if every other record was ok.
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
