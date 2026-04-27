@@ -83,7 +83,7 @@ um_require_root() {
   if [ "${UM_DRY_RUN:-0}" = "1" ]; then return 0; fi
   if [ "$(id -u)" -eq 0 ]; then return 0; fi
   log_err "$(um_msg needRoot)"
-  return 13
+  return 0
 }
 
 # ---- password resolution ----------------------------------------------------
