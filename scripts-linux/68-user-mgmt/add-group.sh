@@ -20,6 +20,17 @@ Optional:
   --gid N         explicit numeric GID
   --system        system group (Linux only; ignored on macOS)
   --dry-run       print what would happen, change nothing
+
+Dry-run effect per flag (when --dry-run is set, the script logs the intent
+but never mutates the host -- root is not required):
+  <name>          would create local group '<name>' (skipped if it already
+                  exists; logs "[WARN] group exists" instead)
+  --gid N         would pass --gid N to groupadd (Linux) / set
+                  PrimaryGroupID=N via dscl (macOS); auto-allocates the next
+                  free GID >=510 on macOS if N is omitted
+  --system        would pass --system to groupadd (Linux); ignored on macOS
+                  with no log line
+  --dry-run       this flag itself; emits the dry-run banner then plans only
 EOF
 }
 
