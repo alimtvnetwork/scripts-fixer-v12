@@ -50,15 +50,17 @@ if command -v rg >/dev/null 2>&1; then
     OUTPUT="$(cd "$ROOT" && rg --no-ignore --hidden --no-config \
         --glob '!.git' --glob '!node_modules' --glob '!dist' --glob '!build' \
         --glob '!.lovable/compliance-reports/**' \
-        --glob '!tools/scan-legacy-fixer-refs.*' \
-        --glob '!tools/fix-legacy-fixer-refs.*' \
+        --glob '!tools/*-legacy-fixer-refs.*' \
+        --glob '!tools/*legacy-refs.*' \
+        --glob '!legacy-fix-report.json' \
         -nH "$PATTERN" . 2>/dev/null || true)"
 else
     OUTPUT="$(cd "$ROOT" && grep -RnHE \
         --binary-files=without-match \
         --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=build \
-        --exclude='scan-legacy-fixer-refs.*' \
-        --exclude='fix-legacy-fixer-refs.*' \
+        --exclude='*-legacy-fixer-refs.*' \
+        --exclude='*legacy-refs.*' \
+        --exclude='legacy-fix-report.json' \
         "$PATTERN" . 2>/dev/null || true)"
 fi
 

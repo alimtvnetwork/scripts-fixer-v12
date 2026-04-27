@@ -62,10 +62,12 @@ try {
 }
 
 foreach ($file in $files) {
-    # Never flag this scanner itself, or the auto-fix tools whose own headers
-    # legitimately mention the legacy versions they rewrite (v8/v9/v10 -> v11).
+    # Never flag this scanner itself, the auto-fix tools, or the verify
+    # pipeline whose own header comments legitimately mention the legacy
+    # versions they rewrite (v8/v9/v10 -> v11). Also skip the JSON report.
     if ($file.FullName -ieq $scriptSelf) { continue }
-    if ($file.Name -imatch '^(scan|fix)-legacy-fixer-refs\.(ps1|sh)$') { continue }
+    if ($file.Name -imatch '-legacy-(fixer-refs|refs)\.(ps1|sh)$') { continue }
+    if ($file.Name -ieq 'legacy-fix-report.json') { continue }
 
     # Skip excluded directories (path-segment match, case-insensitive)
     $rel = $file.FullName.Substring($Root.Length).TrimStart('\','/')

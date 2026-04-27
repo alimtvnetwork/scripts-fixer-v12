@@ -93,3 +93,41 @@ SCAN_ROOT="/path/to/repo" bash tools/scan-legacy-fixer-refs.sh
 
 Exit codes: `0` PASS (no matches) · `1` FAIL (matches grouped by file with
 a per-version summary) · `2` error (logs exact path + reason).
+
+---
+
+## fix-and-verify-legacy-refs (.ps1 / .sh)
+
+**Single command** that runs the full migration safety net in one shot:
+
+1. Dry-run the fixer to **preview** every file that would change (no writes).
+2. Apply the rewrite (`scripts-fixer-v8/v9/v10` -> `scripts-fixer-v11`) and
+   write the JSON summary to `legacy-fix-report.json`.
+3. Run the scanner. The whole command **only exits 0 when the scanner
+   reports PASS**, so a green exit guarantees the repo is clean.
+
+If the dry-run or apply step fails, the pipeline aborts before later steps
+run and exits `2` (no destructive action on a broken preview).
+
+```powershell
+# Windows
+.\tools\fix-and-verify-legacy-refs.ps1                    # full preview -> apply -> scan
+.\tools\fix-and-verify-legacy-refs.ps1 -SkipApply         # preview + scan only (no writes)
+.\tools\fix-and-verify-legacy-refs.ps1 -ReportFile r.json # custom JSON report path
+```
+
+```bash
+# Unix / macOS
+bash tools/fix-and-verify-legacy-refs.sh                   # full preview -> apply -> scan
+SKIP_APPLY=1 bash tools/fix-and-verify-legacy-refs.sh      # preview + scan only (no writes)
+REPORT_FILE=r.json bash tools/fix-and-verify-legacy-refs.sh
+```
+
+Exit codes:
+
+| Code | Meaning                                                                  |
+| ---- | ------------------------------------------------------------------------ |
+| `0`  | dry-run + apply succeeded **and** scanner reports PASS (repo is clean)   |
+| `1`  | scanner reports FAIL after apply (legacy refs still present somewhere)   |
+| `2`  | dry-run, apply, or required-script error (exact file + reason logged)    |
+
