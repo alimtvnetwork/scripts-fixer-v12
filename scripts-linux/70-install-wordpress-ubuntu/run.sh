@@ -639,7 +639,7 @@ case "$VERB" in
         fi
         ;;
     *)
-        log_err "[70] Unknown verb: '$VERB' -- use install|check|repair|uninstall|reconfigure|show-credentials"
+        log_err "[70] Unknown verb: '$VERB' -- use install|check|repair|uninstall|reconfigure|verify|show-credentials"
         rc=2
         ;;
 esac
