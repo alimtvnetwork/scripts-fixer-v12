@@ -72,6 +72,41 @@ Safety:
     not found in authorized_keys are reported as "already missing"
     (warning, not error -- safe to re-run).
   - Pre-existing or hand-added keys are NEVER touched.
+
+Dry-run effect per flag (with --dry-run, no authorized_keys file is
+rewritten, no .bak file is created, and no manifest is deleted; the
+planned diff is logged so you can review before the real run):
+  --list                       READ-ONLY -- not affected by --dry-run.
+                               Just enumerates manifests; never mutates.
+  --run-id <id>                would resolve every manifest tagged <id>
+                               and, per affected user, log the lines that
+                               WOULD be removed from authorized_keys
+                               (matched by fingerprint first, literal
+                               line second). Backup file would be named
+                               <file>.bak.<timestamp>. Nothing is written.
+  --manifest <path>            same as --run-id but scoped to one manifest
+                               file; useful for off-host backups.
+  --keep-manifest              no dry-run effect on its own (manifest is
+                               never deleted under --dry-run anyway). In
+                               real-run it suppresses the post-rollback
+                               manifest delete so --list stays accurate.
+  --manifest-dir D             affects manifest resolution only; same in
+                               dry-run + real-run.
+  --prune                      would log every candidate manifest as
+                               "[dry-run] would delete <path>" per the
+                               OR-combined --older-than / --keep-last /
+                               --max-total policy. Corrupt manifests are
+                               always SKIPPED (forensics preserved) -- they
+                               are listed under --dry-run but never queued
+                               for deletion even in real-run.
+  --older-than DAYS / --keep-last N / --max-total N
+                               retention knobs for --prune; honoured under
+                               --dry-run so the candidate list matches a
+                               subsequent real run exactly. Pass 0 to
+                               disable a specific policy.
+  --dry-run                    this flag itself; emits the dry-run banner
+                               and gates every authorized_keys rewrite,
+                               .bak creation, and manifest delete.
 EOF
 }
 
