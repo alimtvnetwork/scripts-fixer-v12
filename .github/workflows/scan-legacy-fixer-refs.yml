@@ -1,0 +1,21 @@
+name: Scan legacy scripts-fixer refs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: Fail if v8/v9/v10 references remain
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Make scanner executable
+        run: chmod +x tools/scan-legacy-fixer-refs.sh
+
+      - name: Run legacy ref scanner (PASS = exit 0, FAIL = exit 1)
+        run: bash tools/scan-legacy-fixer-refs.sh
