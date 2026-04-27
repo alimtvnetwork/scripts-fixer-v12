@@ -13,6 +13,18 @@
 
     CODE-RED: every file/path/group error MUST log the exact identifier and
     failure reason via Write-Log -Level "fail".
+
+    Dry-run effect per flag (with --dry-run, no group is created and the
+    host is not modified; admin rights are not strictly required to
+    PREVIEW the plan):
+      <name>            would call New-LocalGroup -Name <name>; existing
+                        group -> [WARN] + skip (idempotent)
+      --description "." would pass -Description "..." to New-LocalGroup;
+                        in dry-run the planned property is logged
+      --ask             prompts BEFORE the dry-run banner; collected
+                        values still drive the would-do log lines
+      --dry-run         this flag itself; emits the dry-run banner and
+                        gates the New-LocalGroup call
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
