@@ -194,6 +194,18 @@ while [ $# -gt 0 ]; do
     --manifest-dir)          UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
     --no-manifest)           UM_NO_MANIFEST=1; shift ;;
     --no-auto-prune)         UM_NO_AUTO_PRUNE=1; shift ;;
+    # --summary-json with OPTIONAL arg. Peek at $2: if it starts with '-'
+    # or is unset, treat as "auto" (the default mode). Also accept the
+    # explicit --summary-json=... form for unambiguous scripting.
+    --summary-json)
+        if [ $# -ge 2 ] && [ -n "${2:-}" ] && [ "${2#-}" = "$2" ]; then
+            UM_SUMMARY_JSON="$2"; shift 2
+        else
+            UM_SUMMARY_JSON="auto"; shift
+        fi
+        ;;
+    --summary-json=*)        UM_SUMMARY_JSON="${1#--summary-json=}"; shift ;;
+    --no-summary-json)       UM_NO_SUMMARY_JSON=1; shift ;;
     --) shift; break ;;
     -*)
       log_err "unknown option: '$1' (failure: see --help)"
