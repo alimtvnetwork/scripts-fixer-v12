@@ -364,6 +364,18 @@ switch ($normalizedAction) {
         & (Join-Path $scriptDir "helpers\add-group-from-json.ps1") @Rest
         exit $LASTEXITCODE
     }
+    { $_ -in @("gen-key", "genkey", "ssh-keygen") } {
+        & (Join-Path $scriptDir "helpers\gen-key.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("install-key", "installkey", "add-key", "ssh-install-key") } {
+        & (Join-Path $scriptDir "helpers\install-key.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("revoke-key", "revokekey", "remove-key", "ssh-revoke-key") } {
+        & (Join-Path $scriptDir "helpers\revoke-key.ps1") @Rest
+        exit $LASTEXITCODE
+    }
     { $_ -in @("startup-add", "startupadd") } {
         & (Join-Path $scriptDir "helpers\startup-add.ps1") @Rest
         exit $LASTEXITCODE
