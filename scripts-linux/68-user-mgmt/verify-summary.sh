@@ -856,6 +856,11 @@ if [ "$VS_RESULTS_JSON" = "1" ]; then
     --argjson strict "$([ "$VS_STRICT" = "1" ] && echo true || echo false)" \
     --arg     ts    "$_vs_now" \
     --arg     host  "$_vs_host" \
+    --arg     sinceRaw     "${VS_SINCE_RAW:-}" \
+    --arg     sinceDisplay "${VS_SINCE_DISPLAY:-}" \
+    --arg     sinceEpoch   "${VS_SINCE_EPOCH:-}" \
+    --arg     sinceSource  "${VS_SINCE_SOURCE:-}" \
+    --argjson sinceSkipped "${VS_SINCE_SKIPPED:-0}" \
     --argjson results "$_vs_results_arr" \
     '{
         reportVersion: 1,
@@ -865,6 +870,13 @@ if [ "$VS_RESULTS_JSON" = "1" ]; then
         strict: $strict,
         ok: $ok,
         summary: { checked:$c, passed:$p, failed:$f, warned:$w },
+        since: ( if $sinceRaw == "" then null else
+                   { raw: $sinceRaw,
+                     display: $sinceDisplay,
+                     epoch: ($sinceEpoch | tonumber? // null),
+                     source: $sinceSource,
+                     skipped: $sinceSkipped }
+                 end ),
         results: $results
      }')
 
@@ -906,13 +918,31 @@ if [ "$VS_JSON" = "1" ]; then
     --argjson f "$VS_FAIL"  --argjson w "$VS_WARN" \
     --argjson ok $([ "$VS_OK" = "true" ] && echo true || echo false) \
     --argjson strict $([ "$VS_STRICT" = "1" ] && echo true || echo false) \
-    '{summary:{checked:$c,passed:$p,failed:$f,warned:$w}, strict:$strict, ok:$ok}'
+    --arg     sinceRaw     "${VS_SINCE_RAW:-}" \
+    --arg     sinceDisplay "${VS_SINCE_DISPLAY:-}" \
+    --arg     sinceEpoch   "${VS_SINCE_EPOCH:-}" \
+    --arg     sinceSource  "${VS_SINCE_SOURCE:-}" \
+    --argjson sinceSkipped "${VS_SINCE_SKIPPED:-0}" \
+    '{summary:{checked:$c,passed:$p,failed:$f,warned:$w}, strict:$strict, ok:$ok,
+      since: ( if $sinceRaw == "" then null else
+                 { raw:$sinceRaw, display:$sinceDisplay,
+                   epoch:($sinceEpoch|tonumber? // null),
+                   source:$sinceSource, skipped:$sinceSkipped }
+               end )}'
 elif [ "$_vs_results_to_stdout" != "1" ]; then
   printf '\n'
   if [ "$VS_OK" = "true" ]; then
-    log_ok "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- OK (exit 0)"
+    if [ -n "$VS_SINCE_RAW" ]; then
+      log_ok "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL; --since '$VS_SINCE_DISPLAY' skipped $VS_SINCE_SKIPPED) -- OK (exit 0)"
+    else
+      log_ok "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- OK (exit 0)"
+    fi
   else
-    log_err "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- FAILED (exit 1)"
+    if [ -n "$VS_SINCE_RAW" ]; then
+      log_err "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL; --since '$VS_SINCE_DISPLAY' skipped $VS_SINCE_SKIPPED) -- FAILED (exit 1)"
+    else
+      log_err "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- FAILED (exit 1)"
+    fi
   fi
 fi
 
