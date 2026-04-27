@@ -275,7 +275,7 @@ _run_interactive() {
     WP_DB_PASS="$(_prompt      'DB password (blank = auto-generate)' "$WP_DB_PASS")"
     export WP_DB_ENGINE WP_PHP_VERSION WP_MYSQL_PORT WP_MYSQL_DATADIR \
            WP_INSTALL_PATH WP_SITE_PORT WP_SERVER_NAME \
-           WP_DB_NAME WP_DB_USER WP_DB_PASS WP_APT_REFRESH
+           WP_DB_NAME WP_DB_USER WP_DB_PASS WP_APT_REFRESH WP_KEEP_SALTS
 }
 
 if [ "$INTERACTIVE" = "1" ] && [ "$VERB" = "install" ]; then
