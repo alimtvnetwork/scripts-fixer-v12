@@ -39,7 +39,8 @@ $skipExts = @('.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.pdf',
               '.bin', '.lockb', '.woff', '.woff2', '.ttf', '.otf',
               '.mp3', '.mp4', '.mov', '.wav')
 $selfNames = @('fix-legacy-fixer-refs.ps1', 'fix-legacy-fixer-refs.sh',
-               'scan-legacy-fixer-refs.ps1', 'scan-legacy-fixer-refs.sh')
+               'scan-legacy-fixer-refs.ps1', 'scan-legacy-fixer-refs.sh',
+               'fix-and-verify-legacy-refs.ps1', 'fix-and-verify-legacy-refs.sh')
 
 $patterns = $Versions | ForEach-Object { "scripts-fixer-v$_" }
 
