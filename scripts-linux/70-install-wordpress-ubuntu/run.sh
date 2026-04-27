@@ -571,6 +571,52 @@ case "$VERB" in
         # the existing wp-config.php to wp-config.php.bak.<UTC-ts> first.
         component_wordpress_reconfigure || rc=$?
         ;;
+    verify)
+        # Structured verify of wp-config.php with optional --json / --diff /
+        # --snapshot. Pulls expected DB params from env (set by --db-* flags
+        # or interactive mode). Diff mode does not need them -- it overwrites
+        # the comparison from the captured baseline.
+        _wp_install_path="${WP_INSTALL_PATH:-/var/www/wordpress}"
+        _wp_db_name="${WP_DB_NAME:-wordpress}"
+        _wp_db_user="${WP_DB_USER:-wp_user}"
+        _wp_db_pass="${WP_DB_PASS:-}"
+        _wp_db_host="127.0.0.1"
+        _wp_db_port="${WP_MYSQL_PORT:-3306}"
+
+        if [ -n "$VERIFY_DIFF" ]; then
+            # Diff mode -- always JSON; ignores --snapshot
+            component_wordpress_verify_diff "$VERIFY_DIFF"
+            rc=$?
+        elif [ "$VERIFY_JSON" = "1" ] && [ -z "$VERIFY_SNAPSHOT" ]; then
+            # JSON-to-stdout, no snapshot file
+            WP_VERIFY_JSON=1 component_wordpress_verify_config \
+                "$_wp_install_path" "$_wp_db_name" "$_wp_db_user" "$_wp_db_pass" \
+                "$_wp_db_host" "$_wp_db_port"
+            rc=$?
+        elif [ -n "$VERIFY_SNAPSHOT" ]; then
+            # Snapshot path: write JSON to file, also surface a human OK/FAIL line
+            if WP_VERIFY_JSON=1 component_wordpress_verify_config \
+                   "$_wp_install_path" "$_wp_db_name" "$_wp_db_user" "$_wp_db_pass" \
+                   "$_wp_db_host" "$_wp_db_port" > "$VERIFY_SNAPSHOT"; then
+                rc=0
+                log_ok "[70][verify] snapshot written -> $VERIFY_SNAPSHOT"
+            else
+                rc=$?
+                if [ -s "$VERIFY_SNAPSHOT" ]; then
+                    log_warn "[70][verify] snapshot written -> $VERIFY_SNAPSHOT (with findings, rc=$rc)"
+                else
+                    log_file_error "$VERIFY_SNAPSHOT" "snapshot file write failed (rc=$rc)"
+                fi
+            fi
+            if [ "$VERIFY_JSON" = "1" ]; then cat "$VERIFY_SNAPSHOT"; fi
+        else
+            # Plain text mode (existing behaviour)
+            component_wordpress_verify_config \
+                "$_wp_install_path" "$_wp_db_name" "$_wp_db_user" "$_wp_db_pass" \
+                "$_wp_db_host" "$_wp_db_port"
+            rc=$?
+        fi
+        ;;
     repair)
         rm -f "$ROOT/.installed/70-mysql.ok" "$ROOT/.installed/70-php.ok" \
               "$ROOT/.installed/70-nginx.ok" "$ROOT/.installed/70-apache.ok" \
