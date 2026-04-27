@@ -62,6 +62,21 @@ nginx vhost write failures, tar extract failures, missing
 - `nginx.sh`: re-writes vhost on every run (cheap, keeps it in sync)
 - `wordpress.sh`: skips download when `$WP_INSTALL_PATH/wp-config.php` exists
 
+### Repository policy (v0.155.0, confirmed)
+`components/php.sh` auto-detects Ubuntu via `/etc/os-release` and decides:
+
+| Ubuntu | APT default PHP | `--php latest` uses | Pin `--php 8.1` | Pin `--php 8.3` |
+|--------|-----------------|---------------------|-----------------|-----------------|
+| 24.04  | 8.3             | APT (8.3)           | Ondrej PPA      | APT (no PPA)    |
+| 22.04  | 8.1             | APT (8.1)           | APT (no PPA)    | Ondrej PPA      |
+| 20.04  | 7.4 (EOL warn)  | APT (7.4) + warn    | Ondrej PPA      | Ondrej PPA      |
+| other  | unknown         | APT (best effort)   | Ondrej PPA      | Ondrej PPA      |
+
+Rule: `latest` is always APT-only (no third-party repos). Pinned versions
+only add `ppa:ondrej/php` when the distro's APT does not already ship that
+exact X.Y. PPA add failures log a remediation hint
+(`apt-get install software-properties-common`).
+
 ### Verified
 - `bash -n` clean on all 5 bash files + edited `scripts-linux/run.sh`
 - shellcheck clean (one SC2024 suppressed with explicit comment)

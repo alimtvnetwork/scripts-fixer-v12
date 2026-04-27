@@ -3,7 +3,28 @@
 # Installs PHP-FPM + WordPress-required extensions. Honors WP_PHP_VERSION
 # (8.1 | 8.2 | 8.3 | latest -- adds Ondrej PPA when a specific old version
 # is requested that Ubuntu's default repo doesn't ship).
+#
+# Repository policy (confirmed v0.155.0):
+#   * Auto-detects Ubuntu 20.04 / 22.04 / 24.04 via /etc/os-release.
+#   * 'latest' (default)  -> APT only, no PPA. Resolves to whatever the
+#                            distro ships:   24.04 -> 8.3
+#                                            22.04 -> 8.1
+#                                            20.04 -> 7.4  (EOL warning)
+#   * Pinned --php X.Y    -> APT first; only adds ppa:ondrej/php when the
+#                            distro's default APT repo does NOT ship X.Y.
 set -u
+
+# Map Ubuntu release -> the PHP version its default APT repo ships.
+# Used to decide whether a pinned --php X.Y needs the Ondrej PPA.
+_php_distro_default() {
+    local ver="${1:-}"
+    case "$ver" in
+        24.04|24.10|25.04) echo "8.3" ;;
+        22.04|22.10|23.04|23.10) echo "8.1" ;;
+        20.04|20.10|21.04|21.10) echo "7.4" ;;
+        *) echo "" ;;   # unknown release -> assume PPA needed for any pin
+    esac
+}
 
 _php_resolve_version() {
     local req="${WP_PHP_VERSION:-latest}"
@@ -51,16 +72,38 @@ component_php_verify() {
 
 component_php_install() {
     local v; v="$(_php_resolve_version)"
-    log_info "[70][php] starting installation (requested='${WP_PHP_VERSION:-latest}', resolved='$v')"
 
-    if [ "$v" != "default" ]; then
-        # Need Ondrej PPA for non-default PHP versions on Ubuntu.
+    # ---- detect Ubuntu release & decide repo policy ------------------------
+    local ubu_ver distro_default needs_ppa=0
+    ubu_ver="$(get_ubuntu_version 2>/dev/null || echo unknown)"
+    distro_default="$(_php_distro_default "$ubu_ver")"
+    log_info "[70][php] starting installation (requested='${WP_PHP_VERSION:-latest}', resolved='$v', ubuntu='$ubu_ver', apt-default='${distro_default:-?}')"
+
+    if [ "$v" = "default" ]; then
+        # 'latest' = APT only. Warn when distro default is EOL (PHP 7.4).
+        case "$distro_default" in
+            7.4) log_warn "[70][php] Ubuntu $ubu_ver ships PHP 7.4 (EOL since Nov 2022); WordPress will run but is unsupported. Pin --php 8.1|8.2|8.3 to use Ondrej PPA." ;;
+            "")  log_warn "[70][php] could not detect Ubuntu version; using whatever 'php-fpm' resolves to via APT" ;;
+        esac
+    else
+        # Pinned version: only add Ondrej PPA when the distro's default APT
+        # repo does NOT already ship that exact version.
+        if [ -n "$distro_default" ] && [ "$distro_default" = "$v" ]; then
+            log_info "[70][php] Ubuntu $ubu_ver default APT already provides PHP $v -- skipping Ondrej PPA"
+        else
+            needs_ppa=1
+        fi
+    fi
+
+    if [ "$needs_ppa" = "1" ]; then
         if ! grep -rq 'ondrej/php' /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null; then
-            log_info "[70][php] adding Ondrej PHP PPA (required for php${v})"
+            log_info "[70][php] adding Ondrej PHP PPA (Ubuntu $ubu_ver default is '${distro_default:-unknown}', requested '$v')"
             if ! sudo add-apt-repository -y ppa:ondrej/php >/dev/null 2>&1; then
-                log_err "[70][php] add-apt-repository ppa:ondrej/php failed -- check that 'software-properties-common' is installed"
+                log_err "[70][php] add-apt-repository ppa:ondrej/php failed -- check that 'software-properties-common' is installed (apt-get install software-properties-common)"
                 return 1
             fi
+        else
+            log_info "[70][php] Ondrej PPA already present"
         fi
     fi
 
