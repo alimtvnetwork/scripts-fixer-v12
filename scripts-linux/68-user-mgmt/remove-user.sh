@@ -25,7 +25,51 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 [ -f "$SCRIPT_DIR/helpers/_prompt.sh" ] && . "$SCRIPT_DIR/helpers/_prompt.sh"
 
-um_usage() { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; }
+um_usage() {
+  cat <<'EOF'
+remove-user -- delete one user; see readme.md.
+68-user-mgmt/remove-user.sh -- delete a single local user (Linux | macOS).
+
+Usage:
+  ./remove-user.sh <name> [flags]
+  ./remove-user.sh --ask
+
+Flags:
+  --purge-home          also delete the home directory (DESTRUCTIVE)
+  --purge-profile       Windows-friendly alias for --purge-home (same semantics
+                        on Unix; lets a single fan-out command run on both OSes)
+  --remove-mail-spool   Linux only: also delete /var/mail/<name> (passes -r)
+  --yes                 skip the confirmation prompt
+  --ask                 prompt interactively
+  --dry-run             print what would happen, change nothing
+
+Exit codes match add-user.sh (0/1/2/13/64/127). Removing a user that does
+not exist is treated as success (idempotent), with a [WARN] log line.
+
+Dry-run effect per flag (with --dry-run, the plan summary "remove plan
+for <name>:" is printed first, the confirmation prompt is BYPASSED, and
+every mutating call is logged as "[dry-run] <command>"):
+  <name>                would resolve account + home dir, then call
+                        userdel (Linux) / sysadminctl -deleteUser (macOS).
+                        Absent account -> "[WARN] nothing to remove"
+                        and exit 0 (idempotent); no mutation either way.
+  --purge-home          would 'rm -rf <home>' AFTER account delete (or, on
+                        Linux, fold into 'userdel -r' atomically). DESTRUCTIVE
+                        in real-run; in dry-run only the rm command is logged.
+  --purge-profile       same as --purge-home (alias only); same dry-run line.
+  --remove-mail-spool   Linux only: would pass -r to userdel so /var/mail/<name>
+                        is deleted in the same atomic call. macOS: ignored.
+  --yes / -y            no dry-run effect (skips the y/N confirmation; under
+                        --dry-run the prompt is already skipped automatically)
+  --ask                 prompts BEFORE the dry-run banner; collected answers
+                        still drive the would-do log lines
+  --dry-run             this flag itself; bypasses the y/N prompt, emits the
+                        dry-run banner, and gates every userdel / dscl /
+                        rm -rf call
+
+CODE RED: every file/path error logs the EXACT path + the failure reason.
+EOF
+}
 
 UM_NAME=""
 UM_PURGE=0
