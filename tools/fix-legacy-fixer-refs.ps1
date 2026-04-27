@@ -115,6 +115,22 @@ foreach ($file in $allFiles) {
         $totalReplacements += $fileReplacements
 
         if (-not $DryRun) {
+            # Timestamped backup BEFORE we touch the file. Backup failure
+            # is fatal for that file (we never want a half-baked rollback set).
+            if ($backupActive) {
+                $bdest = Join-Path $backupDir $rel
+                $bdir  = Split-Path -Parent $bdest
+                try {
+                    if ($bdir -and -not (Test-Path -LiteralPath $bdir)) {
+                        New-Item -ItemType Directory -Path $bdir -Force -ErrorAction Stop | Out-Null
+                    }
+                    Copy-Item -LiteralPath $file.FullName -Destination $bdest -Force -ErrorAction Stop
+                } catch {
+                    Write-FileError $bdest "backup copy failed (source: $($file.FullName)): $($_.Exception.Message)"
+                    $errors++
+                    continue
+                }
+            }
             try {
                 # Preserve original encoding best-effort: write as UTF8 no BOM
                 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
