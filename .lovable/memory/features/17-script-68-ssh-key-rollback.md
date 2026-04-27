@@ -180,3 +180,61 @@ disablable via `manifestRetention.autoPruneOnInstall: false`.
 6. `--dry-run` reports the would-remove plan and touches nothing.
 7. Corrupt JSON manifest SKIPPED + counted in summary, file preserved.
 8. Non-numeric policy aborts rc=2 before any delete.
+
+## v0.182.0 -- ssh-key install summary JSON export
+
+`add-user.sh` and `add-user-from-json.sh` gain `--summary-json [TARGET]`
+to emit the SSH-key install counters as a structured, versioned JSON
+document. Failure NEVER fails the install (user has already been
+created); CODE-RED logs exact path + reason on every write failure.
+
+### Targets
+
+| TARGET   | Behaviour |
+|----------|-----------|
+| `auto` (default if flag passed bare) | write to `<manifest-dir>/summaries/<run-id>__<user>.summary.json` (mode 0600, dir 0700 root). Pairs 1:1 with the rollback manifest. |
+| `stdout` | append JSON to stdout AFTER the human summary, prefixed by the marker line `---SSH-SUMMARY-JSON---` so wrappers can split. |
+| `<path>` | write to that exact path (mode 0600). Parent dir must exist. |
+
+`--no-summary-json` and `UM_NO_SUMMARY_JSON=1` forcibly disable.
+`UM_SUMMARY_JSON=<target>` env enables without touching CLI.
+
+### Schema (v1)
+
+```json
+{
+  "summaryVersion": 1,
+  "writtenAt": "<UTC ISO-8601>",
+  "host": "<hostname>", "user": "<unix>", "runId": "<rollback-id>",
+  "scriptVersion": "0.182.0",
+  "authorizedKeysFile": "<path>",
+  "summary": {
+    "sources_requested":  <n>,
+    "keys_parsed":        <n>,
+    "keys_unique":        <n>,
+    "keys_installed_new": <n>,
+    "keys_preserved":     <n>
+  },
+  "sources": { "inline": <n>, "file": <n>, "url": <n> },
+  "manifestFile": "<path|null>",
+  "ok": true
+}
+```
+
+### Batch rollup (`add-user-from-json.sh`)
+
+When the batch loader gets `--summary-json <target>`, it forces every
+child into `auto` mode (per-user JSONs always land on disk for the
+audit trail), then aggregates them into a batch envelope at
+`<manifest-dir>/summaries/<run-id>__BATCH.summary.json` (or the
+requested target). Envelope adds `kind:"batch"`, `userCount`, and an
+`aggregate` block that sums every counter across users.
+
+### Verified (6 scenarios)
+
+1. `stdout` mode emits valid JSON with marker line + correct counters/sources/manifestFile.
+2. `auto` mode writes file at expected path with mode 0600 under dir 0700.
+3. Explicit `<path>` writes correctly with mode 0600.
+4. `auto` + `--no-manifest` falls back to stdout with a clear warning.
+5. Empty target = no-op (rc=0); `UM_NO_SUMMARY_JSON=1` forcibly disables.
+6. Nonexistent parent dir → CODE-RED `log_file_error`, no crash.
