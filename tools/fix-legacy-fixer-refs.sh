@@ -26,6 +26,13 @@ DRY_RUN="${DRY_RUN:-0}"
 # JSON summary report. Set REPORT_FILE="" to suppress, or pass an absolute/
 # relative path. Relative paths resolve against $REPO_ROOT.
 REPORT_FILE="${REPORT_FILE-legacy-fix-report.json}"
+# Timestamped backups: when BACKUP=1 each rewritten file is copied to
+# $BACKUP_ROOT/<timestamp>/<repo-relative-path> BEFORE being overwritten.
+# The chosen backup directory path is also written to the JSON report so
+# orchestrators (or humans) can restore from it later.
+BACKUP="${BACKUP:-0}"
+BACKUP_ROOT="${BACKUP_ROOT:-.legacy-fix-backups}"
+BACKUP_STAMP="${BACKUP_STAMP:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo run)}"
 
 if [ ! -d "$REPO_ROOT" ]; then
   file_error "$REPO_ROOT" "repo root does not exist"
