@@ -33,35 +33,94 @@ function Show-ScriptHelp {
 
     # New-style: extract from LogMessages object
     if ($LogMessages) {
-        $isNameMissing        = -not $Name -and $LogMessages.scriptName
-        $isDescriptionMissing = -not $Description -and $LogMessages.description
-        if ($isNameMissing)        { $Name = $LogMessages.scriptName }
-        if ($isDescriptionMissing) { $Description = $LogMessages.description }
-
-        # Extract commands from log messages help block
-        if ($Commands.Count -eq 0 -and $LogMessages.help -and $LogMessages.help.commands) {
-            foreach ($prop in $LogMessages.help.commands.PSObject.Properties) {
-                $Commands += @{ Name = $prop.Name; Description = $prop.Value }
+        # ----- helpers (local) ------------------------------------------------
+        # Read a property off a PSCustomObject without throwing under StrictMode.
+        function _GetProp {
+            param($Obj, [string]$Name)
+            if ($null -eq $Obj) { return $null }
+            $hasName = $false
+            try {
+                if ($Obj.PSObject -and $Obj.PSObject.Properties) {
+                    $hasName = ($Obj.PSObject.Properties.Name -contains $Name)
+                }
+            } catch { $hasName = $false }
+            if ($hasName) { return $Obj.$Name } else { return $null }
+        }
+        # Convert either { "k": "v", ... } OR [ { Name=..; Description=.. }, ... ]
+        # OR [ "string", ... ] into an array of @{ Name=..; Description=.. }.
+        function _NormalizePairs {
+            param($Node)
+            $out = @()
+            if ($null -eq $Node) { return $out }
+            if ($Node -is [System.Collections.IEnumerable] -and -not ($Node -is [string])) {
+                foreach ($el in $Node) {
+                    if ($el -is [string]) {
+                        $out += @{ Name = ''; Description = $el }
+                    } elseif ($el.PSObject -and $el.PSObject.Properties.Name -contains 'Name') {
+                        $desc = if ($el.PSObject.Properties.Name -contains 'Description') { $el.Description } else { '' }
+                        $out += @{ Name = $el.Name; Description = $desc }
+                    }
+                }
+                return $out
             }
+            # Treat as dict-shaped PSCustomObject.
+            if ($Node.PSObject -and $Node.PSObject.Properties) {
+                foreach ($prop in $Node.PSObject.Properties) {
+                    $out += @{ Name = $prop.Name; Description = "$($prop.Value)" }
+                }
+            }
+            return $out
         }
 
-        # Extract parameters from log messages help block
-        if ($Flags.Count -eq 0 -and $LogMessages.help -and $LogMessages.help.parameters) {
-            foreach ($prop in $LogMessages.help.parameters.PSObject.Properties) {
-                $Flags += @{ Name = $prop.Name; Description = $prop.Value }
+        # ----- Name + description (with aliases) -----------------------------
+        $candName = _GetProp $LogMessages 'scriptName'
+        if (-not $Name -and $candName) { $Name = "$candName" }
+
+        if (-not $Description) {
+            $candDesc = _GetProp $LogMessages 'description'
+            if (-not $candDesc) { $candDesc = _GetProp $LogMessages 'synopsis' }
+            if (-not $candDesc) { $candDesc = _GetProp $LogMessages 'scriptDesc' }
+            if (-not $candDesc) { $candDesc = _GetProp $LogMessages 'scriptTitle' }
+            if (-not $candDesc) {
+                $msgsNode = _GetProp $LogMessages 'messages'
+                $candDesc = _GetProp $msgsNode 'scriptDesc'
+                if (-not $candDesc) { $candDesc = _GetProp $msgsNode 'scriptTitle' }
             }
+            if ($candDesc) { $Description = "$candDesc" }
         }
 
-        # Auto-inject -Path parameter if not already listed
-        $hasPathFlag = $Flags | Where-Object { $_.Name -eq "-Path" }
-        $isPathMissing = -not $hasPathFlag
-        if ($isPathMissing) {
+        $helpNode = _GetProp $LogMessages 'help'
+
+        # ----- Commands (help.commands | help.subverbs) ----------------------
+        if ($Commands.Count -eq 0 -and $helpNode) {
+            $cmdNode = _GetProp $helpNode 'commands'
+            if (-not $cmdNode) { $cmdNode = _GetProp $helpNode 'subverbs' }
+            $Commands = _NormalizePairs $cmdNode
+        }
+
+        # ----- Flags (help.parameters | help.flags) --------------------------
+        if ($Flags.Count -eq 0 -and $helpNode) {
+            $flagNode = _GetProp $helpNode 'parameters'
+            if (-not $flagNode) { $flagNode = _GetProp $helpNode 'flags' }
+            $Flags = _NormalizePairs $flagNode
+        }
+
+        # Auto-inject -Path parameter if not already listed AND this looks
+        # like a script that uses -Path (only when other -Foo flags exist).
+        $hasPathFlag = $false
+        foreach ($f in $Flags) { if ($f.Name -eq '-Path') { $hasPathFlag = $true; break } }
+        $hasDashFlag = $false
+        foreach ($f in $Flags) { if ("$($f.Name)".StartsWith('-') -and -not "$($f.Name)".StartsWith('--')) { $hasDashFlag = $true; break } }
+        if (-not $hasPathFlag -and $hasDashFlag) {
             $Flags += @{ Name = "-Path"; Description = "Custom dev directory path (overrides smart detection)" }
         }
 
-        # Extract examples
-        if ($Examples.Count -eq 0 -and $LogMessages.help -and $LogMessages.help.examples) {
-            $Examples = @($LogMessages.help.examples)
+        # ----- Examples (help.examples | top-level usage | top-level examples)
+        if ($Examples.Count -eq 0) {
+            $exNode = if ($helpNode) { _GetProp $helpNode 'examples' } else { $null }
+            if (-not $exNode) { $exNode = _GetProp $LogMessages 'usage' }
+            if (-not $exNode) { $exNode = _GetProp $LogMessages 'examples' }
+            if ($exNode) { $Examples = @($exNode) }
         }
     }
 
