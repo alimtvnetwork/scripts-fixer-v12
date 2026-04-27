@@ -29,8 +29,12 @@ tests/01-smoke.sh
 | `add-group`      | `add-group.sh`             |
 | `add-user-json`  | `add-user-from-json.sh`    |
 | `add-group-json` | `add-group-from-json.sh`   |
+| `edit-user`      | `edit-user.sh`             |
+| `remove-user`    | `remove-user.sh`           |
 
 Aliases: `add-users-json` / `user-json`, `add-groups-json` / `group-json`.
+`edit-user` aliases: `modify-user`, `edituser`.
+`remove-user` aliases: `delete-user`, `deluser`, `removeuser`.
 
 ### JSON shapes (all auto-detected by both JSON leaves)
 1. Single object:  `{ "name": "alice", ... }`
