@@ -285,6 +285,12 @@ component_wordpress_install() {
                 log_file_error "$zipfile" "curl download failed from $url"
                 return 1
             fi
+            # Integrity gate: verify SHA1 (+ MD5) BEFORE we touch the staging dir
+            # so a tampered/corrupt archive can never extract onto the host.
+            if ! _wp_verify_download "$zipfile" "$url"; then
+                log_err "[70][wp] download integrity check failed -- aborting (file kept at $zipfile for forensics)"
+                return 1
+            fi
             local stage; stage="$(mktemp -d)"
             log_info "[70][wp] unzipping into staging dir $stage"
             if ! unzip -q "$zipfile" -d "$stage"; then
@@ -314,6 +320,11 @@ component_wordpress_install() {
             log_info "[70][wp] downloading $url -> $tarball"
             if ! curl -fsSL -o "$tarball" "$url"; then
                 log_file_error "$tarball" "curl download failed from $url"
+                return 1
+            fi
+            # Integrity gate -- same contract as the ZIP path.
+            if ! _wp_verify_download "$tarball" "$url"; then
+                log_err "[70][wp] download integrity check failed -- aborting (file kept at $tarball for forensics)"
                 return 1
             fi
             # --strip-components=1 so files land at $install_path/* not $install_path/wordpress/*
