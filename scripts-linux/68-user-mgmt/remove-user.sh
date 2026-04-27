@@ -103,40 +103,19 @@ if ! um_user_exists "$UM_NAME"; then
 fi
 
 rc=0
-if [ "$UM_OS" = "linux" ]; then
-  args=(userdel)
-  [ "$UM_PURGE" = "1" ] && args+=(-r)
-  [ "$UM_REMOVE_MAIL" = "1" ] && args+=(-r)  # -r already covers mail spool
-  args+=("$UM_NAME")
-  if um_run "${args[@]}"; then
-    log_ok "$(um_msg userRemoved "$UM_NAME")"
-    um_summary_add "ok" "remove-user" "$UM_NAME" "userdel"
-  else
-    log_err "$(um_msg userRemoveFail "$UM_NAME" "userdel returned non-zero")"
-    um_summary_add "fail" "remove-user" "$UM_NAME" "userdel failed"
-    rc=1
-  fi
+# Delete account record. On Linux, userdel -r purges $HOME atomically when
+# either --purge-home or --remove-mail-spool is set, so we let the helper
+# pass that flag and skip the explicit um_purge_home call.
+linux_purged_home=0
+if [ "$UM_OS" = "linux" ] && { [ "$UM_PURGE" = "1" ] || [ "$UM_REMOVE_MAIL" = "1" ]; }; then
+  um_user_delete "$UM_NAME" --remove-mail-spool || rc=1
+  linux_purged_home=1
 else
-  if um_run dscl . -delete "/Users/$UM_NAME"; then
-    log_ok "$(um_msg userRemoved "$UM_NAME")"
-    um_summary_add "ok" "remove-user" "$UM_NAME" "dscl -delete"
-  else
-    log_err "$(um_msg userRemoveFail "$UM_NAME" "dscl -delete failed")"
-    um_summary_add "fail" "remove-user" "$UM_NAME" "dscl -delete failed"
-    rc=1
-  fi
-  # macOS doesn't auto-purge $HOME; do it ourselves when requested.
-  if [ "$UM_PURGE" = "1" ] && [ -n "$UM_HOME" ] && [ -d "$UM_HOME" ]; then
-    if [ "$UM_DRY_RUN" = "1" ]; then
-      log_info "[dry-run] rm -rf '$UM_HOME'"
-    else
-      if rm -rf -- "$UM_HOME" 2>/dev/null; then
-        log_ok "$(um_msg homeRemoved "$UM_HOME")"
-      else
-        log_file_error "$UM_HOME" "could not remove macOS home directory after user delete"
-        rc=1
-      fi
-    fi
-  fi
+  um_user_delete "$UM_NAME" || rc=1
+fi
+
+# macOS (and any Linux path that didn't pass -r) needs an explicit purge.
+if [ "$UM_PURGE" = "1" ] && [ "$linux_purged_home" = "0" ] && [ -n "$UM_HOME" ]; then
+  um_purge_home "$UM_HOME" || rc=1
 fi
 exit $rc

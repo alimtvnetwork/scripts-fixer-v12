@@ -154,177 +154,41 @@ fi
 
 rc_overall=0
 
+# All operations now go through the shared um_user_modify helper in
+# helpers/_common.sh. Each call returns 0/1/2 -- we OR into rc_overall so a
+# single failed op does not abort the rest of the plan (matches the previous
+# best-effort semantics that the JSON loader relies on).
+
 # ---- password reset --------------------------------------------------------
 if [ -n "$UM_NEW_PASSWORD" ]; then
-  masked=$(um_mask_password "$UM_NEW_PASSWORD")
-  if [ "$UM_OS" = "linux" ]; then
-    if [ "$UM_DRY_RUN" = "1" ]; then
-      log_info "[dry-run] chpasswd <<< '$UM_NAME:<masked>'"
-    else
-      if printf '%s:%s\n' "$UM_NAME" "$UM_NEW_PASSWORD" | chpasswd 2>/dev/null; then
-        log_ok "$(um_msg passwordSet "$UM_NAME" "$masked")"
-      else
-        log_err "$(um_msg passwordSetFail "$UM_NAME" "chpasswd failed")"
-        rc_overall=1
-      fi
-    fi
-  else
-    if [ "$UM_DRY_RUN" = "1" ]; then
-      log_info "[dry-run] dscl . -passwd /Users/$UM_NAME <masked>"
-    else
-      if dscl . -passwd "/Users/$UM_NAME" "$UM_NEW_PASSWORD" 2>/dev/null; then
-        log_ok "$(um_msg passwordSet "$UM_NAME" "$masked")"
-      else
-        log_err "$(um_msg passwordSetFail "$UM_NAME" "dscl -passwd failed")"
-        rc_overall=1
-      fi
-    fi
-  fi
+  um_user_modify "$UM_NAME" password "$UM_NEW_PASSWORD" || rc_overall=1
 fi
 
-# ---- shell change ----------------------------------------------------------
-if [ -n "$UM_NEW_SHELL" ]; then
-  if [ "$UM_OS" = "linux" ]; then
-    if um_run usermod -s "$UM_NEW_SHELL" "$UM_NAME"; then
-      log_ok "$(um_msg shellChanged "$UM_NAME" "$UM_NEW_SHELL")"
-    else
-      log_err "$(um_msg shellChangeFail "$UM_NAME" "$UM_NEW_SHELL" "usermod -s failed")"; rc_overall=1
-    fi
-  else
-    if um_run dscl . -create "/Users/$UM_NAME" UserShell "$UM_NEW_SHELL"; then
-      log_ok "$(um_msg shellChanged "$UM_NAME" "$UM_NEW_SHELL")"
-    else
-      log_err "$(um_msg shellChangeFail "$UM_NAME" "$UM_NEW_SHELL" "dscl -create UserShell failed")"; rc_overall=1
-    fi
-  fi
-fi
-
-# ---- comment / GECOS / RealName -------------------------------------------
-if [ "$UM_NEW_COMMENT_SET" = "1" ]; then
-  if [ "$UM_OS" = "linux" ]; then
-    if um_run usermod -c "$UM_NEW_COMMENT" "$UM_NAME"; then
-      log_ok "$(um_msg commentChanged "$UM_NAME")"
-    else
-      log_err "$(um_msg commentChangeFail "$UM_NAME" "usermod -c failed")"; rc_overall=1
-    fi
-  else
-    if um_run dscl . -create "/Users/$UM_NAME" RealName "$UM_NEW_COMMENT"; then
-      log_ok "$(um_msg commentChanged "$UM_NAME")"
-    else
-      log_err "$(um_msg commentChangeFail "$UM_NAME" "dscl -create RealName failed")"; rc_overall=1
-    fi
-  fi
-fi
-
-# ---- enable / disable ------------------------------------------------------
-if [ "$UM_ENABLE" = "1" ]; then
-  if [ "$UM_OS" = "linux" ]; then
-    if um_run usermod -U "$UM_NAME"; then
-      log_ok "$(um_msg accountEnabled "$UM_NAME")"
-    else
-      log_err "$(um_msg accountEnableFail "$UM_NAME" "usermod -U failed")"; rc_overall=1
-    fi
-  else
-    if um_run pwpolicy -u "$UM_NAME" -enableuser; then
-      log_ok "$(um_msg accountEnabled "$UM_NAME")"
-    else
-      log_err "$(um_msg accountEnableFail "$UM_NAME" "pwpolicy -enableuser failed")"; rc_overall=1
-    fi
-  fi
-fi
-if [ "$UM_DISABLE" = "1" ]; then
-  if [ "$UM_OS" = "linux" ]; then
-    if um_run usermod -L "$UM_NAME"; then
-      log_ok "$(um_msg accountDisabled "$UM_NAME")"
-    else
-      log_err "$(um_msg accountDisableFail "$UM_NAME" "usermod -L failed")"; rc_overall=1
-    fi
-  else
-    if um_run pwpolicy -u "$UM_NAME" -disableuser; then
-      log_ok "$(um_msg accountDisabled "$UM_NAME")"
-    else
-      log_err "$(um_msg accountDisableFail "$UM_NAME" "pwpolicy -disableuser failed")"; rc_overall=1
-    fi
-  fi
-fi
+# ---- shell / comment / enable / disable ------------------------------------
+[ -n "$UM_NEW_SHELL" ] && { um_user_modify "$UM_NAME" shell   "$UM_NEW_SHELL"   || rc_overall=1; }
+[ "$UM_NEW_COMMENT_SET" = "1" ] && { um_user_modify "$UM_NAME" comment "$UM_NEW_COMMENT" || rc_overall=1; }
+[ "$UM_ENABLE"  = "1" ] && { um_user_modify "$UM_NAME" enable  || rc_overall=1; }
+[ "$UM_DISABLE" = "1" ] && { um_user_modify "$UM_NAME" disable || rc_overall=1; }
 
 # ---- supplementary group changes ------------------------------------------
-_apply_group_change() {
-  local action="$1" g="$2"
-  if ! um_group_exists "$g"; then
-    if [ "$action" = "remove" ]; then
-      log_info "group '$g' does not exist -- skipping remove (idempotent)"
-      return 0
-    fi
-    log_warn "group '$g' does not exist -- creating it"
-    if [ "$UM_OS" = "linux" ]; then
-      um_run groupadd "$g" || { log_err "$(um_msg groupCreateFail "$g" "groupadd failed")"; return 1; }
-    else
-      next_gid=$(um_next_macos_gid 510)
-      um_run dscl . -create "/Groups/$g" || true
-      um_run dscl . -create "/Groups/$g" PrimaryGroupID "$next_gid" || true
-    fi
-  fi
-  if [ "$UM_OS" = "linux" ]; then
-    if [ "$action" = "add" ]; then
-      um_run usermod -aG "$g" "$UM_NAME" \
-        && log_ok "$(um_msg groupAdded "$UM_NAME" "$g")" \
-        || { log_err "$(um_msg groupAddFail "$UM_NAME" "$g" "usermod -aG failed")"; return 1; }
-    else
-      um_run gpasswd -d "$UM_NAME" "$g" \
-        && log_ok "$(um_msg groupRemoved "$UM_NAME" "$g")" \
-        || { log_err "$(um_msg groupRemoveFail "$UM_NAME" "$g" "gpasswd -d failed")"; return 1; }
-    fi
-  else
-    if [ "$action" = "add" ]; then
-      um_run dscl . -append "/Groups/$g" GroupMembership "$UM_NAME" \
-        && log_ok "$(um_msg groupAdded "$UM_NAME" "$g")" \
-        || { log_err "$(um_msg groupAddFail "$UM_NAME" "$g" "dscl -append failed")"; return 1; }
-    else
-      um_run dscl . -delete "/Groups/$g" GroupMembership "$UM_NAME" \
-        && log_ok "$(um_msg groupRemoved "$UM_NAME" "$g")" \
-        || { log_err "$(um_msg groupRemoveFail "$UM_NAME" "$g" "dscl -delete failed")"; return 1; }
-    fi
-  fi
-}
-
 if [ -n "$UM_ADD_GROUPS" ]; then
   IFS=',' read -ra _ag <<< "$UM_ADD_GROUPS"
   for g in "${_ag[@]}"; do
     g="${g// /}"; [ -z "$g" ] && continue
-    _apply_group_change add "$g" || rc_overall=1
+    um_user_modify "$UM_NAME" add-group "$g" || rc_overall=1
   done
 fi
 if [ -n "$UM_REMOVE_GROUPS" ]; then
   IFS=',' read -ra _rg <<< "$UM_REMOVE_GROUPS"
   for g in "${_rg[@]}"; do
     g="${g// /}"; [ -z "$g" ] && continue
-    _apply_group_change remove "$g" || rc_overall=1
+    um_user_modify "$UM_NAME" rm-group "$g" || rc_overall=1
   done
 fi
 
 # ---- rename (do LAST so all other ops referenced the original name) -------
 if [ -n "$UM_NEW_NAME" ]; then
-  if um_user_exists "$UM_NEW_NAME"; then
-    log_err "$(um_msg renameTargetExists "$UM_NEW_NAME")"
-    rc_overall=1
-  else
-    if [ "$UM_OS" = "linux" ]; then
-      if um_run usermod -l "$UM_NEW_NAME" "$UM_NAME"; then
-        log_ok "$(um_msg userRenamed "$UM_NAME" "$UM_NEW_NAME")"
-        um_summary_add "ok" "user" "$UM_NAME" "renamed -> $UM_NEW_NAME"
-      else
-        log_err "$(um_msg renameFail "$UM_NAME" "$UM_NEW_NAME" "usermod -l failed")"; rc_overall=1
-      fi
-    else
-      if um_run dscl . -change "/Users/$UM_NAME" RecordName "$UM_NAME" "$UM_NEW_NAME"; then
-        log_ok "$(um_msg userRenamed "$UM_NAME" "$UM_NEW_NAME")"
-        um_summary_add "ok" "user" "$UM_NAME" "renamed -> $UM_NEW_NAME"
-      else
-        log_err "$(um_msg renameFail "$UM_NAME" "$UM_NEW_NAME" "dscl -change RecordName failed")"; rc_overall=1
-      fi
-    fi
-  fi
+  um_user_modify "$UM_NAME" rename "$UM_NEW_NAME" || rc_overall=1
 fi
 
 if [ "$rc_overall" -eq 0 ]; then
