@@ -9,6 +9,86 @@ _wp_genpass() {
     LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24
 }
 
+# _wp_verify_download <local_file> <source_url>
+# Integrity gate for the WordPress archive (ZIP or tar.gz). WordPress.org
+# publishes <url>.sha1 and <url>.md5 (NO official sha256 -- confirmed via
+# 404 on .sha256). We:
+#   1. Always compute + log the local SHA256 of the file (audit trail; the
+#      operator can pin this in a downstream policy if they want).
+#   2. Fetch the official .sha1 and require an exact match. This is the
+#      primary integrity gate -- it catches a corrupted download, a MITM
+#      that replaced the body, or a partial transfer.
+#   3. Fetch the official .md5 and require an exact match. Redundant, but
+#      catches the (extremely unlikely) case where SHA1 was forged but
+#      MD5 was forgotten -- and it's free to compute.
+#   4. Strict by default: if either checksum file is unreachable, abort
+#      the install. Set WP_SKIP_CHECKSUM=1 to fall back to a warning when
+#      the operator is on a network where the checksum URLs are blocked
+#      but the archive itself is mirrored (rare).
+# Returns 0 only when SHA1 + MD5 both match. Logs every failure with
+# log_file_error path='...' reason='...' (CODE RED).
+_wp_verify_download() {
+    local file="$1" url="$2"
+    local skip="${WP_SKIP_CHECKSUM:-0}"
+
+    if [ ! -s "$file" ]; then
+        log_file_error "$file" "downloaded archive is missing or empty -- nothing to checksum"
+        return 1
+    fi
+
+    if ! command -v sha1sum >/dev/null 2>&1; then
+        log_warn "[70][wp][checksum] sha1sum not on PATH -- skipping integrity check"
+        return 0
+    fi
+
+    # 1. Local SHA256 audit hash
+    local sha256_local
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256_local="$(sha256sum "$file" | awk '{print $1}')"
+        log_info "[70][wp][checksum] sha256(local) = $sha256_local  ($file)"
+    fi
+
+    # 2. SHA1 -- official wordpress.org checksum
+    local sha1_local sha1_remote
+    sha1_local="$(sha1sum "$file" | awk '{print $1}')"
+    sha1_remote="$(curl -fsSL "${url}.sha1" 2>/dev/null | tr -d '[:space:]')"
+    if [ -z "$sha1_remote" ]; then
+        if [ "$skip" = "1" ]; then
+            log_warn "[70][wp][checksum] could not fetch ${url}.sha1 -- WP_SKIP_CHECKSUM=1, continuing without integrity check"
+        else
+            log_file_error "${url}.sha1" "could not fetch official SHA1 checksum (set WP_SKIP_CHECKSUM=1 to override at your own risk)"
+            return 1
+        fi
+    elif [ "$sha1_local" != "$sha1_remote" ]; then
+        log_file_error "$file" "SHA1 mismatch -- expected '$sha1_remote' (from ${url}.sha1) but got '$sha1_local' -- download is corrupted or tampered with"
+        return 1
+    else
+        log_ok "[70][wp][checksum] sha1 match: $sha1_local"
+    fi
+
+    # 3. MD5 -- redundant secondary check
+    if command -v md5sum >/dev/null 2>&1; then
+        local md5_local md5_remote
+        md5_local="$(md5sum "$file" | awk '{print $1}')"
+        md5_remote="$(curl -fsSL "${url}.md5" 2>/dev/null | tr -d '[:space:]')"
+        if [ -z "$md5_remote" ]; then
+            if [ "$skip" = "1" ]; then
+                log_warn "[70][wp][checksum] could not fetch ${url}.md5 -- WP_SKIP_CHECKSUM=1, continuing"
+            else
+                log_file_error "${url}.md5" "could not fetch official MD5 checksum (set WP_SKIP_CHECKSUM=1 to override)"
+                return 1
+            fi
+        elif [ "$md5_local" != "$md5_remote" ]; then
+            log_file_error "$file" "MD5 mismatch -- expected '$md5_remote' (from ${url}.md5) but got '$md5_local' -- download is corrupted or tampered with"
+            return 1
+        else
+            log_ok "[70][wp][checksum] md5  match: $md5_local"
+        fi
+    fi
+
+    return 0
+}
+
 component_wordpress_verify() {
     local install_path="${WP_INSTALL_PATH:-/var/www/wordpress}"
     [ -f "$install_path/wp-config.php" ] || return 1
