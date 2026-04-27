@@ -28,5 +28,12 @@
     "sshHomeMissing":      "home dir '%s' does not exist for user '%s' -- skipping ssh key install (failure: create home first)",
     "sshOwnerWarn":        "could not chown '%s' to '%s' -- file is in place but owner unchanged",
     "sshKeyInstalled":     "installed ssh keys to '%s' (added %s new of %s requested; existing keys preserved)"
+    ,
+    "schemaFieldType":     "JSON record #%s in '%s' field '%s' has wrong type: expected %s, got %s (failure: rejecting record)",
+    "schemaFieldEmpty":    "JSON record #%s in '%s' field '%s' is empty/null (failure: rejecting record)",
+    "schemaArrayItemType": "JSON record #%s in '%s' field '%s[%s]' has wrong type: expected non-empty string, got %s (value=%s) (failure: rejecting record)",
+    "schemaUnknownField":  "JSON record #%s in '%s' has unknown field '%s' (warning: ignored -- check for typo; allowed fields: %s)",
+    "schemaRecordRejected":"JSON record #%s in '%s' (name='%s') rejected: %s validation error(s) -- see above (failure: not creating user)",
+    "schemaTopLevelType":  "JSON record #%s in '%s' is not an object: got %s (failure: rejecting record)"
   }
 }
