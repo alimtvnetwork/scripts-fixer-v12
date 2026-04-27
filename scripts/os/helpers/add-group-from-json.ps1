@@ -37,6 +37,16 @@
     rc=1 if any record failed.
 
     CODE-RED: every file/path error logs the EXACT path + reason.
+
+    Dry-run effect per JSON field (--dry-run is passed through to
+    add-group.ps1 per record; see that script's .DESCRIPTION for the
+    underlying "[dry-run] <cmd>" wording. Schema validation ALWAYS runs.):
+      name         would call New-LocalGroup -Name <name>; existing group
+                   -> [WARN] + skip (idempotent)
+      gid          IGNORED on Windows (Linux/macOS only; no log line)
+      system       IGNORED on Windows (Linux only; no log line)
+      description  would pass -Description "..." to New-LocalGroup; in
+                   dry-run the planned property is logged
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
