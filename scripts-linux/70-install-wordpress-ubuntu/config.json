@@ -1,6 +1,12 @@
 {
   "id": "70",
   "title": "Ubuntu WordPress installer (Nginx + PHP-FPM + MySQL/MariaDB + latest WordPress)",
+  "prereqs": {
+    "apt_refresh_mode": "none",
+    "supported_apt_refresh_modes": ["none", "update", "upgrade", "dist-upgrade"],
+    "apt_refresh_timeout_seconds": 1800,
+    "_comment": "apt_refresh_mode runs BEFORE MySQL + PHP-FPM in the prereqs stage. 'none' skips. 'update' runs apt-get update -y. 'upgrade' runs update + apt-get upgrade -y --no-install-recommends. 'dist-upgrade' runs update + dist-upgrade. Override at runtime with --apt-refresh <mode>, --apt-update, or --apt-upgrade."
+  },
   "components": {
     "mysql": {
       "default_engine": "mysql",
