@@ -12,9 +12,208 @@ CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 01-install-vscode"; exit 1; }
 
 INSTALLED_MARK="$ROOT/.installed/01.ok"
+FINGERPRINT_FILE="$ROOT/.installed/01.fingerprint"
 
 verify_installed() { command -v code >/dev/null 2>&1; }
 
+# --- Scope detection -------------------------------------------------------
+# Cleanup is bounded by THREE sources of truth, in priority order:
+#   1. Override env vars VSCODE_CLEAN_METHODS / VSCODE_CLEAN_EDITIONS
+#      (space-separated). Highest priority -- escape hatch for ops.
+#   2. .installed/01.fingerprint -- written at install time. Captures the
+#      method + edition + version + timestamp of THIS script's install.
+#      Used so that reinstalling via a different method later doesn't make
+#      uninstall lose track of the original.
+#   3. Live detection via config.json -> scope.methodProbes / editionProbes.
+#      Probes apt (dpkg -s), snap (snap list), flatpak (flatpak list),
+#      and presence of method-specific install dirs.
+#
+# Outputs (exported for downstream helpers):
+#   SCOPE_METHODS   = space-separated list of detected install methods
+#                     ("apt snap" / "flatpak" / "tarball" / "" if none)
+#   SCOPE_EDITIONS  = space-separated list of detected editions
+#                     ("stable" / "insiders" / "stable insiders" / "")
+#   SCOPE_SOURCE    = "override" | "fingerprint" | "live"
+#
+# When SCOPE_METHODS is empty, ALL cleanup helpers go into REPORT-ONLY
+# mode -- they list what they WOULD touch but make no changes. This is
+# the safe default when we can't prove anything was installed.
+_resolve_install_scope() {
+    has_jq || { log_warn "[01] jq not available -- scope detection disabled"; SCOPE_METHODS=""; SCOPE_EDITIONS=""; SCOPE_SOURCE="none"; return 0; }
+
+    # 1. Override env wins.
+    if [ -n "${VSCODE_CLEAN_METHODS:-}" ] || [ -n "${VSCODE_CLEAN_EDITIONS:-}" ]; then
+        SCOPE_METHODS="${VSCODE_CLEAN_METHODS:-}"
+        SCOPE_EDITIONS="${VSCODE_CLEAN_EDITIONS:-stable insiders}"
+        SCOPE_SOURCE="override"
+        log_info "[01][scope] using override: methods='$SCOPE_METHODS' editions='$SCOPE_EDITIONS'"
+        return 0
+    fi
+
+    # 2. Fingerprint from a previous install we did.
+    if [ -f "$FINGERPRINT_FILE" ]; then
+        local fp_methods fp_editions fp_version fp_ts
+        fp_methods=$(jq  -r '.methods   // "" | if type=="array" then join(" ") else . end' "$FINGERPRINT_FILE" 2>/dev/null || echo "")
+        fp_editions=$(jq -r '.editions  // "" | if type=="array" then join(" ") else . end' "$FINGERPRINT_FILE" 2>/dev/null || echo "")
+        fp_version=$(jq  -r '.version   // "unknown"' "$FINGERPRINT_FILE" 2>/dev/null || echo "unknown")
+        fp_ts=$(jq       -r '.installedAt // "unknown"' "$FINGERPRINT_FILE" 2>/dev/null || echo "unknown")
+        if [ -n "$fp_methods" ]; then
+            SCOPE_METHODS="$fp_methods"
+            SCOPE_EDITIONS="${fp_editions:-stable}"
+            SCOPE_SOURCE="fingerprint"
+            log_info "[01][scope] using fingerprint: methods='$SCOPE_METHODS' editions='$SCOPE_EDITIONS' version='$fp_version' installed='$fp_ts'"
+            return 0
+        fi
+        log_warn "[01][scope] fingerprint at $FINGERPRINT_FILE has empty .methods -- falling through to live detection"
+    fi
+
+    # 3. Live detection.
+    local methods="" editions=""
+
+    # apt
+    if is_debian_family 2>/dev/null && is_apt_pkg_installed code 2>/dev/null; then
+        methods="$methods apt"
+    elif is_debian_family 2>/dev/null && is_apt_pkg_installed code-insiders 2>/dev/null; then
+        methods="$methods apt"
+    elif [ -d /usr/share/code ] || [ -d /usr/share/code-insiders ]; then
+        methods="$methods apt"
+    fi
+
+    # snap
+    if command -v snap >/dev/null 2>&1; then
+        if snap list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx 'code\|code-insiders' 2>/dev/null; then
+            methods="$methods snap"
+        elif [ -d /snap/code/current ] || [ -d /snap/code-insiders/current ]; then
+            methods="$methods snap"
+        fi
+    fi
+
+    # flatpak
+    if command -v flatpak >/dev/null 2>&1; then
+        if flatpak list --app --columns=application 2>/dev/null | grep -qx 'com.visualstudio.code\|com.visualstudio.code.insiders' 2>/dev/null; then
+            methods="$methods flatpak"
+        fi
+    fi
+    [ -d /var/lib/flatpak/app/com.visualstudio.code ]                  && methods="$methods flatpak"
+    [ -d /var/lib/flatpak/app/com.visualstudio.code.insiders ]         && methods="$methods flatpak"
+    [ -d "$HOME/.local/share/flatpak/app/com.visualstudio.code" ]      && methods="$methods flatpak"
+
+    # tarball / opt
+    [ -d /opt/visual-studio-code ]      && methods="$methods tarball"
+    [ -d /opt/VSCode-linux-x64 ]        && methods="$methods tarball"
+    [ -d "$HOME/.local/opt/vscode" ]    && methods="$methods tarball"
+
+    # Editions
+    if command -v code >/dev/null 2>&1            || \
+       [ -f /usr/share/applications/code.desktop ] || \
+       [ -f "$HOME/.local/share/applications/code.desktop" ]; then
+        editions="$editions stable"
+    fi
+    if command -v code-insiders >/dev/null 2>&1            || \
+       [ -f /usr/share/applications/code-insiders.desktop ] || \
+       [ -f "$HOME/.local/share/applications/code-insiders.desktop" ]; then
+        editions="$editions insiders"
+    fi
+
+    # Dedupe + trim.
+    SCOPE_METHODS=$(printf '%s\n' $methods  | awk '!seen[$0]++' | xargs echo)
+    SCOPE_EDITIONS=$(printf '%s\n' $editions | awk '!seen[$0]++' | xargs echo)
+    SCOPE_SOURCE="live"
+    if [ -z "$SCOPE_METHODS" ]; then
+        log_warn "[01][scope] live detection found NO VS Code install (no apt pkg, no snap, no flatpak, no /opt) -- cleanup will run in REPORT-ONLY mode (no files modified). Use VSCODE_CLEAN_METHODS=apt VSCODE_CLEAN_EDITIONS=stable to force scrub."
+    else
+        log_info "[01][scope] live detection: methods='$SCOPE_METHODS' editions='${SCOPE_EDITIONS:-<none>}'"
+    fi
+    return 0
+}
+
+# Returns 0 (true) if the given comma/space-separated tag list intersects
+# the active scope dimension. $1 = "methods" or "editions", $2... = tags.
+_scope_matches() {
+    local dim="$1"; shift
+    local active=""
+    case "$dim" in
+        methods)  active="$SCOPE_METHODS" ;;
+        editions) active="$SCOPE_EDITIONS" ;;
+        *)        return 1 ;;
+    esac
+    # Empty active scope -> nothing matches (report-only mode).
+    [ -z "$active" ] && return 1
+    local want a w
+    for want in "$@"; do
+        for a in $active; do
+            if [ "$want" = "$a" ]; then return 0; fi
+        done
+    done
+    return 1
+}
+
+# Returns 0 if we should perform actual writes; 1 for report-only mode.
+_scope_can_modify() {
+    [ -n "$SCOPE_METHODS" ]
+}
+
+# Write a fingerprint when we successfully install. Captures method,
+# edition, version, timestamp, and the apt/snap channel/source.
+_write_install_fingerprint() {
+    local method="$1" edition="${2:-stable}" version source
+    version=$(code --version 2>/dev/null | head -1 || echo "unknown")
+    case "$method" in
+        apt)
+            source=$(dpkg-query -W -f='${Version}|${Source}|${Maintainer}\n' code 2>/dev/null || echo "unknown")
+            ;;
+        snap)
+            source=$(snap info code 2>/dev/null | awk '/^tracking:/ {print $2; exit}')
+            ;;
+        *)  source="unknown" ;;
+    esac
+    mkdir -p "$ROOT/.installed"
+    cat > "$FINGERPRINT_FILE" <<EOF
+{
+  "methods": ["$method"],
+  "editions": ["$edition"],
+  "version": "$version",
+  "source": "$source",
+  "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "installedBy": "scripts-linux/01-install-vscode/run.sh"
+}
+EOF
+    log_info "[01] Wrote install fingerprint: $FINGERPRINT_FILE (method=$method edition=$edition version=$version)"
+}
+
+# --- Scoped allow-list reader ----------------------------------------------
+# Read a jq array path and return only entries that match the active scope.
+# Each array entry can be either:
+#   "string"                                  (no scope tags -> always allowed)
+#   { "name": "...", "methods":[...], "editions":[...] }
+#   { "path": "...", "methods":[...], "editions":[...] }
+# Outputs one matching value per line (the .name, .path, or the bare string).
+# Args: $1 = jq path (e.g. '.mimeCleanup.desktopFiles'), $2 = key for the
+# value field (defaults to "name"; pass "path" for path-style arrays).
+# Outputs lines on stdout. Caller mapfiles them.
+_scoped_filter() {
+    local jq_path="$1" value_key="${2:-name}"
+    local methods_json editions_json
+    # Convert space-separated scope to JSON arrays for jq.
+    methods_json=$(printf '%s\n' $SCOPE_METHODS  | jq -R . | jq -s .)
+    editions_json=$(printf '%s\n' $SCOPE_EDITIONS | jq -R . | jq -s .)
+    jq -r --argjson m "$methods_json" --argjson e "$editions_json" --arg vk "$value_key" "
+        ${jq_path}[]
+        | if type == \"string\" then
+              {value: ., methods: null, editions: null}
+          else
+              {value: (.[\$vk] // .name // .path // \"\"),
+               methods: (.methods // null),
+               editions: (.editions // null)}
+          end
+        | select(
+            (.methods  == null or any(.methods[];  IN(\$m[])))
+            and
+            (.editions == null or any(.editions[]; IN(\$e[])))
+          )
+        | .value
+    " "$CONFIG"
+}
 # --- MIME cleanup -----------------------------------------------------------
 # Scrub VS Code's shell-integration MIME defaults (the apt/snap postinst hooks
 # register code.desktop as the default handler for dozens of text/source MIME
@@ -32,19 +231,23 @@ _clean_mime_defaults() {
         return 0
     fi
 
-    # Read allow-list into arrays. ${HOME} expansion is done here so the
-    # config file stays portable across users.
-    mapfile -t DESKTOPS  < <(jq -r '.mimeCleanup.desktopFiles[]' "$CONFIG")
-    mapfile -t USR_FILES < <(jq -r '.mimeCleanup.userFiles[]'    "$CONFIG")
-    mapfile -t SYS_FILES < <(jq -r '.mimeCleanup.systemFiles[]'  "$CONFIG")
-    mapfile -t CACHES    < <(jq -r '.mimeCleanup.cacheFiles[]'   "$CONFIG")
+    # Scope-filtered allow-lists. desktopFiles + systemFiles carry per-method
+    # tags; userFiles + cacheFiles are shared across all methods.
+    mapfile -t DESKTOPS  < <(_scoped_filter '.mimeCleanup.desktopFiles' name)
+    mapfile -t USR_FILES < <(jq -r '.mimeCleanup.userFiles[]'  "$CONFIG")
+    mapfile -t SYS_FILES < <(_scoped_filter '.mimeCleanup.systemFiles' path)
+    mapfile -t CACHES    < <(jq -r '.mimeCleanup.cacheFiles[]' "$CONFIG")
 
     if [ "${#DESKTOPS[@]}" -eq 0 ]; then
-        log_warn "[01] mimeCleanup.desktopFiles is empty -- nothing to scrub"
+        log_warn "[01] No desktopFiles match active scope (methods='$SCOPE_METHODS' editions='$SCOPE_EDITIONS') -- skipping MIME defaults scrub"
         return 0
     fi
 
-    log_info "[01] Scrubbing MIME defaults for: ${DESKTOPS[*]}"
+    if _scope_can_modify; then
+        log_info "[01] Scrubbing MIME defaults for (scope: $SCOPE_SOURCE/${SCOPE_METHODS}/${SCOPE_EDITIONS}): ${DESKTOPS[*]}"
+    else
+        log_info "[01] REPORT-ONLY -- would scrub MIME defaults for: ${DESKTOPS[*]}"
+    fi
 
     # Build a single sed -e chain that:
     #   1. Drops any "<mime>=<desktop>" line where <desktop> matches the
@@ -102,6 +305,10 @@ _clean_mime_defaults() {
         fi
         if [ "$_changed" -eq 0 ]; then
             log_info "[01]   no matching MIME entries in: $path"
+            rm -f "$tmp"; return 0
+        fi
+        if ! _scope_can_modify; then
+            log_info "[01]   REPORT-ONLY -- would scrub: $path"
             rm -f "$tmp"; return 0
         fi
         # Backup before overwriting.
@@ -197,19 +404,23 @@ _clean_vscode_desktop_entries() {
         return 0
     fi
 
-    mapfile -t DESKTOPS < <(jq -r '.mimeCleanup.desktopFiles[]'   "$CONFIG")
-    mapfile -t DIRS     < <(jq -r '.mimeCleanup.desktopEntryDirs[]? // empty' "$CONFIG")
+    mapfile -t DESKTOPS < <(_scoped_filter '.mimeCleanup.desktopFiles' name)
+    mapfile -t DIRS     < <(_scoped_filter '.mimeCleanup.desktopEntryDirs' path)
 
     if [ "${#DESKTOPS[@]}" -eq 0 ]; then
-        log_warn "[01] mimeCleanup.desktopFiles is empty -- nothing to scrub"
+        log_warn "[01] No desktopFiles match active scope (methods='$SCOPE_METHODS' editions='$SCOPE_EDITIONS') -- skipping .desktop entry scrub"
         return 0
     fi
     if [ "${#DIRS[@]}" -eq 0 ]; then
-        log_warn "[01] mimeCleanup.desktopEntryDirs is empty -- skipping .desktop entry scrub"
+        log_warn "[01] No desktopEntryDirs match active scope (methods='$SCOPE_METHODS') -- skipping .desktop entry scrub"
         return 0
     fi
 
-    log_info "[01] Scrubbing MimeType=/Actions=/[Desktop Action *] from VS Code .desktop files"
+    if _scope_can_modify; then
+        log_info "[01] Scrubbing MimeType=/Actions= from VS Code .desktop files (scope: ${SCOPE_METHODS}/${SCOPE_EDITIONS})"
+    else
+        log_info "[01] REPORT-ONLY -- would scrub MimeType=/Actions= from: ${DESKTOPS[*]}"
+    fi
 
     # awk program: strip MimeType=/Actions= lines AND drop any
     # [Desktop Action <name>] group block until the next group header.
@@ -263,6 +474,10 @@ _clean_vscode_desktop_entries() {
         fi
         if [ "$_changed" -eq 0 ]; then
             log_info "[01]   no MimeType=/Actions= in: $path"
+            rm -f "$tmp"; return 0
+        fi
+        if ! _scope_can_modify; then
+            log_info "[01]   REPORT-ONLY -- would scrub .desktop entries from: $path"
             rm -f "$tmp"; return 0
         fi
         local ts backup
@@ -345,14 +560,18 @@ _clean_context_menu_entries() {
         return 0
     fi
 
-    mapfile -t SCRIPT_NAMES < <(jq -r '.mimeCleanup.contextMenu.fileNames[]?       // empty' "$CONFIG")
-    mapfile -t SCRIPT_DIRS  < <(jq -r '.mimeCleanup.contextMenu.searchDirs[]?      // empty' "$CONFIG")
-    mapfile -t ACTION_NAMES < <(jq -r '.mimeCleanup.contextMenu.actionFileNames[]? // empty' "$CONFIG")
-    mapfile -t ACTION_DIRS  < <(jq -r '.mimeCleanup.contextMenu.actionDirs[]?      // empty' "$CONFIG")
+    mapfile -t SCRIPT_NAMES < <(_scoped_filter '.mimeCleanup.contextMenu.fileNames'       name)
+    mapfile -t SCRIPT_DIRS  < <(jq -r '.mimeCleanup.contextMenu.searchDirs[]? // empty'   "$CONFIG")
+    mapfile -t ACTION_NAMES < <(_scoped_filter '.mimeCleanup.contextMenu.actionFileNames' name)
+    mapfile -t ACTION_DIRS  < <(_scoped_filter '.mimeCleanup.contextMenu.actionDirs'      path)
     mapfile -t INT_NAMES    < <(jq -r '.mimeCleanup.contextMenu.integrationFiles[]? // empty' "$CONFIG")
-    mapfile -t INT_ROOTS    < <(jq -r '.mimeCleanup.contextMenu.integrationRoots[]? // empty' "$CONFIG")
+    mapfile -t INT_ROOTS    < <(_scoped_filter '.mimeCleanup.contextMenu.integrationRoots' path)
 
-    log_info "[01] Context menu cleanup: scanning Nautilus/Nemo/Caja/Thunar + VS Code integration paths"
+    if _scope_can_modify; then
+        log_info "[01] Context menu cleanup (scope: ${SCOPE_SOURCE}/${SCOPE_METHODS}/${SCOPE_EDITIONS}): ${#SCRIPT_NAMES[@]} script names, ${#ACTION_NAMES[@]} action names, ${#INT_ROOTS[@]} integration roots"
+    else
+        log_info "[01] REPORT-ONLY context menu scan: ${#SCRIPT_NAMES[@]} script names, ${#ACTION_NAMES[@]} action names, ${#INT_ROOTS[@]} integration roots"
+    fi
 
     local ts; ts=$(date +%Y%m%d-%H%M%S)
     local rc=0 removed=0
@@ -366,6 +585,10 @@ _clean_context_menu_entries() {
         # Refuse to delete a directory -- our allow-list is files only.
         if [ -d "$path" ] && [ ! -L "$path" ]; then
             log_warn "[01]   refuse to delete directory (allow-list is files only): $path"
+            return 0
+        fi
+        if ! _scope_can_modify; then
+            log_info "[01]   REPORT-ONLY -- would remove $label: $path"
             return 0
         fi
         # Snapshot before delete so the user can recover.
@@ -473,12 +696,23 @@ verb_install() {
   if verify_installed; then
     log_ok "[01] VS Code already installed"
     mkdir -p "$ROOT/.installed" && touch "$INSTALLED_MARK"
+    # Don't overwrite an existing fingerprint -- it tracks the ORIGINAL
+    # install method. Only write one if missing (legacy / external install).
+    if [ ! -f "$FINGERPRINT_FILE" ]; then
+        local detected_method=""
+        if   is_apt_pkg_installed code 2>/dev/null;  then detected_method="apt"
+        elif is_snap_pkg_installed code 2>/dev/null; then detected_method="snap"
+        else detected_method="unknown"
+        fi
+        _write_install_fingerprint "$detected_method" "stable"
+    fi
     return 0
   fi
   if is_debian_family && is_apt_available; then
     if install_via_ms_repo; then
       log_ok "[01] VS Code installed via Microsoft apt repo"
       mkdir -p "$ROOT/.installed" && touch "$INSTALLED_MARK"
+      _write_install_fingerprint "apt" "stable"
       return 0
     fi
     log_warn "[01] apt path failed -- trying snap fallback"
@@ -487,6 +721,7 @@ verb_install() {
     if install_via_snap; then
       log_ok "[01] VS Code installed via snap"
       mkdir -p "$ROOT/.installed" && touch "$INSTALLED_MARK"
+      _write_install_fingerprint "snap" "stable"
       return 0
     fi
   fi
@@ -499,14 +734,36 @@ verb_check() {
   log_warn "[01] code not on PATH"; return 1
 }
 
+# Show the resolved install scope (method + edition + source) without
+# touching anything. Useful for ops to dry-run the cleanup decision.
+verb_scope() {
+    _resolve_install_scope
+    log_info "[01][scope] source:   $SCOPE_SOURCE"
+    log_info "[01][scope] methods:  ${SCOPE_METHODS:-<none>}"
+    log_info "[01][scope] editions: ${SCOPE_EDITIONS:-<none>}"
+    if [ -f "$FINGERPRINT_FILE" ]; then
+        log_info "[01][scope] fingerprint:"
+        cat "$FINGERPRINT_FILE" | sed 's/^/    /' >&2
+    else
+        log_info "[01][scope] fingerprint: <missing -- $FINGERPRINT_FILE>"
+    fi
+    if ! _scope_can_modify; then
+        log_warn "[01][scope] empty scope -> cleanup would run in REPORT-ONLY mode"
+    fi
+    return 0
+}
+
 verb_repair() { rm -f "$INSTALLED_MARK"; verb_install; }
 
 verb_uninstall() {
+  _resolve_install_scope
   if is_apt_pkg_installed code; then sudo apt-get remove -y code; fi
   if is_snap_pkg_installed code; then sudo snap remove code; fi
   _clean_mime_defaults
   _clean_vscode_desktop_entries
   _clean_context_menu_entries
+  # Only delete the fingerprint AFTER the cleaners have used it.
+  rm -f "$FINGERPRINT_FILE"
   rm -f "$INSTALLED_MARK"
   log_ok "[01] VS Code uninstalled"
 }
@@ -516,5 +773,6 @@ case "${1:-install}" in
   check)     verb_check ;;
   repair)    verb_repair ;;
   uninstall) verb_uninstall ;;
+  scope)     verb_scope ;;
   *) log_err "[01] Unknown verb: $1"; exit 2 ;;
 esac

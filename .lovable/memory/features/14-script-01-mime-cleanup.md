@@ -182,3 +182,39 @@ shims VS Code's install tree ships.
 | `~/.vscode/bin/code-context.sh` (allow-listed) | removed + backup | ✅ |
 | `~/.vscode/bin/some-user-helper.sh` (sibling) | sha256 unchanged | ✅ |
 | Missing dirs (Caja, Thunar uca.xml.d, snap install root) | skipped silently | ✅ |
+
+## v0.168.0 — Scope-aware cleanup
+
+Cleanup is now bounded by detected install method (apt/snap/flatpak/tarball)
+AND edition (stable/insiders). Each allow-list entry in `config.json`
+carries `methods[]` + `editions[]` tags; entries whose tags don't intersect
+the active scope are SKIPPED, not deleted.
+
+### Three scope sources (priority order)
+1. **Override env** — `VSCODE_CLEAN_METHODS`, `VSCODE_CLEAN_EDITIONS`
+2. **Fingerprint** — `.installed/01.fingerprint` (JSON: methods, editions,
+   version, source, installedAt) written at install time by
+   `_write_install_fingerprint`. Survives reinstall via different method.
+3. **Live detection** — `_resolve_install_scope` probes `dpkg -s`,
+   `snap list`, `flatpak list`, and method-specific install dirs.
+
+### Empty scope = REPORT-ONLY mode
+When no install is detected and no override is given, all three cleaners
+log what they WOULD touch but make no changes. Verified: with empty scope,
+fixtures pass sha256 byte-for-byte unchanged and zero `.bak-*` files written.
+
+### New verb: `scope`
+`./run.sh scope` prints resolved methods/editions/source + fingerprint
+contents without touching anything. Use for ops dry-run.
+
+### Scope filter (`_scoped_filter`)
+Single jq pass that accepts BOTH legacy strings and tagged objects
+(`{name|path, methods, editions}`). Returns only entries matching the
+active scope. Verified across 4 test scopes:
+
+| Scope | Behavior |
+|---|---|
+| `snap/stable` | `code_code.desktop` only; system files empty; only `/var/lib/snapd/desktop/applications` dir matches |
+| `apt/stable` | `code.desktop` + `code-url-handler.desktop`; `/usr/share/code/...` integration root |
+| `apt/insiders` | Insiders names only; `Open with Code` correctly excluded |
+| empty | Zero matches → REPORT-ONLY kicks in |
