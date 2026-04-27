@@ -24,6 +24,17 @@
 # Flags:
 #   --interactive | -i    prompt for port / data dir / php version /
 #                         install path / site port / db name|user|pass
+#   --json                machine-readable JSON output. Recognised by:
+#                           verify              -- structured findings doc
+#                           show-credentials    -- raw credentials JSON
+#   --diff <file>         (verify only) compare current verify state to a
+#                         baseline JSON snapshot (typically a
+#                         wp-config.php.bak.<ts>.verify.json file written
+#                         by reconfigure) and emit a before/after/changes
+#                         JSON document. Implies --json.
+#   --snapshot <file>     (verify only) write the structured verify JSON
+#                         document to <file> for later use as a baseline.
+#                         Also still emits to stdout (text or JSON).
 #   --keep-salts          (reconfigure only) preserve existing salts in
 #                         wp-config.php instead of rotating them. Use this
 #                         when you only need to update DB credentials and
@@ -147,6 +158,9 @@ export WP_DNS_PROPAGATION="60"  # seconds to wait for TXT record propagation
 export WP_HTTPS_WILDCARD="0"    # 1 = request *.<apex> + apex (forces DNS-01)
 export WP_SHOW_CREDENTIALS="0"  # 1 = print credentials block after install
 SHOW_CREDS_JSON="0"             # 1 = show-credentials verb emits raw JSON
+VERIFY_JSON="0"                 # 1 = verify verb emits structured findings JSON
+VERIFY_DIFF=""                  # path to baseline JSON for --diff
+VERIFY_SNAPSHOT=""              # path to write current verify JSON
 
 # ---- reconfigure knobs -----------------------------------------------------
 # WP_KEEP_SALTS=1 (set by --keep-salts) tells the reconfigure path to
@@ -174,6 +188,8 @@ while [ $# -gt 0 ]; do
                     SUBCOMPONENT="$1"; shift ;;
             esac
             ;;
+        verify)
+            VERB="verify"; shift ;;
         reconfigure|reconfig|rewrite-config)
             VERB="reconfigure"; shift ;;
         show-credentials|show-creds|creds)
@@ -206,7 +222,11 @@ while [ $# -gt 0 ]; do
         --dns-propagation) WP_DNS_PROPAGATION="$2"; shift 2 ;;
         --wildcard)        WP_HTTPS_WILDCARD="1"; WP_HTTPS="1"; shift ;;
         --show-credentials) WP_SHOW_CREDENTIALS="1"; shift ;;
-        --json)            SHOW_CREDS_JSON="1"; shift ;;
+        --json)            SHOW_CREDS_JSON="1"; VERIFY_JSON="1"; shift ;;
+        --diff)            VERIFY_DIFF="$2"; VERIFY_JSON="1"; shift 2 ;;
+        --diff=*)          VERIFY_DIFF="${1#--diff=}"; VERIFY_JSON="1"; shift ;;
+        --snapshot)        VERIFY_SNAPSHOT="$2"; shift 2 ;;
+        --snapshot=*)      VERIFY_SNAPSHOT="${1#--snapshot=}"; shift ;;
         -h|--help)         _show_help; exit 0 ;;
         *)
             log_warn "[70] Unknown arg: '$1' -- run with --help for usage"
