@@ -773,5 +773,6 @@ case "${1:-install}" in
   check)     verb_check ;;
   repair)    verb_repair ;;
   uninstall) verb_uninstall ;;
+  scope)     verb_scope ;;
   *) log_err "[01] Unknown verb: $1"; exit 2 ;;
 esac
