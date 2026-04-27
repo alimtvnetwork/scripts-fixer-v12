@@ -30,7 +30,74 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 [ -f "$SCRIPT_DIR/helpers/_prompt.sh" ] && . "$SCRIPT_DIR/helpers/_prompt.sh"
 
-um_usage() { sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; }
+um_usage() {
+  cat <<'EOF'
+edit-user -- modify one user (rename/promote/...); see readme.md.
+68-user-mgmt/edit-user.sh -- modify a single local user (Linux | macOS).
+
+Usage:
+  ./edit-user.sh <name> [flags]
+  ./edit-user.sh --ask
+
+Flags (every flag is optional; pick the changes you want):
+  --rename <newName>            rename the account
+  --reset-password <PW>         reset password (plain CLI -- accepted risk)
+  --password-file <FILE>        reset password from file (mode 0600)
+  --promote                     add to sudo group ('sudo' on Linux, 'admin' on macOS)
+  --demote                      remove from sudo/admin group (account stays)
+  --add-group <g>               add to group (comma-list OK, repeatable)
+  --remove-group <g>            remove from group (comma-list OK, repeatable)
+  --shell <PATH>                change login shell
+  --comment "..."               change GECOS / RealName
+  --enable | --disable          unlock or lock the account
+  --ask                         prompt interactively for missing fields
+  --dry-run                     print actions, change nothing
+
+Exit codes match add-user.sh: 0=ok, 1=tool error, 2=input error,
+13=not root (and not --dry-run), 64=bad CLI usage, 127=missing tool.
+
+Dry-run effect per flag (with --dry-run, every mutating action is routed
+through the um_user_modify shim and logged as "[dry-run] <command>"; the
+plan summary "edit plan for <name>:" is printed BEFORE any action so
+you see the same intent in dry-run and real-run):
+  <name>                        would resolve the account; missing user
+                                logs "[FAIL] user does not exist" and
+                                aborts the record (still no mutation)
+  --rename <newName>            would call usermod -l (Linux) / dscl rename
+                                (macOS); applied LAST so other ops still
+                                target the original name
+  --reset-password <PW>         would pipe '<name>:<masked>' to chpasswd
+                                (Linux) or dscl . -passwd (macOS); value
+                                NEVER logged
+  --password-file <FILE>        same as --reset-password but reads PW from
+                                FILE (mode 0600 enforced before plan)
+  --promote                     would add to 'sudo' (Linux) / 'admin'
+                                (macOS) via usermod -aG / dseditgroup
+  --demote                      would remove from 'sudo' / 'admin' via
+                                gpasswd -d (Linux) / dseditgroup -d (macOS)
+  --add-group <g>               would add to <g> (one usermod / dseditgroup
+                                call per group; comma-list expanded first)
+  --remove-group <g>            would remove from <g> (one gpasswd /
+                                dseditgroup call per group)
+  --shell <PATH>                would call usermod -s PATH (Linux) /
+                                dscl . -create UserShell (macOS)
+  --comment "..."               would call usermod -c "..." (Linux) /
+                                dscl . -create RealName (macOS); empty
+                                string clears the field
+  --enable                      would call usermod -U / passwd -u (Linux) /
+                                pwpolicy -enableuser (macOS)
+  --disable                     would call usermod -L / passwd -l (Linux) /
+                                pwpolicy -disableuser (macOS)
+  --ask                         prompt happens BEFORE the dry-run banner;
+                                collected values still drive the would-do
+                                log lines
+  --dry-run                     this flag itself; emits the dry-run banner,
+                                still prints the plan summary, and gates
+                                every um_user_modify call
+
+CODE RED: every file/path error logs the EXACT path + the failure reason.
+EOF
+}
 
 UM_NAME=""
 UM_NEW_NAME=""
