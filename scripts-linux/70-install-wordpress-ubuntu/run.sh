@@ -13,6 +13,14 @@
 #   repair                wipe markers, re-run install
 #   uninstall             remove WordPress + per-component cleanup
 #
+#   install postinstall   run only the 3-part post-install verification:
+#                           1. web vhost active (nginx -t / apache2ctl
+#                              configtest + sites-enabled symlink)
+#                           2. PHP-FPM unix socket reachable (cgi-fcgi
+#                              handshake, falls back to AF_UNIX connect)
+#                           3. root URL responds with HTTP 200 + WordPress
+#                              fingerprint (uses HTTPS when WP_HTTPS=1)
+#
 # Flags:
 #   --interactive | -i    prompt for port / data dir / php version /
 #                         install path / site port / db name|user|pass
