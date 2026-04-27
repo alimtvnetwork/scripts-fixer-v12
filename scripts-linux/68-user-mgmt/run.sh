@@ -30,6 +30,8 @@ Usage: ./run.sh -I 68 -- <subverb> [args]
 
 Subverbs:
   add-user        <name> [options]          create one local user
+                                            (supports --ask, --dry-run, ssh-key,
+                                             --password, --sudo, --groups, etc.)
   add-group       <name> [options]          create one local group
   add-user-json   <file.json> [--dry-run]   bulk users from JSON (object/array)
   add-group-json  <file.json> [--dry-run]   bulk groups from JSON (object/array)

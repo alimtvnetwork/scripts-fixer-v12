@@ -19,6 +19,9 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 . "$SCRIPT_DIR/helpers/_manifest_prune.sh"
+# Optional prompt helper -- only sourced if --ask is passed (loaded lazily
+# below to keep non-interactive runs free of /dev/tty side-effects).
+_UM_PROMPT_SH="$SCRIPT_DIR/helpers/_prompt.sh"
 
 um_usage() {
   cat <<EOF
@@ -41,6 +44,8 @@ Optional:
   --sudo                       add to sudo group (Linux: 'sudo', macOS: 'admin')
   --system                     create system account (Linux only; ignored on macOS)
   --dry-run                    print what would happen, change nothing
+  --ask                        prompt interactively for missing fields
+                               (username / password / comment / sudo)
 
 SSH authorized_keys (repeatable; both flags may be combined):
   --ssh-key "<key-line>"       Inline OpenSSH public key (entire single line,
@@ -131,6 +136,7 @@ UM_COMMENT=""
 UM_SUDO=0
 UM_SYSTEM=0
 UM_DRY_RUN="${UM_DRY_RUN:-0}"
+UM_ASK="${UM_ASK:-0}"
 # SSH keys -- two parallel arrays, each entry processed in order.
 UM_SSH_KEYS=()        # inline key lines
 UM_SSH_KEY_FILES=()   # file paths
@@ -183,6 +189,7 @@ while [ $# -gt 0 ]; do
     --sudo)            UM_SUDO=1; shift ;;
     --system)          UM_SYSTEM=1; shift ;;
     --dry-run)         UM_DRY_RUN=1; shift ;;
+    --ask)             UM_ASK=1; shift ;;
     --ssh-key)         UM_SSH_KEYS+=("${2:-}"); shift 2 ;;
     --ssh-key-file)    UM_SSH_KEY_FILES+=("${2:-}"); shift 2 ;;
     --ssh-key-url)     UM_SSH_KEY_URLS+=("${2:-}"); shift 2 ;;
@@ -217,6 +224,28 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+# ---- --ask: interactive prompt for missing required fields ----------------
+# Lazy-load the prompt helper only when needed so non-interactive runs don't
+# touch /dev/tty. Mirrors the Windows add-user.ps1 --ask flow.
+if [ "$UM_ASK" = "1" ]; then
+  if [ ! -f "$_UM_PROMPT_SH" ]; then
+    log_err "--ask requested but helper not found at exact path: '$_UM_PROMPT_SH' (failure: cannot prompt)"
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$_UM_PROMPT_SH"
+  [ -z "$UM_NAME" ] && UM_NAME=$(um_prompt_string "Username" "" 1)
+  if [ -z "$UM_PASSWORD_CLI" ] && [ -z "$UM_PASSWORD_FILE" ]; then
+    UM_PASSWORD_CLI=$(um_prompt_secret "Password (blank = no password set)" 0)
+  fi
+  if [ -z "$UM_COMMENT" ]; then
+    UM_COMMENT=$(um_prompt_string "Comment / GECOS (blank to skip)" "" 0)
+  fi
+  if [ "$UM_SUDO" = "0" ]; then
+    if um_prompt_confirm "Grant sudo (admin) access?" 0; then UM_SUDO=1; fi
+  fi
+fi
 
 if [ -z "$UM_NAME" ]; then
   log_err "missing required <name> (failure: nothing to create)"

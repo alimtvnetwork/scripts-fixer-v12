@@ -1,0 +1,7 @@
+{
+  "groups": [
+    { "name": "Developers",  "description": "Engineering staff" },
+    { "name": "QA",          "description": "Quality assurance team" },
+    { "name": "Contractors", "description": "External contractors (read-only)" }
+  ]
+}

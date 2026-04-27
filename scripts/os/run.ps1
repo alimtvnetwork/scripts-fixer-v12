@@ -170,6 +170,8 @@ function Show-OsHelp {
     Write-Host "      --enable | --disable | --add-group G | --remove-group G | --comment T | --ask" -ForegroundColor DarkGray
     Write-Host "    remove-user <name> [--purge-profile] [--yes] [--ask]   Delete a local user" -ForegroundColor Green
     Write-Host "    add-user-json <file.json> [--dry-run]                  Bulk users from JSON" -ForegroundColor Green
+    Write-Host "    add-group <name> [--description T] [--ask] [--dry-run] Create a local group" -ForegroundColor Green
+    Write-Host "    add-group-json <file.json> [--dry-run]                 Bulk groups from JSON" -ForegroundColor Green
     Write-Host ""
     Write-Host "  STARTUP MANAGEMENT (cross-OS feature, Windows side)" -ForegroundColor Cyan
     Write-Host "    startup-add app <path> [--method M] [--name N] [--args ...] [--interactive] [--elevated]" -ForegroundColor Green
@@ -352,6 +354,14 @@ switch ($normalizedAction) {
     }
     { $_ -in @("add-user-json", "adduserjson", "add-users-json", "user-json") } {
         & (Join-Path $scriptDir "helpers\add-user-from-json.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("add-group", "addgroup", "new-group") } {
+        & (Join-Path $scriptDir "helpers\add-group.ps1") @Rest
+        exit $LASTEXITCODE
+    }
+    { $_ -in @("add-group-json", "addgroupjson", "add-groups-json", "group-json") } {
+        & (Join-Path $scriptDir "helpers\add-group-from-json.ps1") @Rest
         exit $LASTEXITCODE
     }
     { $_ -in @("startup-add", "startupadd") } {
