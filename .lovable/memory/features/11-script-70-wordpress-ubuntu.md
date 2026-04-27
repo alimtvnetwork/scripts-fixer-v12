@@ -151,3 +151,28 @@ exact X.Y. PPA add failures log a remediation hint
 - Registry `./run.sh --list` shows entry 70 with correct title
 
 Built: v0.136.0.
+### DNS-01 + wildcard SSL (v0.164.0)
+`components/https.sh` now supports both ACME challenges, auto-selected:
+- HTTP-01 (default): `--https` alone — needs port 80 reachable.
+- DNS-01: `--dns cloudflare|route53|digitalocean|manual`.
+- Wildcard: `--wildcard` forces DNS-01. Each apex becomes
+  `-d example.com -d *.example.com`; `www.<apex>` tokens are merged into
+  the apex so the SAN list stays minimal.
+
+New flags: `--dns`, `--dns-credentials`, `--dns-propagation`, `--wildcard`.
+`--dns` and `--wildcard` implicitly set `WP_HTTPS=1`.
+
+DNS-01 uses `certbot certonly` then `certbot install --nginx|--apache
+--cert-name <primary>`; nginx still gets the deterministic vhost rewrite.
+apt installs `python3-certbot-dns-<provider>` (manual built into core).
+
+Credentials: cloudflare/digitalocean require `--dns-credentials <ini>`
+with `dns_<provider>_api_token = ...`; chmod auto-fixed to 600. route53
+reads `~/.aws/credentials` or `AWS_ACCESS_KEY_ID`. manual prompts on
+stdin (NOT auto-renewable).
+
+New markers: `.installed/70-https.dns`, `.installed/70-https.wildcard`.
+
+Spec: `scripts-linux/70-install-wordpress-ubuntu/spec/01-ssl-automation.md`
+(provider tables, IAM policy, wildcard expansion rules, failure-mode
+remediation). macOS confirmed out of scope by user.
