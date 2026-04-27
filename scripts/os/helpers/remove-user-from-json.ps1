@@ -29,6 +29,24 @@
     Windows-only alias (no-op on Linux/macOS):
       purgeProfile  bool  alias of purgeHome (Windows-native name)
 
+    JSON examples (each record below would pass schema validation):
+      // 1) minimal single object
+      { "name": "olduser1" }
+
+      // 2) array exercising every field
+      [
+        { "name": "olduser1", "purgeHome": true },
+        { "name": "olduser2" },
+        { "name": "olduser3", "purgeHome": true, "removeMailSpool": true },
+        { "name": "olduser4", "purgeProfile": true }
+      ]
+
+      // 3) wrapped (legal at the top level only)
+      { "users": [ { "name": "olduser1", "purgeHome": true } ] }
+
+      // 4) bare-string shorthand (auto-promoted to { "name": ... })
+      [ "alice", "bob", "carol" ]
+
     Removing a missing user is a no-op (idempotent), so this is safe to re-run.
 
     Usage:

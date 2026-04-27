@@ -31,6 +31,26 @@
     Mutually-exclusive intents (e.g. promote+demote, enable+disable) are
     rejected up front so a half-applied batch is impossible.
 
+    JSON examples (each record below would pass schema validation):
+      // 1) minimal single object (rename only)
+      { "name": "alice", "rename": "alyssa" }
+
+      // 2) array exercising most fields (no mutex violations)
+      [
+        { "name": "alice", "rename": "alyssa", "comment": "Alyssa P. Hacker" },
+        { "name": "bob",   "promote": true,
+          "addGroups":    ["docker","dev"],
+          "removeGroups": ["video"] },
+        { "name": "carol", "demote": true,  "disable": true },
+        { "name": "dave",  "passwordFile": "C:\\secrets\\dave.pw", "enable": true }
+      ]
+
+      // 3) wrapped (legal at the top level only)
+      { "users": [ { "name": "alice", "rename": "alyssa" } ] }
+
+      // 4) REJECTED -- mutex violation (promote + demote both true)
+      { "name": "eve", "promote": true, "demote": true }
+
     Removing a missing user / no-op records produce a [WARN] line but do not
     fail the batch. Exit 0 if every record succeeded, 1 if any failed.
 

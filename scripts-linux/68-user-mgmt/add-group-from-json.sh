@@ -34,6 +34,20 @@ Group record fields (verbatim from readme.md "Group record fields"):
   name    nestr  REQUIRED
   gid     uid    explicit GID (auto-allocated on macOS if omitted)
   system  bool   system group (Linux only; ignored on macOS)
+
+JSON examples (each record below would pass schema validation):
+  // 1) minimal single object
+  { "name": "devs" }
+
+  // 2) array with explicit GID + system group
+  [
+    { "name": "devs", "gid": 2000 },
+    { "name": "ops",  "gid": 2001 },
+    { "name": "lp",   "system": true }
+  ]
+
+  // 3) wrapped (legal at the top level only)
+  { "groups": [ { "name": "devs", "gid": 2000 } ] }
 EOF
 }
 

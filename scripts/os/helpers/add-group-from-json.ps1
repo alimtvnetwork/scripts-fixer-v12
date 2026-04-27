@@ -19,6 +19,19 @@
     Windows-only convenience field (no-op on Linux/macOS):
       description  string  becomes the local group's Description property
 
+    JSON examples (each record below would pass schema validation):
+      // 1) minimal single object
+      { "name": "devs" }
+
+      // 2) array with explicit GID + Windows description
+      [
+        { "name": "devs", "gid": 2000, "description": "Developers" },
+        { "name": "ops",  "gid": 2001 }
+      ]
+
+      // 3) wrapped (legal at the top level only)
+      { "groups": [ { "name": "devs", "gid": 2000 } ] }
+
     Each record is dispatched to add-group.ps1. Per-record failures are
     counted but do NOT abort the run -- the script continues and exits with
     rc=1 if any record failed.

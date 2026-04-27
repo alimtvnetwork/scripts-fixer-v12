@@ -33,6 +33,23 @@
       microsoftAccount Outlook/Live email -- triggers MS account RunOnce hint
       msAccountOnLogon true -> queue MS-account RunOnce on first logon
 
+    JSON examples (each record below would pass schema validation):
+      // 1) minimal single object
+      { "name": "dan", "password": "Welcome1!" }
+
+      // 2) array of mixed shapes
+      [
+        { "name": "alice", "password": "P@ss",       "groups": ["sudo","docker"] },
+        { "name": "bob",   "passwordFile": "C:\\secrets\\bob.pw",
+          "comment": "Bob the Builder", "role": "admin" },
+        { "name": "carol", "password": "x", "sudo": true,
+          "sshKeys":     ["ssh-ed25519 AAAA... carol@laptop"],
+          "sshKeyFiles": ["C:\\keys\\carol.pub"] }
+      ]
+
+      // 3) wrapped (legal at the top level only)
+      { "users": [ { "name": "dan", "password": "..." } ] }
+
     Usage:
       .\run.ps1 os add-user-json <file.json> [--dry-run]
 #>
