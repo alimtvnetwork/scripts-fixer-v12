@@ -26,6 +26,9 @@
 #   --db-name <name>      WordPress DB name (default: wordpress)
 #   --db-user <name>      WordPress DB user (default: wp_user)
 #   --db-pass <pw>        WordPress DB password (default: auto-generate)
+#   --http nginx|apache   HTTP server (default: nginx)
+#   --firewall            open WP_SITE_PORT in UFW after install (UFW must
+#                         be enabled separately; this only adds the rule)
 #   -h | --help           show this help and exit
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -38,6 +41,9 @@ export ROOT
 . "$SCRIPT_DIR/components/mysql.sh"
 . "$SCRIPT_DIR/components/php.sh"
 . "$SCRIPT_DIR/components/nginx.sh"
+. "$SCRIPT_DIR/components/apache.sh"
+. "$SCRIPT_DIR/components/firewall.sh"
+. "$SCRIPT_DIR/components/http-verify.sh"
 . "$SCRIPT_DIR/components/wordpress.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
@@ -60,6 +66,8 @@ export WP_SERVER_NAME="localhost"
 export WP_DB_NAME="wordpress"
 export WP_DB_USER="wp_user"
 export WP_DB_PASS=""
+export WP_HTTP_SERVER="nginx"   # nginx | apache
+export WP_FIREWALL="0"          # 1 = open WP_SITE_PORT via UFW
 
 _show_help() {
     sed -n '2,/^set -u$/p' "$0" | sed 's/^# \{0,1\}//' | head -n -1
@@ -72,7 +80,7 @@ while [ $# -gt 0 ]; do
             VERB="$1"; shift
             # Optional positional: component (mysql|php|nginx|wordpress|wp-only|wp)
             case "${1:-}" in
-                mysql|php|nginx|wordpress|wp-only|wp|prereqs|prerequisites)
+                mysql|php|nginx|apache|http|firewall|http-verify|wordpress|wp-only|wp|prereqs|prerequisites)
                     SUBCOMPONENT="$1"; shift ;;
             esac
             ;;
@@ -87,6 +95,8 @@ while [ $# -gt 0 ]; do
         --db-name)         WP_DB_NAME="$2"; shift 2 ;;
         --db-user)         WP_DB_USER="$2"; shift 2 ;;
         --db-pass)         WP_DB_PASS="$2"; shift 2 ;;
+        --http)            WP_HTTP_SERVER="$2"; shift 2 ;;
+        --firewall)        WP_FIREWALL="1"; shift ;;
         -h|--help)         _show_help; exit 0 ;;
         *)
             log_warn "[70] Unknown arg: '$1' -- run with --help for usage"
@@ -140,9 +150,36 @@ _install_one() {
         mysql)     component_mysql_install     ;;
         php)       component_php_install       ;;
         nginx)     component_nginx_install     ;;
+        apache)    component_apache_install    ;;
+        http)      _install_http               ;;
+        firewall)  component_firewall_install  ;;
+        http-verify) component_http_verify     ;;
         wordpress|wp|wp-only) component_wordpress_install ;;
         prereqs|prerequisites) _install_prerequisites ;;
         *)         log_err "[70] Unknown component: '$1'"; return 2 ;;
+    esac
+}
+
+# ---- HTTP server (nginx | apache) ------------------------------------------
+# Dispatches to the requested HTTP server. Validates WP_HTTP_SERVER first so a
+# typo doesn't silently fall through to nginx.
+_install_http() {
+    case "${WP_HTTP_SERVER:-nginx}" in
+        nginx)
+            log_info "[70][http] HTTP server = nginx"
+            component_nginx_install ;;
+        apache|apache2|httpd)
+            log_info "[70][http] HTTP server = apache2"
+            # Pre-emptively stop nginx if installed -- :80 conflict otherwise.
+            if command -v nginx >/dev/null 2>&1 && sudo systemctl is-active --quiet nginx; then
+                log_info "[70][http] stopping nginx to free port for apache"
+                sudo systemctl stop nginx 2>/dev/null || true
+                sudo systemctl disable nginx 2>/dev/null || true
+            fi
+            component_apache_install ;;
+        *)
+            log_err "[70][http] unknown WP_HTTP_SERVER='${WP_HTTP_SERVER}' (expected: nginx|apache)"
+            return 2 ;;
     esac
 }
 
@@ -183,8 +220,16 @@ _install_all() {
     log_info "[70] Starting Ubuntu WordPress installer (engine=$WP_DB_ENGINE php=$WP_PHP_VERSION path=$WP_INSTALL_PATH)"
     local rc=0
     _install_prerequisites      || rc=$?
-    [ $rc -eq 0 ] && component_nginx_install     || rc=$?
+    [ $rc -eq 0 ] && _install_http               || rc=$?
     [ $rc -eq 0 ] && component_wordpress_install || rc=$?
+    [ $rc -eq 0 ] && component_firewall_install  || rc=$?
+    if [ $rc -eq 0 ]; then
+        # HTTP-loads check is best-effort: don't fail the whole install if
+        # the wizard page isn't reachable yet (DNS, container networking).
+        if ! component_http_verify; then
+            log_warn "[70] HTTP verification failed -- WordPress files are in place but the site did not respond as expected. Investigate before opening the install wizard."
+        fi
+    fi
     return $rc
 }
 
@@ -192,8 +237,17 @@ _check_all() {
     local rc=0
     component_mysql_verify     && log_ok "[70][verify] mysql OK"     || { log_err "[70][verify] mysql FAILED";     rc=1; }
     component_php_verify       && log_ok "[70][verify] php OK"       || { log_err "[70][verify] php FAILED";       rc=1; }
-    component_nginx_verify     && log_ok "[70][verify] nginx OK"     || { log_err "[70][verify] nginx FAILED";     rc=1; }
+    case "${WP_HTTP_SERVER:-nginx}" in
+        apache|apache2|httpd)
+            component_apache_verify && log_ok "[70][verify] apache OK" || { log_err "[70][verify] apache FAILED"; rc=1; } ;;
+        *)
+            component_nginx_verify  && log_ok "[70][verify] nginx OK"  || { log_err "[70][verify] nginx FAILED";  rc=1; } ;;
+    esac
     component_wordpress_verify && log_ok "[70][verify] wordpress OK" || { log_err "[70][verify] wordpress FAILED"; rc=1; }
+    component_http_verify      && log_ok "[70][verify] http-loads OK" || { log_err "[70][verify] http-loads FAILED"; rc=1; }
+    if [ "${WP_FIREWALL:-0}" = "1" ]; then
+        component_firewall_verify && log_ok "[70][verify] firewall OK" || { log_err "[70][verify] firewall FAILED (port ${WP_SITE_PORT}/tcp not allowed in UFW)"; rc=1; }
+    fi
     if [ $rc -eq 0 ]; then
         log_ok "[70][verify] OK -- all components reachable"
         log_info "[70][verify] site: http://${WP_SERVER_NAME}:${WP_SITE_PORT}/"
@@ -205,7 +259,9 @@ _check_all() {
 
 _uninstall_all() {
     component_wordpress_uninstall
+    component_firewall_uninstall
     component_nginx_uninstall
+    component_apache_uninstall
     # Leave php + mysql in place by default (other apps may depend on them).
     # The operator can run `install uninstall mysql` / `install uninstall php`
     # explicitly to remove those packages too.
@@ -236,7 +292,8 @@ case "$VERB" in
         ;;
     repair)
         rm -f "$ROOT/.installed/70-mysql.ok" "$ROOT/.installed/70-php.ok" \
-              "$ROOT/.installed/70-nginx.ok" "$ROOT/.installed/70-wordpress.ok"
+              "$ROOT/.installed/70-nginx.ok" "$ROOT/.installed/70-apache.ok" \
+              "$ROOT/.installed/70-wordpress.ok"
         _install_all || rc=$?
         ;;
     uninstall)
@@ -245,6 +302,8 @@ case "$VERB" in
                 mysql)     component_mysql_uninstall     ;;
                 php)       component_php_uninstall       ;;
                 nginx)     component_nginx_uninstall     ;;
+                apache)    component_apache_uninstall    ;;
+                firewall)  component_firewall_uninstall  ;;
                 wordpress|wp|wp-only) component_wordpress_uninstall ;;
             esac
         else

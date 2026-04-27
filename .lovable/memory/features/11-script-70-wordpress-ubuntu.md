@@ -96,6 +96,38 @@ a fresh fetch from `api.wordpress.org/secret-key/1.1/salt/`. Verified the
 ZIP layout contains a top-level `wordpress/` dir and that
 `wp-config-sample.php` still has all three replacement targets intact.
 
+### HTTP server, http-verify, firewall (v0.158.0)
+Three new components in `components/`:
+- `apache.sh`: full Apache2 alternative -- mpm_event + proxy_fcgi to PHP-FPM,
+  custom port via `Listen` directive, vhost at
+  `/etc/apache2/sites-available/wordpress.conf`, dual `apache2ctl configtest`
+  + `systemctl restart apache2` gates.
+- `http-verify.sh`: `component_http_verify` curls
+  `http://$WP_SERVER_NAME:$WP_SITE_PORT/` with `-L` redirect following and
+  greps for WP fingerprints (`wp-content`, `wp-includes`, generator meta,
+  Setup/Installation wizard markers). Returns rc=0 + the page `<title>` on
+  match. Distinguishes 502 (FPM down) / 503 (FPM unreachable) / 000
+  (connection failed) for clearer remediation.
+- `firewall.sh`: opt-in via `--firewall` (sets `WP_FIREWALL=1`). Installs
+  UFW if missing, runs `ufw allow $WP_SITE_PORT/tcp`, persists chosen port
+  to `.installed/70-firewall.port` so a port change auto-revokes the old
+  rule. Never auto-enables UFW (would lock SSH out of fresh hosts) -- only
+  warns if inactive.
+
+New flags in `run.sh`:
+- `--http nginx|apache`  -- selects HTTP server (default nginx). When
+  apache is chosen, nginx is `systemctl stop`+`disable`d to free :80.
+- `--firewall`           -- opens `WP_SITE_PORT/tcp` in UFW after install.
+
+`_install_all` now runs: prereqs -> http -> wordpress -> firewall ->
+http-verify (best-effort warn, doesn't fail the install). `_check_all`
+verifies the active HTTP server + http-loads + firewall (when
+`WP_FIREWALL=1`).
+
+Verified: WordPress fingerprint detection passes against the real
+`wordpress.org` (HTTP 200, follows 301), and rejects a non-WP body. Bad
+`--http oops` returns rc=2 with a clear log line.
+
 ### Repository policy (v0.155.0, confirmed)
 `components/php.sh` auto-detects Ubuntu via `/etc/os-release` and decides:
 
