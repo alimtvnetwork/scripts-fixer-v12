@@ -52,6 +52,45 @@
 
     Usage:
       .\run.ps1 os add-user-json <file.json> [--dry-run]
+
+    Dry-run effect per JSON field (when --dry-run is passed, every record
+    is still validated + planned but no host mutation occurs; each per-
+    record fan-out call is invoked with --dry-run so add-user.ps1 logs
+    the planned commands. See add-user.ps1 .DESCRIPTION for the underlying
+    "[dry-run] <cmd>" wording. Schema validation ALWAYS runs even without
+    --dry-run, so a malformed file fails fast.):
+      name              would call New-LocalUser; existing account ->
+                        [WARN] + group/hint sync still proceeds in plan mode
+      password          would call Set-LocalUser -Password <masked>; value
+                        NEVER logged
+      passwordFile      same as password but read from FILE
+      uid               IGNORED on Windows (Linux/macOS only)
+      primaryGroup      IGNORED on Windows (no-op; Linux/macOS only)
+      groups            would call Add-LocalGroupMember once per group
+      shell / home      IGNORED on Windows (no log line)
+      comment           would call net.exe user <name> /comment:"..." (used
+                        as FullName by convention)
+      sudo              would call Add-LocalGroupMember -Group Administrators
+      system            IGNORED on Windows (Linux only)
+      sshKeys           each inline key counts as a source; logs
+                        "[dry-run] would append key <fingerprint> to
+                        <user>\.ssh\authorized_keys" per unique key
+      sshKeyFiles       same as sshKeys but each file is parsed for one or
+                        many keys (blanks/# comments skipped). Path
+                        existence + readability checked even in dry-run.
+      role              alias for sudo:true / sudo:false; same dry-run line
+      pin               would write the PIN hint file under the user
+                        profile; in dry-run only the planned path is logged
+      microsoftAccount  would write the MS-account hint file and emit a
+                        [NOTICE]; in dry-run only the planned path is logged
+      msAccountOnLogon  would queue a one-shot HKCU RunOnce entry; in
+                        dry-run the planned registry path is logged
+
+    Loader-level dry-run notes:
+      - Per-record failures are counted but do NOT abort the run; the
+        loader continues with the next row and exits rc=1 if any failed.
+      - The cross-OS ledger at ~/.lovable/ssh-keys-state.json is NOT
+        updated under --dry-run.
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
