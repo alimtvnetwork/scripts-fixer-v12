@@ -40,8 +40,20 @@ Subverbs:
                                              --promote/--demote, --add-group,
                                              --remove-group, --shell, --comment,
                                              --enable/--disable, --ask, --dry-run)
+  edit-user-json  <file.json> [--dry-run]   bulk user edits from JSON
+                                            (per-record schema mirrors the
+                                             edit-user CLI flags; fields:
+                                             name, rename, password,
+                                             passwordFile, promote, demote,
+                                             addGroups[], removeGroups[],
+                                             shell, comment, enable, disable)
   remove-user     <name> [options]          delete a local user
                                             (--purge-home, --yes, --ask, --dry-run)
+  remove-user-json <file.json> [--dry-run]  bulk user removal from JSON
+                                            (object / array / wrapped /
+                                             bare-string list; --yes is
+                                             always added; missing user
+                                             is a no-op)
   bootstrap       [orchestrator flags]      parse-only orchestrator: runs all
                                             four leaves in correct order with
                                             a shared summary. See:
@@ -87,8 +99,12 @@ case "$SUBVERB" in
     exec bash "$SCRIPT_DIR/add-group-from-json.sh" "$@" ;;
   edit-user|modify-user|edituser)
     exec bash "$SCRIPT_DIR/edit-user.sh" "$@" ;;
+  edit-user-json|edit-users-json|edituser-json|modify-user-json)
+    exec bash "$SCRIPT_DIR/edit-user-from-json.sh" "$@" ;;
   remove-user|delete-user|deluser|removeuser)
     exec bash "$SCRIPT_DIR/remove-user.sh" "$@" ;;
+  remove-user-json|remove-users-json|delete-user-json|deluser-json)
+    exec bash "$SCRIPT_DIR/remove-user-from-json.sh" "$@" ;;
   gen-key|genkey|ssh-keygen)
     exec bash "$SCRIPT_DIR/gen-key.sh" "$@" ;;
   bootstrap|orchestrate|all)
