@@ -111,6 +111,7 @@ if ($targetUser -eq $env:USERNAME) {
     }
 }
 $authFile = Join-Path $profilePath ".ssh\authorized_keys"
+$sshDir   = Split-Path -Parent $authFile
 
 if (-not (Test-Path -LiteralPath $authFile)) {
     Write-Log "No authorized_keys at exact path: '$authFile' (failure: nothing to revoke for '$targetUser')" -Level "warn"
@@ -235,7 +236,15 @@ try {
     Save-LogFile -Status "fail"; exit 1
 }
 
-# ---- Re-assert ACL after Move-Item -Force (it can reset inheritance flags) ----
+# ---- Re-assert ACL on .ssh\ dir AND the file after Move-Item -Force ----
+# Parity with install-key.ps1 / gen-key.ps1: harden the parent directory too,
+# otherwise sshd StrictModes can silently reject the rewritten file if the
+# parent dir was widened out-of-band. Move-Item -Force can also reset
+# inheritance flags on the destination, so we re-harden the file unconditionally.
+if (-not (Set-SshFileAcl -Path $sshDir -User $targetUser)) {
+    Write-Log "Aborting: authorized_keys was rewritten but parent .ssh dir ACL hardening failed at exact path: '$sshDir' for user='$targetUser' (failure: see preceding icacls error). Roll back from the .bak created above." -Level "fail"
+    Save-LogFile -Status "fail"; exit 1
+}
 if (-not (Set-SshFileAcl -Path $authFile -User $targetUser)) {
     Write-Log "Aborting: authorized_keys was rewritten but ACL hardening failed -- the file is in an unsafe state at '$authFile'. Roll back from the .bak created above." -Level "fail"
     Save-LogFile -Status "fail"; exit 1

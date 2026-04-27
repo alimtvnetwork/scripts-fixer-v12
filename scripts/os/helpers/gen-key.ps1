@@ -173,7 +173,14 @@ try {
     }
 } catch {}
 
-if (Get-Command Add-SshLedgerEntry -ErrorAction SilentlyContinue) {
+# Audit-trail parity with install-key.ps1 / revoke-key.ps1: if the ledger
+# helper isn't loaded, emit a loud WARN with the helper path instead of
+# silently skipping. A generated key with no ledger row will look "unknown"
+# to later install/revoke calls.
+$hasLedger = [bool](Get-Command Add-SshLedgerEntry -ErrorAction SilentlyContinue)
+if (-not $hasLedger) {
+    Write-Log "SSH ledger helper not loaded -- audit trail at '~/.lovable/ssh-keys-state.json' will NOT record this generation. Path: $ledgerHelper" -Level "warn"
+} else {
     Add-SshLedgerEntry -Action "generate" -Fingerprint $fingerprint -KeyPath "$out.pub" -Source "gen-key" -Comment $comment | Out-Null
 }
 
