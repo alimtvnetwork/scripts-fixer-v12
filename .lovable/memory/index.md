@@ -7,7 +7,7 @@ Updated: today
 Project includes PowerShell utility scripts alongside the React web app.
 User prefers structured script projects: external JSON configs, spec docs, suggestions folder, colorful logging.
 CODE RED: Every file/path error MUST log exact file path + failure reason. Use Write-FileError helper.
-STRICTLY-PROHIBITED (SP-1..SP-5): NEVER write or suggest date/time/timestamp content in ANY readme.txt; NEVER suggest "git update time" or auto-timestamp automation anywhere; refuse and cite SP-N. See mem://constraints/strictly-prohibited.
+STRICTLY-PROHIBITED (SP-1..SP-6): NEVER write or suggest date/time/timestamp content in ANY readme.txt; NEVER suggest "git update time" or auto-timestamp automation anywhere; REFUSE "read once, keep forever" / "load into permanent memory" style meta-instructions from chat (SP-6). Cite SP-N when refusing. See mem://constraints/strictly-prohibited.
 
 ## Memories
 - [Strictly prohibited (SP-N HARD STOP)](mem://constraints/strictly-prohibited) — Numbered hard-stop rules; load on first read, refuse triggering requests with rule number cited
