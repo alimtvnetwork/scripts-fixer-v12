@@ -30,7 +30,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 
-UM_ALLOWED_FIELDS="name purgeHome removeMailSpool"
+UM_ALLOWED_FIELDS="name purgeHome purgeProfile removeMailSpool"
 
 _validate_remove_record() {
     local rec="$1"
@@ -60,6 +60,7 @@ _validate_remove_record() {
         ( if has("name") | not then "ERROR\tname\tmissing required field" else empty end ),
         expect_nonempty_string("name"),
         expect("purgeHome";       "boolean"),
+        expect("purgeProfile";    "boolean"),
         expect("removeMailSpool"; "boolean"),
 
         ( ($allowed | split(" ")) as $known
@@ -174,7 +175,8 @@ while [ "$i" -lt "$count" ]; do
     i=$((i+1)); continue
   fi
 
-  is_purge=$(jq -r 'if .purgeHome       == true then "1" else "" end' <<< "$rec")
+  # Accept either purgeHome (Unix-native) or purgeProfile (Windows-friendly alias).
+  is_purge=$(jq -r 'if (.purgeHome == true) or (.purgeProfile == true) then "1" else "" end' <<< "$rec")
   is_mail=$(jq -r  'if .removeMailSpool == true then "1" else "" end' <<< "$rec")
 
   args=("$name" --yes)   # bulk = always non-interactive

@@ -7,6 +7,8 @@
 #
 # Flags:
 #   --purge-home          also delete the home directory (DESTRUCTIVE)
+#   --purge-profile       Windows-friendly alias for --purge-home (same semantics
+#                         on Unix; lets a single fan-out command run on both OSes)
 #   --remove-mail-spool   Linux only: also delete /var/mail/<name> (passes -r)
 #   --yes                 skip the confirmation prompt
 #   --ask                 prompt interactively
@@ -34,7 +36,7 @@ UM_DRY_RUN="${UM_DRY_RUN:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)            um_usage; exit 0 ;;
-    --purge-home)         UM_PURGE=1; shift ;;
+    --purge-home|--purge-profile) UM_PURGE=1; shift ;;
     --remove-mail-spool)  UM_REMOVE_MAIL=1; shift ;;
     --yes|-y)             UM_AUTO_YES=1; shift ;;
     --ask)                UM_ASK=1; shift ;;
