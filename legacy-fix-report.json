@@ -1,11 +1,11 @@
 {
   "tool": "fix-legacy-fixer-refs.sh",
-  "generatedAt": "2026-04-27T23:00:55Z",
+  "generatedAt": "2026-04-27T23:01:58Z",
   "repoRoot": "/dev-server",
   "mode": "apply",
   "target": "scripts-fixer-v11",
   "legacyVersions": [8,9,10],
-  "backupDir": "/dev-server/.legacy-fix-backups/20260427T230030Z",
+  "backupDir": "/dev-server/.legacy-fix-backups/20260427T230132Z",
   "totals": { "filesChanged": 0, "totalReplacements": 0, "errors": 0 },
   "files": []
 }
