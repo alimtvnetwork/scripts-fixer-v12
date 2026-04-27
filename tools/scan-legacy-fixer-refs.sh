@@ -44,8 +44,9 @@ printf "\n"
 
 # Prefer ripgrep, fall back to grep -r
 if command -v rg >/dev/null 2>&1; then
-    # rg auto-skips .git and respects .gitignore. --hidden to include dotfiles.
-    OUTPUT="$(cd "$ROOT" && rg --hidden \
+    # rg with --no-ignore so we audit EVERY tracked + untracked file.
+    # We still skip obvious noise dirs and the scanner itself.
+    OUTPUT="$(cd "$ROOT" && rg --no-ignore --hidden \
         --glob '!.git' --glob '!node_modules' --glob '!dist' --glob '!build' \
         --glob '!.lovable/compliance-reports/**' \
         --glob '!tools/scan-legacy-fixer-refs.*' \
