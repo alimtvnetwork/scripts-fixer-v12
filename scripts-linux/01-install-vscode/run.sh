@@ -696,12 +696,23 @@ verb_install() {
   if verify_installed; then
     log_ok "[01] VS Code already installed"
     mkdir -p "$ROOT/.installed" && touch "$INSTALLED_MARK"
+    # Don't overwrite an existing fingerprint -- it tracks the ORIGINAL
+    # install method. Only write one if missing (legacy / external install).
+    if [ ! -f "$FINGERPRINT_FILE" ]; then
+        local detected_method=""
+        if   is_apt_pkg_installed code 2>/dev/null;  then detected_method="apt"
+        elif is_snap_pkg_installed code 2>/dev/null; then detected_method="snap"
+        else detected_method="unknown"
+        fi
+        _write_install_fingerprint "$detected_method" "stable"
+    fi
     return 0
   fi
   if is_debian_family && is_apt_available; then
     if install_via_ms_repo; then
       log_ok "[01] VS Code installed via Microsoft apt repo"
       mkdir -p "$ROOT/.installed" && touch "$INSTALLED_MARK"
+      _write_install_fingerprint "apt" "stable"
       return 0
     fi
     log_warn "[01] apt path failed -- trying snap fallback"
@@ -710,6 +721,7 @@ verb_install() {
     if install_via_snap; then
       log_ok "[01] VS Code installed via snap"
       mkdir -p "$ROOT/.installed" && touch "$INSTALLED_MARK"
+      _write_install_fingerprint "snap" "stable"
       return 0
     fi
   fi
@@ -725,11 +737,14 @@ verb_check() {
 verb_repair() { rm -f "$INSTALLED_MARK"; verb_install; }
 
 verb_uninstall() {
+  _resolve_install_scope
   if is_apt_pkg_installed code; then sudo apt-get remove -y code; fi
   if is_snap_pkg_installed code; then sudo snap remove code; fi
   _clean_mime_defaults
   _clean_vscode_desktop_entries
   _clean_context_menu_entries
+  # Only delete the fingerprint AFTER the cleaners have used it.
+  rm -f "$FINGERPRINT_FILE"
   rm -f "$INSTALLED_MARK"
   log_ok "[01] VS Code uninstalled"
 }
