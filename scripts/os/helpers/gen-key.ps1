@@ -21,6 +21,34 @@
     so future install-key / revoke-key calls can correlate it.
 
     CODE RED: every file/path error logs the EXACT path + reason.
+
+    Dry-run effect per flag (with --dry-run, ssh-keygen.exe is NOT
+    invoked, the cross-OS ledger at $HOME\.lovable\ssh-keys-state.json
+    is NOT updated, and no files are written; the planned command is
+    logged as "[dry-run] ssh-keygen ..." with the resolved arguments.
+    The ssh-keygen-binary check is also SKIPPED so dry-run works on
+    stripped hosts.):
+      --type ed25519|rsa          would pass -t <type> to ssh-keygen
+      --bits N                    would pass -b N (rsa only); ignored
+                                  for ed25519 with no log line
+      --out <path>                would pass -f <path>; parent dir is
+                                  checked for writability but NOT created
+      --comment "..."             would pass -C "..."
+      --passphrase <pw>           would pass -N <masked>; value NEVER
+                                  logged
+      --no-passphrase             would pass -N "" (empty passphrase)
+      --ask                       prompts BEFORE the dry-run banner;
+                                  collected passphrase still drives the
+                                  masked log line
+      --force                     no dry-run effect on its own; in
+                                  real-run it would Remove-Item the
+                                  existing private + public key first
+                                  (logged as such in dry-run only if the
+                                  key exists today)
+      --dry-run                   this flag itself; emits the dry-run
+                                  banner, skips the ssh-keygen-binary
+                                  check, and gates every Remove-Item /
+                                  ssh-keygen / ledger-write call
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
