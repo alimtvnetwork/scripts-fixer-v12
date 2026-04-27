@@ -798,6 +798,31 @@ Common flags accepted by every subcommand: `-Edition stable|insiders`,
 `-SnapshotDir <path>`, `-RequireSignature`, `-NonInteractive`,
 `-RestoreFromFile <path>` (for `restore`).
 
+#### Edition selection (Stable vs Insiders)
+
+The repair targets a specific VS Code build. Pick one with `-Edition`:
+
+| Edition    | Target executable                                                | Registry key suffix | Menu label                  |
+| ---------- | ---------------------------------------------------------------- | ------------------- | --------------------------- |
+| `stable`   | `Code.exe` (default install)                                     | `VSCode`            | **Open with Code**          |
+| `insiders` | `Code - Insiders.exe`                                            | `VSCodeInsiders`    | **Open with Code - Insiders** |
+
+- **Auto-detect (default)**: omit `-Edition` and the script picks whichever
+  edition is installed. If both are installed, **Stable wins** unless you
+  pass `-Edition insiders` explicitly.
+- **Force one**: `-Edition stable` or `-Edition insiders` skips detection
+  and operates only on that build's three registry targets
+  (`*\shell\<key>`, `Directory\shell\<key>`, `Directory\Background\shell\<key>`).
+- **Both side-by-side**: run the command twice — once per edition. Each run
+  writes its own `BEFORE` snapshot under `-SnapshotDir`, so `restore` /
+  `rollback` stay independent per edition.
+- **CI / unattended**: `-NonInteractive` defaults to `stable` when no
+  edition is passed and no edition can be detected.
+- **Settings page**: the React app at `/settings` lets you pick the edition
+  visually and download a merged `config.json` you can drop into
+  `scripts/52-vscode-folder-repair/`.
+
+
 ```powershell
 # Default: auto-detect edition, repair, restart Explorer
 .\run.ps1 vscode-folder
