@@ -82,18 +82,24 @@ $sshDir = Join-Path $env:USERPROFILE ".ssh"
 if (-not $out) { $out = Join-Path $sshDir "id_$type" }
 if (-not $comment) { $comment = "$env:USERNAME@$env:COMPUTERNAME" }
 
+# Re-derive $sshDir from --out so cross-user / non-default --out paths get
+# the same hardening as the default %USERPROFILE%\.ssh path.
+$sshDir = Split-Path -Parent $out
+
+# Detect "owning user" of $sshDir for cross-user ACL hardening:
+# if the parent of $sshDir is C:\Users\<u>, treat <u> as target.
+# Mirrors the Linux /home/<u> + /Users/<u> detection in gen-key.sh.
+$targetUser = $null
+$sshParent  = Split-Path -Parent $sshDir
+if ($sshParent -and (Split-Path -Leaf (Split-Path -Parent $sshParent)) -eq "Users") {
+    $targetUser = Split-Path -Leaf $sshParent
+}
+
 # Resolve interactive passphrase.
 if ($hasAsk -and -not $hasNoPass -and [string]::IsNullOrEmpty($passphrase)) {
     if (Get-Command Read-PromptSecret -ErrorAction SilentlyContinue) {
         $passphrase = Read-PromptSecret -Prompt "Passphrase (blank = none)"
     }
-}
-
-# ---- Validate ssh-keygen exists ----
-$keygen = Get-Command ssh-keygen -ErrorAction SilentlyContinue
-if (-not $keygen) {
-    Write-Log "ssh-keygen not found on PATH (failure: install OpenSSH client). Try: 'Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0'" -Level "fail"
-    Save-LogFile -Status "fail"; exit 127
 }
 
 # ---- Idempotency check ----
@@ -122,8 +128,16 @@ if ($hasDryRun) {
     Write-Host "    Comment     : $comment"
     Write-Host "    Passphrase  : $(if ($hasNoPass -or [string]::IsNullOrEmpty($passphrase)) { '(none)' } else { '(set)' })"
     Write-Host "    Force       : $hasForce"
+    if ($targetUser) { Write-Host "    Owner (post): $targetUser (ACL applied at apply time)" }
     Write-Host ""
     Save-LogFile -Status "ok"; exit 0
+}
+
+# ---- Validate ssh-keygen exists (after dry-run so dry-run works on stripped hosts) ----
+$keygen = Get-Command ssh-keygen -ErrorAction SilentlyContinue
+if (-not $keygen) {
+    Write-Log "ssh-keygen not found on PATH (failure: install OpenSSH client). Try: 'Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0'" -Level "fail"
+    Save-LogFile -Status "fail"; exit 127
 }
 
 # ---- Build ssh-keygen args ----
@@ -161,6 +175,28 @@ try {
 if (Get-Command Add-SshLedgerEntry -ErrorAction SilentlyContinue) {
     Add-SshLedgerEntry -Action "generate" -Fingerprint $fingerprint -KeyPath "$out.pub" -Source "gen-key" -Comment $comment | Out-Null
 }
+
+# ---- ACL hardening (CODE RED -- never swallow icacls failures) ----
+# Same restrictive set the Linux numeric chown produces: only the
+# owning user, SYSTEM, and Administrators may read. Inheritance disabled.
+# When $targetUser is unset (default %USERPROFILE%\.ssh), use $env:USERNAME.
+$aclUser = if ($targetUser) { $targetUser } else { $env:USERNAME }
+$aclTargets = @($sshDir, $out, "$out.pub")
+foreach ($t in $aclTargets) {
+    # /inheritance:r  -> remove inherited ACEs
+    # /grant:r        -> replace any existing grants for the principal
+    & icacls $t /inheritance:r 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "sshAclHardenFail: icacls /inheritance:r failed at exact path: '$t' for user='$aclUser' (failure: icacls exit $LASTEXITCODE)" -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
+    }
+    & icacls $t /grant:r "${aclUser}:(F)" "SYSTEM:(F)" "Administrators:(F)" 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "sshAclHardenFail: icacls /grant:r failed at exact path: '$t' for user='$aclUser' (failure: icacls exit $LASTEXITCODE)" -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
+    }
+}
+Write-Log "sshAclHardened: applied restrictive ACL ($aclUser + SYSTEM + Administrators) to SSH dir + keypair at '$sshDir'." -Level "info"
 
 Write-Host ""
 Write-Host "  Key Generation Summary" -ForegroundColor Cyan
