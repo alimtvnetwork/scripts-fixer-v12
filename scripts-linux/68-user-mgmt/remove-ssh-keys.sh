@@ -14,6 +14,9 @@
 #   ./remove-ssh-keys.sh --run-id <id> [--dry-run] [--manifest-dir DIR]
 #                                      [--keep-manifest]
 #   ./remove-ssh-keys.sh --manifest <path> [--dry-run] [--keep-manifest]
+#   ./remove-ssh-keys.sh --prune [--older-than DAYS] [--keep-last N]
+#                                [--max-total N] [--dry-run]
+#                                [--manifest-dir DIR]
 #
 # Exit codes:
 #   0  success (or dry-run completed cleanly)
@@ -24,6 +27,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
+. "$SCRIPT_DIR/helpers/_manifest_prune.sh"
 
 um_usage() {
   cat <<EOF
