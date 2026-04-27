@@ -154,9 +154,12 @@ function Invoke-OsClean {
     Write-Info ("delegating: pwsh `"{0}`" {1}" -f $OsRunner, ($allArgs -join ' '))
     # Capture both streams. We use & with a redirection to a file; the file
     # is the source of truth, and we also stream to console so the operator
-    # sees progress live.
+    # sees progress live. CRITICAL: pipe the Tee output to Out-Host so it
+    # does NOT contaminate the function's return value (otherwise the
+    # caller receives an array of HostInformation records instead of $rc).
+    $rc = 0
     try {
-        & $OsRunner @allArgs *>&1 | Tee-Object -LiteralPath $OutFile
+        & $OsRunner @allArgs *>&1 | Tee-Object -LiteralPath $OutFile | Out-Host
         $rc = $LASTEXITCODE
         if ($null -eq $rc) { $rc = 0 }
     } catch {
@@ -164,7 +167,8 @@ function Invoke-OsClean {
         $rc = 30
         $_.Exception.Message | Add-Content -LiteralPath $OutFile
     }
-    return $rc
+    # Force scalar int return -- prevents pipeline contamination upstream.
+    return [int]$rc
 }
 
 # ---- Parse a captured `os clean` output into per-category row counts -----
