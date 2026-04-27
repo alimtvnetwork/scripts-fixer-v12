@@ -89,6 +89,8 @@ case "$SUBVERB" in
     exec bash "$SCRIPT_DIR/edit-user.sh" "$@" ;;
   remove-user|delete-user|deluser|removeuser)
     exec bash "$SCRIPT_DIR/remove-user.sh" "$@" ;;
+  gen-key|genkey|ssh-keygen)
+    exec bash "$SCRIPT_DIR/gen-key.sh" "$@" ;;
   bootstrap|orchestrate|all)
     exec bash "$SCRIPT_DIR/orchestrate.sh" "$@" ;;
   verify|check|verify-state)
