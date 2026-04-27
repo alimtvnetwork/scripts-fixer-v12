@@ -4,7 +4,7 @@ description: add-user.sh / add-user-from-json.sh write a fingerprint manifest pe
 type: feature
 ---
 
-# Script 68 -- ssh-key rollback (v0.172.0)
+# Script 68 -- ssh-key rollback (v0.172.0, counters renamed in v0.173.0)
 
 Closes the loop on the SSH-key install pipeline. Every `add-user.sh` run
 that actually appends keys writes a JSON manifest containing the
@@ -92,3 +92,26 @@ remove-ssh-keys.sh --manifest <path>        # roll back from arbitrary file
 Every file/path failure path logs the exact path + reason via
 `log_file_error` or `manifestWriteFail` / `manifestParseFail` /
 `removeWriteFail` / `removeNoAuthKeys`. No silent skips.
+
+## v0.173.0 -- counter rename
+
+The single ambiguous "requested vs installed" pair was split into a
+5-stage pipeline so the summary tells the operator exactly what
+happened at each step:
+
+| Counter                  | Meaning |
+|--------------------------|---------|
+| `sources_requested`      | `--ssh-key` + `--ssh-key-file` + `--ssh-key-url` flag count (one per flag, regardless of how many keys each source carries) |
+| `keys_parsed`            | Non-blank, non-comment, algo-valid key lines read from all sources -- BEFORE intra-run de-dup |
+| `keys_unique`            | `keys_parsed` minus duplicates within this run |
+| `keys_installed_new`     | Net-new lines actually appended to `authorized_keys` |
+| `keys_preserved`         | Pre-existing lines we left untouched |
+
+Console summary now reads e.g.
+`sources=3 parsed=5 unique=2 installed_new=2 preserved=1`.
+
+Old names removed: `UM_SSH_REQUESTED_COUNT`, `UM_SSH_INSTALLED_COUNT`.
+New names: `UM_SSH_SOURCES_REQUESTED`, `UM_SSH_KEYS_PARSED`,
+`UM_SSH_KEYS_UNIQUE`, `UM_SSH_KEYS_INSTALLED_NEW`,
+`UM_SSH_KEYS_PRESERVED`. `sshKeyInstalled` log template now takes 6
+args; `sshKeyNoneValid` wording clarified to "source(s)".
