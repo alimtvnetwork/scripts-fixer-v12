@@ -65,9 +65,11 @@ alt="$(echo "$FIX_VERSIONS" | tr ' ' '|')"
 match_re="scripts-fixer-v(${alt})"
 
 # Skip patterns
-prune_dirs='-name .git -o -name node_modules -o -name dist -o -name build -o -name .next -o -name .turbo -o -name .cache -o -name coverage -o -name .lovable'
+prune_dirs='-name .git -o -name node_modules -o -name dist -o -name build -o -name .next -o -name .turbo -o -name .cache -o -name coverage -o -name .lovable -o -name .legacy-fix-backups'
 skip_ext_re='\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tgz|7z|rar|exe|dll|bin|lockb|woff2?|ttf|otf|mp3|mp4|mov|wav)$'
 self_re='-legacy-(fixer-refs|refs)\.(sh|ps1)$'
+# Documentation files we never rewrite (they intentionally describe the migration).
+docs_re='^tools/readme\.md$'
 
 changed_files=0
 total_replacements=0
