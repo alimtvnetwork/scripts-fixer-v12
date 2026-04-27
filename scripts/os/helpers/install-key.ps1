@@ -36,16 +36,22 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 
 . (Join-Path $sharedDir "logging.ps1")
 . (Join-Path $sharedDir "json-utils.ps1")
+. (Join-Path $helpersDir "_common.ps1")
 $promptHelper = Join-Path $helpersDir "_prompt.ps1"
 if (Test-Path $promptHelper) { . $promptHelper }
 $ledgerHelper = Join-Path $helpersDir "_ssh-ledger.ps1"
 if (Test-Path $ledgerHelper) { . $ledgerHelper }
+
+$logMessages = $null
+$logMsgPath = Join-Path $scriptDir "log-messages.json"
+if (Test-Path $logMsgPath) { $logMessages = Import-JsonConfig $logMsgPath }
 
 Initialize-Logging -ScriptName "Install Key"
 
 # ---- Parse ----
 $keys = @(); $keyFiles = @(); $targetUser = $null
 $hasAsk = $false; $hasDryRun = $false; $doBackup = $true
+$backupExplicit = $false   # tracks whether the user explicitly chose --no-backup
 
 $i = 0
 while ($i -lt $Argv.Count) {
@@ -56,8 +62,8 @@ while ($i -lt $Argv.Count) {
         '^--user$'        { $i++; if ($i -lt $Argv.Count) { $targetUser = $Argv[$i] } }
         '^--ask$'         { $hasAsk = $true }
         '^--dry-run$'     { $hasDryRun = $true }
-        '^--backup$'      { $doBackup = $true }
-        '^--no-backup$'   { $doBackup = $false }
+        '^--backup$'      { $doBackup = $true;  $backupExplicit = $true }
+        '^--no-backup$'   { $doBackup = $false; $backupExplicit = $true }
         '^--' {
             Write-Log "Unknown flag: '$a' (failure: see --help)" -Level "fail"
             Save-LogFile -Status "fail"; exit 64
@@ -80,6 +86,14 @@ if ($hasAsk -and (Get-Command Read-PromptString -ErrorAction SilentlyContinue)) 
 }
 
 if (-not $targetUser) { $targetUser = $env:USERNAME }
+
+# ---- Admin elevation (required when writing under another user's profile) ----
+$needsAdmin = ($targetUser -ne $env:USERNAME)
+if ($needsAdmin -and -not $hasDryRun) {
+    $forwardArgs = @($Argv | Where-Object { $_ -ne "--ask" })
+    $isAdminOk = Assert-Admin -ScriptPath $MyInvocation.MyCommand.Definition -ForwardArgs $forwardArgs -LogMessages $logMessages
+    if (-not $isAdminOk) { Save-LogFile -Status "fail"; exit 1 }
+}
 
 # ---- Resolve target authorized_keys path ----
 $profilePath = $null
@@ -217,6 +231,12 @@ if (-not (Test-Path -LiteralPath $sshDir)) {
         Save-LogFile -Status "fail"; exit 1
     }
 }
+# Harden the .ssh\ directory ACL BEFORE we write any key material into it.
+# OpenSSH StrictModes will silently reject keys if the parent dir is world-readable.
+if (-not (Set-SshFileAcl -Path $sshDir -User $targetUser -DryRun:$hasDryRun)) {
+    Write-Log "Aborting: could not harden ACL on SSH dir '$sshDir' (refusing to write key material into a world-readable dir)" -Level "fail"
+    Save-LogFile -Status "fail"; exit 1
+}
 
 # ---- Backup existing file ----
 if ($doBackup -and (Test-Path -LiteralPath $authFile)) {
@@ -226,7 +246,11 @@ if ($doBackup -and (Test-Path -LiteralPath $authFile)) {
         Copy-Item -LiteralPath $authFile -Destination $backupPath -ErrorAction Stop
         Write-Log "Backed up authorized_keys to '$backupPath'." -Level "info"
     } catch {
-        Write-Log "Failed to back up authorized_keys to exact path: '$backupPath' (failure: $($_.Exception.Message))" -Level "warn"
+        # If the user explicitly chose --backup (or accepted the default), we
+        # MUST NOT mutate authorized_keys after a failed backup -- that would
+        # leave them with no rollback path. Pass --no-backup to override.
+        Write-Log "Failed to back up authorized_keys at exact path: '$backupPath' (failure: $($_.Exception.Message)). Tool: Copy-Item. Aborting -- pass --no-backup to override." -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
     }
 }
 
@@ -239,6 +263,10 @@ if ($merged.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($merged[-1])) {
 }
 $merged += $toInstall
 
+# Write the merged content to a temp file in the SAME directory so:
+#   1. Move-Item is atomic (same volume).
+#   2. The temp file inherits the already-hardened .ssh\ ACL we set above
+#      (no widening window where the key body sits in a world-readable temp).
 $tmpFile = "$authFile.tmp"
 try {
     Set-Content -LiteralPath $tmpFile -Value ($merged -join "`n") -Encoding ASCII -NoNewline:$false -ErrorAction Stop
@@ -249,21 +277,28 @@ try {
     Save-LogFile -Status "fail"; exit 1
 }
 
-# ---- Lock down ACL: owner-only ----
-try {
-    icacls.exe "$authFile" /inheritance:r /grant:r "${targetUser}:F" 2>&1 | Out-Null
-} catch {
-    Write-Log "Failed to harden ACL on '$authFile' (failure: $($_.Exception.Message))" -Level "warn"
+# ---- Lock down ACL on authorized_keys (re-asserted after Move-Item) ----
+# Move-Item -Force can replace inheritance flags depending on the temp file's
+# original ACL, so we always re-harden after writing. Failure is FATAL: if we
+# can't lock the file, sshd will reject it under StrictModes anyway -- better
+# to abort loudly than ship an unusable key.
+if (-not (Set-SshFileAcl -Path $authFile -User $targetUser)) {
+    Write-Log "Aborting: authorized_keys was written but ACL hardening failed -- the file is in an unsafe state at '$authFile'. Roll back from the .bak created above." -Level "fail"
+    Save-LogFile -Status "fail"; exit 1
 }
 
 # ---- Ledger ----
+$hasLedger = [bool](Get-Command Add-SshLedgerEntry -ErrorAction SilentlyContinue)
+if (-not $hasLedger) {
+    Write-Log "SSH ledger helper not loaded -- audit trail at '~/.lovable/ssh-keys-state.json' will NOT record this install. Path: $ledgerHelper" -Level "warn"
+}
 foreach ($k in $toInstall) {
     $fp = Get-KeyFingerprint -Line $k
     $body = Get-KeyBody -Line $k
     $cmt = $null
     $parts = ($k -split '\s+', 3)
     if ($parts.Count -ge 3) { $cmt = $parts[2] }
-    if (Get-Command Add-SshLedgerEntry -ErrorAction SilentlyContinue) {
+    if ($hasLedger) {
         Add-SshLedgerEntry -Action "install" -Fingerprint $fp -KeyPath $authFile -Source "install-key" -Comment $cmt | Out-Null
     }
     Write-Log "Installed key $(if ($fp) { $fp } else { '(no fp)' }) for user '$targetUser'." -Level "success"
