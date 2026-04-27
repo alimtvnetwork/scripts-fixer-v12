@@ -260,7 +260,7 @@ fi
 
 # T8 -- edit-user without positional prints usage AND exits 64
 out=$(bash "$RUN" edit-user --dry-run 2>&1); rc=$?
-if [ $rc -eq 64 ] && echo "$out" | grep -qiE 'usage:.*edit-user'; then
+if [ $rc -eq 64 ] && echo "$out" | grep -qi 'usage:' && echo "$out" | grep -q 'edit-user.sh'; then
   _pass "T8 edit-user missing positional prints usage + exit 64"
 else
   _fail "T8 edit-user missing positional" "rc=64 + 'Usage:' line" "rc=$rc out=$(echo "$out" | head -5)"
@@ -268,7 +268,7 @@ fi
 
 # T8b -- remove-user without positional prints usage AND exits 64
 out=$(bash "$RUN" remove-user --dry-run 2>&1); rc=$?
-if [ $rc -eq 64 ] && echo "$out" | grep -qiE 'usage:.*remove-user'; then
+if [ $rc -eq 64 ] && echo "$out" | grep -qi 'usage:' && echo "$out" | grep -q 'remove-user.sh'; then
   _pass "T8b remove-user missing positional prints usage + exit 64"
 else
   _fail "T8b remove-user missing positional" "rc=64 + 'Usage:' line" "rc=$rc out=$(echo "$out" | head -5)"
