@@ -24,6 +24,11 @@
 # Flags:
 #   --interactive | -i    prompt for port / data dir / php version /
 #                         install path / site port / db name|user|pass
+#   --keep-salts          (reconfigure only) preserve existing salts in
+#                         wp-config.php instead of rotating them. Use this
+#                         when you only need to update DB credentials and
+#                         do NOT want to invalidate active user sessions
+#                         and password-reset cookies.
 #   --apt-refresh <mode>  refresh APT before installing MySQL + PHP-FPM in the
 #                         prereqs stage. Modes:
 #                           none           -- skip (default)
@@ -143,6 +148,12 @@ export WP_HTTPS_WILDCARD="0"    # 1 = request *.<apex> + apex (forces DNS-01)
 export WP_SHOW_CREDENTIALS="0"  # 1 = print credentials block after install
 SHOW_CREDS_JSON="0"             # 1 = show-credentials verb emits raw JSON
 
+# ---- reconfigure knobs -----------------------------------------------------
+# WP_KEEP_SALTS=1 (set by --keep-salts) tells the reconfigure path to
+# preserve the 8 salt define() lines from the existing wp-config.php so
+# active sessions remain valid. Default 0 = always rotate salts.
+export WP_KEEP_SALTS="0"
+
 # ---- prereqs.apt_refresh default (config.json overrides hardcoded "none") ---
 # Not exported here -- _resolve_apt_refresh_default does the JSON read after
 # arg parsing so an explicit --apt-refresh on the CLI always wins.
@@ -163,9 +174,12 @@ while [ $# -gt 0 ]; do
                     SUBCOMPONENT="$1"; shift ;;
             esac
             ;;
+        reconfigure|reconfig|rewrite-config)
+            VERB="reconfigure"; shift ;;
         show-credentials|show-creds|creds)
             VERB="show-credentials"; shift ;;
         -i|--interactive)  INTERACTIVE=1; shift ;;
+        --keep-salts)      WP_KEEP_SALTS=1; shift ;;
         --apt-refresh)     WP_APT_REFRESH="$2"; shift 2 ;;
         --apt-refresh=*)   WP_APT_REFRESH="${1#--apt-refresh=}"; shift ;;
         --apt-update)      WP_APT_REFRESH="update";  shift ;;
@@ -261,7 +275,7 @@ _run_interactive() {
     WP_DB_PASS="$(_prompt      'DB password (blank = auto-generate)' "$WP_DB_PASS")"
     export WP_DB_ENGINE WP_PHP_VERSION WP_MYSQL_PORT WP_MYSQL_DATADIR \
            WP_INSTALL_PATH WP_SITE_PORT WP_SERVER_NAME \
-           WP_DB_NAME WP_DB_USER WP_DB_PASS WP_APT_REFRESH
+           WP_DB_NAME WP_DB_USER WP_DB_PASS WP_APT_REFRESH WP_KEEP_SALTS
 }
 
 if [ "$INTERACTIVE" = "1" ] && [ "$VERB" = "install" ]; then
@@ -531,6 +545,12 @@ case "$VERB" in
             component_wordpress_show_credentials || rc=$?
         fi
         ;;
+    reconfigure)
+        # Re-run wp-config.php generation (only) using current DB env values.
+        # No download / no extract / no chown of WordPress files. Backs up
+        # the existing wp-config.php to wp-config.php.bak.<UTC-ts> first.
+        component_wordpress_reconfigure || rc=$?
+        ;;
     repair)
         rm -f "$ROOT/.installed/70-mysql.ok" "$ROOT/.installed/70-php.ok" \
               "$ROOT/.installed/70-nginx.ok" "$ROOT/.installed/70-apache.ok" \
@@ -553,7 +573,7 @@ case "$VERB" in
         fi
         ;;
     *)
-        log_err "[70] Unknown verb: '$VERB' -- use install|check|repair|uninstall"
+        log_err "[70] Unknown verb: '$VERB' -- use install|check|repair|uninstall|reconfigure|show-credentials"
         rc=2
         ;;
 esac

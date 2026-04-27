@@ -245,6 +245,246 @@ _wp_mysql_run() {
     sudo mysql -uroot -e "$sql" 2>&1
 }
 
+# _wp_write_config <install_path> <db_name> <db_user> <db_pass> <db_host> <db_port> [<keep_salts:0|1>]
+# Generates wp-config.php from wp-config-sample.php with the supplied DB
+# credentials and either fresh or preserved salts. Single source of truth
+# used by BOTH the initial install and the reconfigure path so the two
+# can never diverge.
+#
+# keep_salts=0 (default): fetches a fresh salt set from
+#   api.wordpress.org/secret-key/1.1/salt/ and replaces the entire SALT
+#   block. Use this on a fresh install or when rotating salts.
+# keep_salts=1: preserves the existing 8 salt define() lines from a
+#   pre-existing wp-config.php. Use this in reconfigure mode when only
+#   DB credentials change -- avoids invalidating active user sessions
+#   and password reset cookies.
+#
+# Always runs the strict component_wordpress_verify_config gate at the
+# end so a broken file never lands. Returns 0 only on full success.
+_wp_write_config() {
+    local install_path="$1"
+    local db_name="$2"
+    local db_user="$3"
+    local db_pass="$4"
+    local db_host="$5"
+    local db_port="$6"
+    local keep_salts="${7:-0}"
+
+    local cfg="$install_path/wp-config.php"
+    local sample="$install_path/wp-config-sample.php"
+
+    if [ ! -f "$sample" ]; then
+        log_file_error "$sample" "wp-config-sample.php missing -- WordPress files were not extracted (run 'install wp' first)"
+        return 1
+    fi
+
+    # Capture existing salt block BEFORE we overwrite the file (only if asked).
+    local preserved_salts=""
+    if [ "$keep_salts" = "1" ]; then
+        if [ -f "$cfg" ]; then
+            preserved_salts="$(sudo grep -E "define\(\s*['\"]?(AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT)['\"]?" "$cfg" 2>/dev/null || true)"
+            local preserved_count
+            preserved_count="$(printf '%s\n' "$preserved_salts" | grep -c "define(" || true)"
+            if [ "$preserved_count" -lt 8 ]; then
+                log_warn "[70][wp][reconfigure] --keep-salts requested but found only $preserved_count/8 salt lines -- will fetch fresh set instead"
+                preserved_salts=""
+            else
+                log_info "[70][wp][reconfigure] preserving 8 existing salts from current wp-config.php"
+            fi
+        else
+            log_warn "[70][wp][reconfigure] --keep-salts requested but $cfg does not exist yet -- will fetch fresh salts"
+        fi
+    fi
+
+    log_info "[70][wp] writing $cfg (keep_salts=$keep_salts)"
+    if ! sudo cp "$sample" "$cfg"; then
+        log_file_error "$cfg" "cp from wp-config-sample.php failed"
+        return 1
+    fi
+    if ! sudo sed -i \
+            -e "s/database_name_here/${db_name}/" \
+            -e "s/username_here/${db_user}/" \
+            -e "s|password_here|${db_pass}|" \
+            -e "s/localhost/${db_host}:${db_port}/" \
+            "$cfg"; then
+        log_file_error "$cfg" "sed replacement failed for DB credentials"
+        return 1
+    fi
+
+    # Resolve the salt block: preserved -> reuse; else fetch fresh.
+    local salts="$preserved_salts"
+    if [ -z "$salts" ]; then
+        salts="$(curl -fsSL https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || echo '')"
+    fi
+
+    if [ -n "$salts" ]; then
+        local tmp; tmp="$(mktemp)"
+        # NOTE: WordPress ships wp-config-sample.php with CRLF line endings,
+        # which makes the `;$` end-of-line anchor below fail to match the
+        # placeholder salt lines (the trailing \r sits between ; and \n).
+        # Normalise to LF first so the awk strip works for BOTH the initial
+        # install (CRLF source) and reconfigure-on-existing (LF after first
+        # write). Without this, salts pile up on every reconfigure call.
+        sudo sed -i 's/\r$//' "$cfg"
+        # shellcheck disable=SC2024 # tmp is operator-owned (mktemp); no sudo redirect needed
+        sudo awk '!/define\(.*(AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT).*\);$/' \
+            "$cfg" > "$tmp"
+        printf '\n%s\n' "$salts" >> "$tmp"
+        if ! sudo mv "$tmp" "$cfg"; then
+            log_file_error "$cfg" "mv of salted wp-config.php failed (source: $tmp)"
+            return 1
+        fi
+        sudo chown www-data:www-data "$cfg" || true
+        sudo chmod 640 "$cfg" || true
+        if [ -n "$preserved_salts" ]; then
+            log_ok "[70][wp] wp-config.php written with preserved salts (sessions remain valid)"
+        else
+            log_ok "[70][wp] wp-config.php written with fresh API salts"
+        fi
+    else
+        log_warn "[70][wp] could not fetch fresh salts from api.wordpress.org -- wp-config.php contains the placeholder salts; rotate them manually"
+    fi
+
+    if ! component_wordpress_verify_config \
+            "$install_path" "$db_name" "$db_user" "$db_pass" "$db_host" "$db_port"; then
+        log_err "[70][wp] wp-config.php verification failed -- file is broken (see errors above)"
+        return 1
+    fi
+    return 0
+}
+
+# _wp_save_credentials_record <install_path> <db_engine> <db_host> <db_port> <db_name> <db_user> <db_pass>
+# Writes the chmod-600 credentials record used by `show-credentials` and
+# operator recovery. Single source of truth so install + reconfigure both
+# emit the exact same JSON layout.
+_wp_save_credentials_record() {
+    local install_path="$1" db_engine="$2" db_host="$3" db_port="$4"
+    local db_name="$5" db_user="$6" db_pass="$7"
+    local rec_dir="$ROOT/.installed"
+    local rec="$rec_dir/70-wordpress-credentials.json"
+    if ! mkdir -p "$rec_dir"; then
+        log_file_error "$rec_dir" "mkdir -p failed for credentials record dir"
+        return 1
+    fi
+    cat > "$rec" <<EOF
+{
+  "install_path": "$install_path",
+  "site_url": "http://${WP_SERVER_NAME:-localhost}:${WP_SITE_PORT:-80}/",
+  "db_engine": "$db_engine",
+  "db_host": "$db_host",
+  "db_port": $db_port,
+  "db_name": "$db_name",
+  "db_user": "$db_user",
+  "db_pass": "$db_pass",
+  "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    chmod 600 "$rec" 2>/dev/null || true
+    log_info "[70][wp] credentials saved -> $rec (chmod 600)"
+    return 0
+}
+
+# component_wordpress_reconfigure
+# Re-runs ONLY the wp-config.php generation step (and the matching DB
+# grant) using current WP_DB_NAME / WP_DB_USER / WP_DB_PASS / WP_MYSQL_PORT
+# / WP_INSTALL_PATH values. WordPress files themselves are NOT touched --
+# no download, no extract, no chown of the docroot. Use this when:
+#   - You rotated the DB password and need wp-config.php to reflect it.
+#   - You changed the MySQL port and the cached host:port in wp-config.php
+#     is stale.
+#   - You renamed the DB user or DB itself.
+#   - You want to rotate salts independently (omit --keep-salts).
+#
+# Safety:
+#   - Refuses to run if $install_path/wp-config-sample.php is missing
+#     (means WordPress files aren't extracted -- use 'install wp' instead).
+#   - Backs up the existing wp-config.php to wp-config.php.bak.<UTC-ts>
+#     before overwriting, so a manual rollback is one `mv` away.
+#   - Honours WP_KEEP_SALTS=1 (set by --keep-salts) to preserve existing
+#     salts and avoid logging users out.
+#   - Runs the same strict verify_config gate as install (DB creds match,
+#     8 unique salts, no placeholders, php -l clean).
+#   - Updates .installed/70-wordpress-credentials.json so show-credentials
+#     reflects the new state.
+component_wordpress_reconfigure() {
+    local install_path="${WP_INSTALL_PATH:-/var/www/wordpress}"
+    local db_name="${WP_DB_NAME:-wordpress}"
+    local db_user="${WP_DB_USER:-wp_user}"
+    local db_pass="${WP_DB_PASS:-}"
+    local db_host="127.0.0.1"
+    local db_port="${WP_MYSQL_PORT:-3306}"
+    local keep_salts="${WP_KEEP_SALTS:-0}"
+
+    log_info "[70][wp][reconfigure] starting (path=$install_path db=$db_name user=$db_user keep_salts=$keep_salts)"
+
+    # Refuse if WordPress files are not present.
+    if [ ! -d "$install_path" ]; then
+        log_file_error "$install_path" "install path does not exist -- run 'install wp' first to extract WordPress files"
+        return 1
+    fi
+    if [ ! -f "$install_path/wp-config-sample.php" ]; then
+        log_file_error "$install_path/wp-config-sample.php" "wp-config-sample.php missing -- WordPress files are not extracted; run 'install wp' first"
+        return 1
+    fi
+
+    if [ -z "$db_pass" ]; then
+        db_pass="$(_wp_genpass)"
+        log_info "[70][wp][reconfigure] auto-generated DB password (24 chars) -- pass --db-pass to use a specific value"
+    fi
+
+    # Backup current wp-config.php before overwrite.
+    local cfg="$install_path/wp-config.php"
+    if [ -f "$cfg" ]; then
+        local ts; ts="$(date -u +%Y%m%dT%H%M%SZ)"
+        local bak="$cfg.bak.$ts"
+        if sudo cp -p "$cfg" "$bak"; then
+            log_ok "[70][wp][reconfigure] backed up existing wp-config.php -> $bak"
+        else
+            log_file_error "$bak" "cp backup failed -- aborting reconfigure to avoid losing original (source: $cfg)"
+            return 1
+        fi
+    else
+        log_warn "[70][wp][reconfigure] no existing wp-config.php at $cfg -- writing fresh"
+    fi
+
+    # Apply DB grant so the new (user, password, db) actually works in MySQL.
+    # Mirrors step 2 of component_wordpress_install but is idempotent here
+    # because CREATE DATABASE / CREATE USER both use IF NOT EXISTS and ALTER
+    # USER unconditionally rotates the password.
+    if command -v mysql >/dev/null 2>&1; then
+        log_info "[70][wp][reconfigure] applying MySQL grant for '$db_user'@'localhost' on '$db_name'"
+        local grant_sql="
+          CREATE DATABASE IF NOT EXISTS \`${db_name}\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+          CREATE USER IF NOT EXISTS '${db_user}'@'localhost' IDENTIFIED BY '${db_pass}';
+          ALTER USER '${db_user}'@'localhost' IDENTIFIED BY '${db_pass}';
+          GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${db_user}'@'localhost';
+          FLUSH PRIVILEGES;"
+        local sql_out sql_rc
+        sql_out="$(_wp_mysql_run "$grant_sql")"
+        sql_rc=$?
+        if [ "$sql_rc" -ne 0 ] || echo "$sql_out" | grep -qiE 'ERROR'; then
+            log_warn "[70][wp][reconfigure] MySQL grant failed (rc=${sql_rc}): ${sql_out} -- wp-config.php will still be updated, but the site won't connect until the DB user is fixed manually"
+        else
+            log_ok "[70][wp][reconfigure] MySQL grant applied"
+        fi
+    else
+        log_warn "[70][wp][reconfigure] mysql client not on PATH -- skipped DB grant; wp-config.php will be updated only"
+    fi
+
+    # Re-write wp-config.php using the shared helper.
+    if ! _wp_write_config "$install_path" "$db_name" "$db_user" "$db_pass" "$db_host" "$db_port" "$keep_salts"; then
+        log_err "[70][wp][reconfigure] wp-config.php write/verify failed -- restore from the .bak.<ts> file in $install_path/"
+        return 1
+    fi
+
+    # Update credentials record so show-credentials reflects the new state.
+    _wp_save_credentials_record "$install_path" "${WP_DB_ENGINE:-mysql}" \
+        "$db_host" "$db_port" "$db_name" "$db_user" "$db_pass" || true
+
+    log_ok "[70][wp][reconfigure] OK -- new credentials live; previous wp-config.php saved as wp-config.php.bak.<ts>"
+    return 0
+}
+
 component_wordpress_install() {
     local install_path="${WP_INSTALL_PATH:-/var/www/wordpress}"
     local db_name="${WP_DB_NAME:-wordpress}"
@@ -358,76 +598,17 @@ component_wordpress_install() {
     fi
 
     # 3. wp-config.php -----------------------------------------------------
-    local cfg="$install_path/wp-config.php"
-    if [ ! -f "$install_path/wp-config-sample.php" ]; then
-        log_file_error "$install_path/wp-config-sample.php" "wp-config-sample.php missing -- WordPress tarball was malformed"
-        return 1
-    fi
-    log_info "[70][wp] writing $cfg"
-    sudo cp "$install_path/wp-config-sample.php" "$cfg" || {
-        log_file_error "$cfg" "cp from wp-config-sample.php failed"
-        return 1
-    }
-    sudo sed -i \
-        -e "s/database_name_here/${db_name}/" \
-        -e "s/username_here/${db_user}/" \
-        -e "s|password_here|${db_pass}|" \
-        -e "s/localhost/${db_host}:${db_port}/" \
-        "$cfg" || {
-        log_file_error "$cfg" "sed replacement failed for DB credentials"
-        return 1
-    }
-
-    # Replace the entire SALT block with a fresh set from the WordPress API.
-    local salts; salts="$(curl -fsSL https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || echo '')"
-    if [ -n "$salts" ]; then
-        local tmp; tmp="$(mktemp)"
-        # Drop existing AUTH_KEY..NONCE_SALT lines, append fresh ones.
-        # The redirect runs with the operator's uid (mktemp is operator-writable),
-        # so plain `awk ... > "$tmp"` is correct -- no sudo on the redirect.
-        # shellcheck disable=SC2024 # tmp is operator-owned (mktemp); no sudo redirect needed
-        sudo awk '!/define\(.*(AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT).*\);$/' \
-            "$cfg" > "$tmp"
-        printf '\n%s\n' "$salts" >> "$tmp"
-        if ! sudo mv "$tmp" "$cfg"; then
-            log_file_error "$cfg" "mv of salted wp-config.php failed (source: $tmp)"
-            return 1
-        fi
-        sudo chown www-data:www-data "$cfg" || true
-        sudo chmod 640 "$cfg" || true
-        log_ok "[70][wp] wp-config.php written with fresh API salts"
-    else
-        log_warn "[70][wp] could not fetch fresh salts from api.wordpress.org -- wp-config.php contains the placeholder salts; rotate them manually"
-    fi
-
-    # 3b. Strict wp-config.php validation -- DB creds match, 8 unique salts,
-    # no leftover placeholders, PHP syntax clean. Aborts the install if the
-    # generated file is broken so we don't ship a half-baked wp-config.php.
-    if ! component_wordpress_verify_config \
-            "$install_path" "$db_name" "$db_user" "$db_pass" "$db_host" "$db_port"; then
-        log_err "[70][wp] wp-config.php verification failed -- aborting install (see errors above)"
+    # Delegate to the shared helper. keep_salts=0 here -- a fresh install
+    # always gets a fresh salt set from api.wordpress.org. The helper
+    # handles sed substitution, salt rotation, AND the strict verify gate.
+    if ! _wp_write_config "$install_path" "$db_name" "$db_user" "$db_pass" "$db_host" "$db_port" "0"; then
+        log_err "[70][wp] wp-config.php generation failed -- aborting install (see errors above)"
         return 1
     fi
 
     # 4. Save credential record (so the operator can recover the auto-generated pw)
-    local rec_dir="$ROOT/.installed"
-    mkdir -p "$rec_dir"
-    local rec="$rec_dir/70-wordpress-credentials.json"
-    cat > "$rec" <<EOF
-{
-  "install_path": "$install_path",
-  "site_url": "http://${WP_SERVER_NAME:-localhost}:${WP_SITE_PORT:-80}/",
-  "db_engine": "${WP_DB_ENGINE:-mysql}",
-  "db_host": "${db_host}",
-  "db_port": ${db_port},
-  "db_name": "${db_name}",
-  "db_user": "${db_user}",
-  "db_pass": "${db_pass}",
-  "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
-    chmod 600 "$rec" 2>/dev/null || true
-    log_info "[70][wp] credentials saved -> $rec (chmod 600)"
+    _wp_save_credentials_record "$install_path" "${WP_DB_ENGINE:-mysql}" \
+        "$db_host" "$db_port" "$db_name" "$db_user" "$db_pass" || true
 
     if ! component_wordpress_verify; then
         log_err "[70][wp] post-install verify failed (wp-config.php or index.php missing in $install_path)"
