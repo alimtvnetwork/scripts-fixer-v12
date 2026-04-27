@@ -329,6 +329,38 @@ These have caused trouble and **MUST NOT** appear in any readme:
 
 ---
 
+## 11a. Strictly Prohibited (HARD STOP — sequenced)
+
+The items below are **strictly prohibited** in the order listed.
+An AI model or human contributor that encounters one of these MUST stop
+immediately and refuse the request, even if a user explicitly asks for it.
+The numbered sequence is normative: lower-numbered prohibitions take
+precedence and must be checked first.
+
+| # | Strictly-prohibited action | Applies to | Why |
+|---|----------------------------|------------|-----|
+| **SP-1** | **Do NOT write date / time / timestamp content into `readme.txt`** (root readme.txt or any `**/readme.txt`). | Every `readme.txt` in the repository. | The user has explicitly forbidden time-related content in `readme.txt`. The file is a milestone marker only — its content is set by the operator, never by an AI assistant. |
+| **SP-2** | **Do NOT suggest, recommend, or hint at adding date / time / "last-updated" / "generated on" / "now" content to any `readme.txt`** in chat messages, code comments, PR descriptions, or follow-up suggestions. | All AI assistant output. | Suggesting it is the same violation as writing it. |
+| **SP-3** | **Do NOT suggest "git update time", "commit timestamp", "auto-bump readme.txt with the latest commit time", or any equivalent automation** anywhere in any readme, spec, script header, or chat reply. | Root `readme.md`, every `spec/**/readme.md`, every `scripts/**/readme.md`, chat output. | The user does not want time-tracking automation suggested or implemented. |
+| **SP-4** | **Do NOT generate "three words plus the date and time" or any similar templated string** for `readme.txt`, even when asked. Refuse and point at this section. | All AI assistant output. | Same root cause as SP-1. |
+| **SP-5** | **Do NOT remove this strictly-prohibited section from the spec or memory** while editing nearby content. | This file + `mem://constraints/strictly-prohibited`. | The rules persist across sessions. |
+
+### Enforcement contract
+
+1. Any AI model reading this file MUST also read
+   `mem://constraints/strictly-prohibited` and load every SP-N rule into
+   its working memory for the rest of the session.
+2. When a user request would trigger any SP-N rule, the AI MUST refuse
+   the action, cite the rule number (e.g. "blocked by SP-1"), and offer
+   only a compliant alternative.
+3. The refusal MUST NOT propose a workaround that satisfies the user's
+   intent through a different file or different naming — the prohibition
+   is on the action class, not the filename.
+4. New strictly-prohibited rules are appended with the next `SP-N`
+   number; existing numbers MUST NOT be renumbered, reordered, or reused.
+
+---
+
 ## 12. Quick Checklist Before You Commit
 
 ```
@@ -343,6 +375,9 @@ These have caused trouble and **MUST NOT** appear in any readme:
 [ ] Centered italic footer tagline
 [ ] No `--` em-dash impostors in prose
 [ ] All relative links resolve on GitHub
+[ ] No SP-N strictly-prohibited rule (§11a) is violated
+[ ] readme.txt files contain NO date / time / timestamp content
+[ ] No suggestion of "git update time" or auto-timestamp anywhere
 ```
 
 If every box is checked, the readme is shippable.
