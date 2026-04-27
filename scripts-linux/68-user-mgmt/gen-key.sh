@@ -99,11 +99,6 @@ if [ "$UM_ASK" = "1" ] && [ "$UM_NO_PASS" = "0" ] && [ -z "$UM_PASSPHRASE" ]; th
   fi
 fi
 
-if ! command -v ssh-keygen >/dev/null 2>&1; then
-  log_err "ssh-keygen not found on PATH (failure: install openssh-client)"
-  exit 127
-fi
-
 if [ -e "$UM_OUT" ] && [ "$UM_FORCE" != "1" ]; then
   log_err "Private key already exists at exact path: '$UM_OUT' (failure: pass --force to overwrite, or pick a different --out)"
   exit 1
@@ -131,7 +126,13 @@ if [ "$UM_DRY_RUN" = "1" ]; then
   else
     echo "    Passphrase  : (set)"
   fi
+  [ -n "$UM_TARGET_USER" ] && echo "    Owner (post): $UM_TARGET_USER (numeric gid resolved at apply time)"
   exit 0
+fi
+
+if ! command -v ssh-keygen >/dev/null 2>&1; then
+  log_err "ssh-keygen not found on PATH (failure: install openssh-client)"
+  exit 127
 fi
 
 # Remove old files when --force.
