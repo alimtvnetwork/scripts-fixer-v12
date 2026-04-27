@@ -1069,17 +1069,65 @@ Console:
 
 ## Quick Start
 
-### One-liner install (Windows)
+### One-liner install (Windows / PowerShell)
+
+> **Placeholders** — replace before running:
+> `<OWNER>` GitHub owner (default `alimtvnetwork`) · `<REPO>` repo slug
+> (default `gitmap-v6`) · `<BRANCH>` branch or tag (default `main`) ·
+> `<INSTALL_DIR>` where to clone (default `$HOME\gitmap`) ·
+> `<KEYWORD>` install keyword such as `nodejs`, `python`, `profile-base`.
 
 ```powershell
+# 1) Bare one-liner (uses all defaults)
 irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.ps1 | iex
+
+# 2) Pin to a specific owner / repo / branch
+$Owner='<OWNER>'; $Repo='<REPO>'; $Branch='<BRANCH>'
+irm "https://raw.githubusercontent.com/$Owner/$Repo/$Branch/install.ps1" | iex
+
+# 3) Install into a chosen folder, then run a keyword install
+$Owner='alimtvnetwork'; $Repo='gitmap-v6'; $Branch='main'
+$InstallDir='<INSTALL_DIR>'; $Keyword='<KEYWORD>'
+New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+git clone "https://github.com/$Owner/$Repo.git" $InstallDir
+Set-Location $InstallDir
+.\run.ps1 install $Keyword
+
+# 4) Run elevated (admin) for scripts that touch HKCR / Program Files
+Start-Process powershell -Verb RunAs -ArgumentList @(
+    '-NoProfile','-ExecutionPolicy','Bypass','-Command',
+    "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.ps1 | iex"
+)
 ```
 
-### One-liner install (Unix / macOS)
+### One-liner install (Unix / macOS / Bash)
+
+> **Placeholders** — replace before running:
+> `<OWNER>` GitHub owner (default `alimtvnetwork`) · `<REPO>` repo slug
+> (default `gitmap-v6`) · `<BRANCH>` branch or tag (default `main`) ·
+> `<INSTALL_DIR>` where to clone (default `$HOME/gitmap`) ·
+> `<KEYWORD>` install keyword such as `nodejs`, `python`, `profile-base`.
 
 ```bash
+# 1) Bare one-liner (uses all defaults)
 curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.sh | bash
+
+# 2) Pin to a specific owner / repo / branch
+OWNER="<OWNER>"; REPO="<REPO>"; BRANCH="<BRANCH>"
+curl -fsSL "https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/install.sh" | bash
+
+# 3) Install into a chosen folder, then run a keyword install
+OWNER="alimtvnetwork"; REPO="gitmap-v6"; BRANCH="main"
+INSTALL_DIR="<INSTALL_DIR>"; KEYWORD="<KEYWORD>"
+mkdir -p "$INSTALL_DIR"
+git clone "https://github.com/${OWNER}/${REPO}.git" "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+bash scripts-linux/run.sh install "$KEYWORD"
+
+# 4) Run with sudo for scripts that need root (users, groups, system files)
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.sh | sudo bash
 ```
+
 
 ### Manual clone
 
