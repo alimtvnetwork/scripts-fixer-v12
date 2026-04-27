@@ -385,6 +385,7 @@ case "$VERB" in
                 nginx)     component_nginx_uninstall     ;;
                 apache)    component_apache_uninstall    ;;
                 firewall)  component_firewall_uninstall  ;;
+                https)     component_https_uninstall     ;;
                 wordpress|wp|wp-only) component_wordpress_uninstall ;;
             esac
         else
