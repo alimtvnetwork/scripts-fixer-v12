@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# 05-vault.sh -- AES-256-GCM secret store using openssl.
+# 05-vault.sh -- AES-256-CBC + PBKDF2 secret store using openssl.
 # Vault passphrase prompted once per session via VAULT_PASSPHRASE env var.
+# NOTE: openssl's `enc` subcommand does not support GCM, so we use CBC
+# with PBKDF2 key derivation. This is appropriate for local at-rest
+# secret storage on a trusted controller (file mode is 0600, vault dir 0700).
 
 VAULT_DIR="${VAULT_DIR:-$HOME/.local/share/ssh-orchestrator/vault}"
 
@@ -29,7 +32,7 @@ vault_put() {
   ensure_vault_dir || return 1
   vault_prompt_passphrase_once
   local out="$VAULT_DIR/$name.enc"
-  if ! printf '%s' "$plain" | openssl enc -aes-256-gcm -pbkdf2 -salt \
+  if ! printf '%s' "$plain" | openssl enc -aes-256-cbc -pbkdf2 -salt \
         -pass env:VAULT_PASSPHRASE -out "$out" 2>/dev/null; then
     log_file_error "$out" "vault: openssl encrypt failed"
     return 1
@@ -46,7 +49,7 @@ vault_get() {
     return 1
   fi
   vault_prompt_passphrase_once
-  if ! openssl enc -d -aes-256-gcm -pbkdf2 -pass env:VAULT_PASSPHRASE -in "$in" 2>/dev/null; then
+  if ! openssl enc -d -aes-256-cbc -pbkdf2 -pass env:VAULT_PASSPHRASE -in "$in" 2>/dev/null; then
     log_file_error "$in" "vault: openssl decrypt failed (wrong passphrase?)"
     return 1
   fi
