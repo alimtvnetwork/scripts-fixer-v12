@@ -27,7 +27,8 @@
     { "letter": "u", "label": "AI Tools (42-43)",               "ids": ["42", "43"] },
     { "letter": "v", "label": "AI Full Stack (05,41-43)",       "ids": ["05", "41", "42", "43"] },
     { "letter": "w", "label": "DevOps (07,45-46)",              "ids": ["07", "45", "46"] },
-    { "letter": "x", "label": "Container Dev (45-46)",          "ids": ["45", "46"] }
+    { "letter": "x", "label": "Container Dev (45-46)",          "ids": ["45", "46"] },
+    { "letter": "z", "label": "Advanced Profile (03-08,16,17,45,46)", "ids": ["03", "04", "05", "06", "07", "08", "16", "17", "45", "46"] }
   ],
   "scripts": {
     "01": { "enabled": true, "folder": "01-install-vscode",           "name": "VS Code",              "desc": "Install Visual Studio Code (Stable/Insiders)" },
