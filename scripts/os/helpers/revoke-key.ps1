@@ -33,16 +33,22 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 
 . (Join-Path $sharedDir "logging.ps1")
 . (Join-Path $sharedDir "json-utils.ps1")
+. (Join-Path $helpersDir "_common.ps1")
 $promptHelper = Join-Path $helpersDir "_prompt.ps1"
 if (Test-Path $promptHelper) { . $promptHelper }
 $ledgerHelper = Join-Path $helpersDir "_ssh-ledger.ps1"
 if (Test-Path $ledgerHelper) { . $ledgerHelper }
+
+$logMessages = $null
+$logMsgPath = Join-Path $scriptDir "log-messages.json"
+if (Test-Path $logMsgPath) { $logMessages = Import-JsonConfig $logMsgPath }
 
 Initialize-Logging -ScriptName "Revoke Key"
 
 # ---- Parse ----
 $fingerprints = @(); $keyLines = @(); $comments = @(); $targetUser = $null
 $hasAsk = $false; $hasDryRun = $false; $doBackup = $true
+$backupExplicit = $false
 $revokeAll = $false; $autoYes = $false
 
 $i = 0
@@ -55,8 +61,8 @@ while ($i -lt $Argv.Count) {
         '^--user$'        { $i++; if ($i -lt $Argv.Count) { $targetUser = $Argv[$i] } }
         '^--ask$'         { $hasAsk = $true }
         '^--dry-run$'     { $hasDryRun = $true }
-        '^--backup$'      { $doBackup = $true }
-        '^--no-backup$'   { $doBackup = $false }
+        '^--backup$'      { $doBackup = $true;  $backupExplicit = $true }
+        '^--no-backup$'   { $doBackup = $false; $backupExplicit = $true }
         '^--all$'         { $revokeAll = $true }
         '^--yes$|^-y$'    { $autoYes = $true }
         '^--' {
@@ -81,6 +87,14 @@ if ($hasAsk -and (Get-Command Read-PromptString -ErrorAction SilentlyContinue)) 
 }
 
 if (-not $targetUser) { $targetUser = $env:USERNAME }
+
+# ---- Admin elevation when targeting another user's profile ----
+$needsAdmin = ($targetUser -ne $env:USERNAME)
+if ($needsAdmin -and -not $hasDryRun) {
+    $forwardArgs = @($Argv | Where-Object { $_ -ne "--ask" })
+    $isAdminOk = Assert-Admin -ScriptPath $MyInvocation.MyCommand.Definition -ForwardArgs $forwardArgs -LogMessages $logMessages
+    if (-not $isAdminOk) { Save-LogFile -Status "fail"; exit 1 }
+}
 
 # ---- Resolve authorized_keys path ----
 $profilePath = $null
@@ -204,7 +218,10 @@ if ($doBackup) {
         Copy-Item -LiteralPath $authFile -Destination $backupPath -ErrorAction Stop
         Write-Log "Backed up authorized_keys to '$backupPath'." -Level "info"
     } catch {
-        Write-Log "Failed to back up authorized_keys to exact path: '$backupPath' (failure: $($_.Exception.Message))" -Level "warn"
+        # Revocation is destructive -- we MUST have a rollback path. Abort
+        # unless the operator explicitly opted out of backups.
+        Write-Log "Failed to back up authorized_keys at exact path: '$backupPath' (failure: $($_.Exception.Message)). Tool: Copy-Item. Aborting -- pass --no-backup to override." -Level "fail"
+        Save-LogFile -Status "fail"; exit 1
     }
 }
 
@@ -218,11 +235,21 @@ try {
     Save-LogFile -Status "fail"; exit 1
 }
 
+# ---- Re-assert ACL after Move-Item -Force (it can reset inheritance flags) ----
+if (-not (Set-SshFileAcl -Path $authFile -User $targetUser)) {
+    Write-Log "Aborting: authorized_keys was rewritten but ACL hardening failed -- the file is in an unsafe state at '$authFile'. Roll back from the .bak created above." -Level "fail"
+    Save-LogFile -Status "fail"; exit 1
+}
+
 # ---- Ledger ----
+$hasLedger = [bool](Get-Command Add-SshLedgerEntry -ErrorAction SilentlyContinue)
+if (-not $hasLedger) {
+    Write-Log "SSH ledger helper not loaded -- audit trail at '~/.lovable/ssh-keys-state.json' will NOT record this revocation. Path: $ledgerHelper" -Level "warn"
+}
 foreach ($r in $removed) {
     $fp = Get-KeyFingerprint -Line $r
     $cmt = Get-KeyComment -Line $r
-    if (Get-Command Add-SshLedgerEntry -ErrorAction SilentlyContinue) {
+    if ($hasLedger) {
         Add-SshLedgerEntry -Action "revoke" -Fingerprint $fp -KeyPath $authFile -Source "revoke-key" -Comment $cmt | Out-Null
     }
     Write-Log "Revoked key $(if ($fp) { $fp } else { '(no fp)' }) for user '$targetUser'." -Level "success"
