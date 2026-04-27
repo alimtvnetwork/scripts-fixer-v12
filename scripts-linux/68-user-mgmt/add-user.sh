@@ -154,6 +154,7 @@ while [ $# -gt 0 ]; do
     --run-id)                UM_RUN_ID="${2:-}"; shift 2 ;;
     --manifest-dir)          UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
     --no-manifest)           UM_NO_MANIFEST=1; shift ;;
+    --no-auto-prune)         UM_NO_AUTO_PRUNE=1; shift ;;
     --) shift; break ;;
     -*)
       log_err "unknown option: '$1' (failure: see --help)"
