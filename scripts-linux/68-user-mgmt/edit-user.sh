@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# edit-user -- modify one user (rename/promote/...); see readme.md.
 # 68-user-mgmt/edit-user.sh -- modify a single local user (Linux | macOS).
 #
 # Usage:

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# remove-user -- delete one user; see readme.md.
 # 68-user-mgmt/remove-user.sh -- delete a single local user (Linux | macOS).
 #
 # Usage:
