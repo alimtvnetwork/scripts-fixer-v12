@@ -60,6 +60,22 @@
 #                           the resolved root. Combinable with --file/--dir.
 #   --run-id ID             when combined with --dir/--auto, only validate
 #                           files whose name starts with "<ID>__"
+#   --since VALUE           only validate summary files whose mtime is
+#                           STRICTLY AFTER a cutoff. VALUE is either:
+#                             * a run-id matching YYYYMMDD-HHMMSS-<suffix>,
+#                               in which case the cutoff is resolved from
+#                               (a) the writtenAt of any discovered summary
+#                               with that runId, falling back to
+#                               (b) the mtime of the matching manifest
+#                               file '<UM_MANIFEST_DIR>/<run-id>__*.json'.
+#                             * any timestamp 'date -d' can parse
+#                               (ISO-8601 like '2026-04-27T15:30:45Z',
+#                                '@<epoch>', 'yesterday', etc.).
+#                           Files older than the cutoff are silently dropped
+#                           from the validation set (counted in the post-run
+#                           summary). Comparison uses filesystem mtime; copy
+#                           or restore operations that touch mtime will
+#                           shift this filter.
 #   --json                  emit one JSON document per validated file to
 #                           stdout in NDJSON form, plus a final summary
 #                           object on the last line. Suppresses pretty logs.
@@ -102,6 +118,9 @@ Examples:
   bash verify-summary.sh --root /srv/runs --glob 'summaries/*.summary.json'
   bash verify-summary.sh --root /srv/runs --recursive --glob '**/*.summary.json'
   bash verify-summary.sh --root /srv/runs --glob '2026-*/summaries/*.summary.json' --json
+  bash verify-summary.sh --auto --since 20260427-101530-abcd     # only newer than that run
+  bash verify-summary.sh --discover --since '2026-04-27T00:00:00Z'
+  bash verify-summary.sh --auto --since 'yesterday' --json
 EOF
 }
 
@@ -120,6 +139,7 @@ VS_QUIET=0
 VS_AUTO=0
 VS_RESULTS_JSON=0         # 1 if --results-json was passed
 VS_RESULTS_JSON_PATH=""   # "" or "-" means stdout; else file target
+VS_SINCE_RAW=""           # raw --since input (run-id or timestamp); "" = disabled
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -140,6 +160,8 @@ while [ $# -gt 0 ]; do
     --no-follow-symlinks) VS_FOLLOW_SYMLINKS=0; shift ;;
     --run-id)    VS_RUN_FILTER="${2:-}"; shift 2 ;;
     --run-id=*)  VS_RUN_FILTER="${1#--run-id=}"; shift ;;
+    --since)     VS_SINCE_RAW="${2:-}"; shift 2 ;;
+    --since=*)   VS_SINCE_RAW="${1#--since=}"; shift ;;
     --json)      VS_JSON=1;   shift ;;
     --results-json)
       VS_RESULTS_JSON=1
@@ -382,6 +404,184 @@ if [ "${#VS_FILES[@]}" -eq 0 ]; then
     log_warn "[68][verify-summary] nothing to validate -- exiting cleanly (rc=0)"
   fi
   exit 0
+fi
+
+# ---- --since cutoff resolution + mtime filter ----------------------------
+# Resolve VS_SINCE_RAW into VS_SINCE_EPOCH (seconds since epoch). Then drop
+# every entry of VS_FILES whose mtime is <= cutoff. Comparison uses
+# filesystem mtime (per user spec). Skipped files are tallied for reporting.
+VS_SINCE_EPOCH=""
+VS_SINCE_DISPLAY=""
+VS_SINCE_SOURCE=""
+VS_SINCE_SKIPPED=0
+
+_vs_is_runid() {
+  # Match the run-id format used by add-user.sh: YYYYMMDD-HHMMSS-<suffix>.
+  case "$1" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]-*)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_vs_parse_iso_to_epoch() {
+  # Echos epoch seconds on stdout, returns 0 on success, 1 on failure.
+  local in="$1"
+  local ep=""
+  ep=$(date -u -d "$in" +%s 2>/dev/null) || ep=""
+  if [ -z "$ep" ]; then
+    # BSD date fallback (macOS): try a couple of common formats.
+    ep=$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$in" +%s 2>/dev/null) || ep=""
+  fi
+  if [ -z "$ep" ]; then
+    ep=$(date -u -j -f "%Y-%m-%dT%H:%M:%S%z" "$in" +%s 2>/dev/null) || ep=""
+  fi
+  if [ -z "$ep" ]; then return 1; fi
+  printf '%s' "$ep"
+  return 0
+}
+
+_vs_file_mtime() {
+  # Echos mtime epoch for $1. Linux first, BSD fallback. Empty on failure.
+  stat -c %Y -- "$1" 2>/dev/null || stat -f %m -- "$1" 2>/dev/null || true
+}
+
+if [ -n "$VS_SINCE_RAW" ]; then
+  if _vs_is_runid "$VS_SINCE_RAW"; then
+    # --- run-id resolution: writtenAt across discovered set, then manifest mtime
+    _vs_run_cutoff=""
+    _vs_run_src=""
+
+    # (a) Look for any *already-discovered* summary whose runId matches.
+    #     We pick the MAX writtenAt so the cutoff sits at the most recent
+    #     evidence of that run completing.
+    if command -v jq >/dev/null 2>&1; then
+      _vs_max_iso=""
+      for _cand in "${VS_FILES[@]}"; do
+        case "$(basename -- "$_cand")" in
+          "${VS_SINCE_RAW}__"*) : ;;
+          *) continue ;;
+        esac
+        [ -r "$_cand" ] || continue
+        _w=$(jq -r '.writtenAt // empty' "$_cand" 2>/dev/null)
+        [ -z "$_w" ] && continue
+        # Only keep if it parses to epoch.
+        _wep=$(_vs_parse_iso_to_epoch "$_w") || continue
+        if [ -z "$_vs_max_iso" ] || [ "$_wep" -gt "$_vs_max_iso" ]; then
+          _vs_max_iso="$_wep"
+          _vs_run_cutoff="$_wep"
+          _vs_run_display="$_w"
+        fi
+      done
+      if [ -n "$_vs_run_cutoff" ]; then
+        _vs_run_src="summary.writtenAt"
+      fi
+    fi
+
+    # (b) Fallback: manifest mtime under UM_MANIFEST_DIR.
+    if [ -z "$_vs_run_cutoff" ]; then
+      _vs_mdir="${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}"
+      shopt -s nullglob
+      _vs_mhits=("$_vs_mdir/${VS_SINCE_RAW}__"*.json)
+      shopt -u nullglob
+      if [ "${#_vs_mhits[@]}" -gt 0 ]; then
+        _vs_max_m=""
+        for _mf in "${_vs_mhits[@]}"; do
+          _mt=$(_vs_file_mtime "$_mf")
+          [ -z "$_mt" ] && continue
+          if [ -z "$_vs_max_m" ] || [ "$_mt" -gt "$_vs_max_m" ]; then
+            _vs_max_m="$_mt"
+          fi
+        done
+        if [ -n "$_vs_max_m" ]; then
+          _vs_run_cutoff="$_vs_max_m"
+          _vs_run_display=$(date -u -d "@$_vs_max_m" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                            || date -u -r "$_vs_max_m" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                            || echo "@$_vs_max_m")
+          _vs_run_src="manifest.mtime"
+        fi
+      fi
+    fi
+
+    if [ -z "$_vs_run_cutoff" ]; then
+      log_err "$(um_msg summarySinceRunUnresolved \
+                  "$VS_SINCE_RAW" \
+                  "${VS_ROOT:-${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}}" \
+                  "${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}" \
+                  "$VS_SINCE_RAW")"
+      exit 2
+    fi
+
+    VS_SINCE_EPOCH="$_vs_run_cutoff"
+    VS_SINCE_DISPLAY="$_vs_run_display"
+    VS_SINCE_SOURCE="run-id:$_vs_run_src"
+
+    if [ "$VS_JSON" != "1" ] && [ "$VS_QUIET" != "1" ] && [ "$_vs_results_to_stdout" != "1" ]; then
+      log_info "$(um_msg summarySinceRunResolved "$VS_SINCE_RAW" "$VS_SINCE_DISPLAY" "$VS_SINCE_EPOCH" "$_vs_run_src")"
+    fi
+  else
+    # --- timestamp resolution
+    _vs_ep=""
+    if _vs_ep=$(_vs_parse_iso_to_epoch "$VS_SINCE_RAW"); then
+      VS_SINCE_EPOCH="$_vs_ep"
+      VS_SINCE_DISPLAY=$(date -u -d "@$_vs_ep" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                          || date -u -r "$_vs_ep" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+                          || echo "$VS_SINCE_RAW")
+      VS_SINCE_SOURCE="timestamp"
+    else
+      log_err "$(um_msg summarySinceBadInput "$VS_SINCE_RAW" "value did not match run-id pattern YYYYMMDD-HHMMSS-* and 'date -d' rejected it")"
+      exit 64
+    fi
+  fi
+
+  if [ "$VS_JSON" != "1" ] && [ "$VS_QUIET" != "1" ] && [ "$_vs_results_to_stdout" != "1" ]; then
+    log_info "$(um_msg summarySinceCutoff "$VS_SINCE_DISPLAY" "$VS_SINCE_EPOCH" "$VS_SINCE_SOURCE")"
+  fi
+
+  # Apply the mtime > cutoff filter.
+  _vs_kept=()
+  _vs_pre_total="${#VS_FILES[@]}"
+  for _f in "${VS_FILES[@]}"; do
+    [ -z "$_f" ] && continue
+    if [ ! -e "$_f" ]; then
+      # Keep non-existent paths so vs_validate_one can produce the proper
+      # CODE-RED "file does not exist" failure for the operator.
+      _vs_kept+=("$_f")
+      continue
+    fi
+    _mt=$(_vs_file_mtime "$_f")
+    if [ -z "$_mt" ]; then
+      # Couldn't stat -- keep and let validator surface the exact failure.
+      _vs_kept+=("$_f")
+      continue
+    fi
+    if [ "$_mt" -gt "$VS_SINCE_EPOCH" ]; then
+      _vs_kept+=("$_f")
+    else
+      VS_SINCE_SKIPPED=$((VS_SINCE_SKIPPED+1))
+    fi
+  done
+  # Reset VS_FILES safely under `set -u`. Don't use ${arr[@]:-} -- on bash
+  # that expands to a single empty-string element when the array is empty,
+  # which would make the script try to validate "".
+  VS_FILES=()
+  if [ "${#_vs_kept[@]}" -gt 0 ]; then
+    VS_FILES=("${_vs_kept[@]}")
+  fi
+
+  if [ "$VS_JSON" != "1" ] && [ "$VS_QUIET" != "1" ] && [ "$_vs_results_to_stdout" != "1" ]; then
+    log_info "$(um_msg summarySinceFiltered "${#VS_FILES[@]}" "$VS_SINCE_SKIPPED" "$VS_SINCE_DISPLAY")"
+  fi
+
+  if [ "${#VS_FILES[@]}" -eq 0 ]; then
+    if [ "$VS_JSON" = "1" ]; then
+      printf '{"summary":{"checked":0,"passed":0,"failed":0,"warned":0},"since":{"raw":"%s","epoch":%s,"display":"%s","source":"%s","skipped":%s},"ok":true,"empty":true}\n' \
+        "$VS_SINCE_RAW" "$VS_SINCE_EPOCH" "$VS_SINCE_DISPLAY" "$VS_SINCE_SOURCE" "$VS_SINCE_SKIPPED"
+    else
+      log_warn "$(um_msg summarySinceEmpty "$_vs_pre_total" "$VS_SINCE_DISPLAY")"
+    fi
+    exit 0
+  fi
 fi
 
 # ---- per-file validator ----------------------------------------------------
@@ -663,6 +863,11 @@ if [ "$VS_RESULTS_JSON" = "1" ]; then
     --argjson strict "$([ "$VS_STRICT" = "1" ] && echo true || echo false)" \
     --arg     ts    "$_vs_now" \
     --arg     host  "$_vs_host" \
+    --arg     sinceRaw     "${VS_SINCE_RAW:-}" \
+    --arg     sinceDisplay "${VS_SINCE_DISPLAY:-}" \
+    --arg     sinceEpoch   "${VS_SINCE_EPOCH:-}" \
+    --arg     sinceSource  "${VS_SINCE_SOURCE:-}" \
+    --argjson sinceSkipped "${VS_SINCE_SKIPPED:-0}" \
     --argjson results "$_vs_results_arr" \
     '{
         reportVersion: 1,
@@ -672,6 +877,13 @@ if [ "$VS_RESULTS_JSON" = "1" ]; then
         strict: $strict,
         ok: $ok,
         summary: { checked:$c, passed:$p, failed:$f, warned:$w },
+        since: ( if $sinceRaw == "" then null else
+                   { raw: $sinceRaw,
+                     display: $sinceDisplay,
+                     epoch: ($sinceEpoch | tonumber? // null),
+                     source: $sinceSource,
+                     skipped: $sinceSkipped }
+                 end ),
         results: $results
      }')
 
@@ -713,13 +925,31 @@ if [ "$VS_JSON" = "1" ]; then
     --argjson f "$VS_FAIL"  --argjson w "$VS_WARN" \
     --argjson ok $([ "$VS_OK" = "true" ] && echo true || echo false) \
     --argjson strict $([ "$VS_STRICT" = "1" ] && echo true || echo false) \
-    '{summary:{checked:$c,passed:$p,failed:$f,warned:$w}, strict:$strict, ok:$ok}'
+    --arg     sinceRaw     "${VS_SINCE_RAW:-}" \
+    --arg     sinceDisplay "${VS_SINCE_DISPLAY:-}" \
+    --arg     sinceEpoch   "${VS_SINCE_EPOCH:-}" \
+    --arg     sinceSource  "${VS_SINCE_SOURCE:-}" \
+    --argjson sinceSkipped "${VS_SINCE_SKIPPED:-0}" \
+    '{summary:{checked:$c,passed:$p,failed:$f,warned:$w}, strict:$strict, ok:$ok,
+      since: ( if $sinceRaw == "" then null else
+                 { raw:$sinceRaw, display:$sinceDisplay,
+                   epoch:($sinceEpoch|tonumber? // null),
+                   source:$sinceSource, skipped:$sinceSkipped }
+               end )}'
 elif [ "$_vs_results_to_stdout" != "1" ]; then
   printf '\n'
   if [ "$VS_OK" = "true" ]; then
-    log_ok "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- OK (exit 0)"
+    if [ -n "$VS_SINCE_RAW" ]; then
+      log_ok "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL; --since '$VS_SINCE_DISPLAY' skipped $VS_SINCE_SKIPPED) -- OK (exit 0)"
+    else
+      log_ok "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- OK (exit 0)"
+    fi
   else
-    log_err "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- FAILED (exit 1)"
+    if [ -n "$VS_SINCE_RAW" ]; then
+      log_err "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL; --since '$VS_SINCE_DISPLAY' skipped $VS_SINCE_SKIPPED) -- FAILED (exit 1)"
+    else
+      log_err "verify-summary: $VS_PASS pass / $VS_WARN warn / $VS_FAIL fail (of $VS_TOTAL) -- FAILED (exit 1)"
+    fi
   fi
 fi
 

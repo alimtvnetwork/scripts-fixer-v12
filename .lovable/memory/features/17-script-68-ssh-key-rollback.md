@@ -337,3 +337,63 @@ noise, file mode writes 0600 atomically and keeps pretty logs, mixed
 pass/fail correctly tallied, mutex rejected with rc=64, missing parent
 dir surfaces CODE-RED + rc=2, `--results-json=PATH` form parsed
 correctly, empty discovery still short-circuits with rc=2.
+
+## verify-summary --since cutoff (v0.186.0)
+
+`verify-summary.sh --since VALUE` filters the discovered/expanded set
+down to files whose **filesystem mtime is strictly greater than** a
+resolved cutoff epoch. Comparison uses `stat -c %Y` (Linux) with a
+`stat -f %m` BSD fallback. Files that fail the filter are silently
+dropped from validation and counted in `since.skipped`.
+
+`VALUE` is one of:
+- A **run-id** matching `^[0-9]{8}-[0-9]{6}-.+$` (the format add-user.sh
+  emits, e.g. `20260427-153045-ab12`). Cutoff resolution order:
+    1. Scan the candidate file set for any summary whose basename
+       starts with `<run-id>__` and read its `writtenAt`. If found,
+       take the MAX `writtenAt` (most recent evidence) as the cutoff.
+       Source recorded as `run-id:summary.writtenAt`.
+    2. Fall back to the mtime of any matching manifest under
+       `<UM_MANIFEST_DIR>/<run-id>__*.json` (most recent if multiple).
+       Source recorded as `run-id:manifest.mtime`.
+    3. Both miss -> CODE-RED log naming the exact paths checked, rc=2.
+- A **timestamp** parseable by `date -u -d` (Linux) with BSD
+  `date -u -j -f` fallbacks for `%Y-%m-%dT%H:%M:%SZ` and
+  `%Y-%m-%dT%H:%M:%S%z`. Accepts ISO-8601, `@<epoch>`, `yesterday`,
+  etc. Unparseable -> rc=64 with the exact rejected value.
+
+Both `--json` and `--results-json` reports gain a `since` block when
+the flag is active (otherwise `null` in `--results-json`, omitted in
+the legacy `--json` tally only when `since.raw == ""`):
+```json
+"since": {
+  "raw":     "20260427-153045-ab12",   // exact CLI value
+  "display": "2026-04-27T15:30:45Z",    // human-readable cutoff
+  "epoch":   1761579045,                 // resolved cutoff seconds
+  "source":  "run-id:summary.writtenAt", // or "run-id:manifest.mtime" / "timestamp"
+  "skipped": 12                          // # of files dropped by the filter
+}
+```
+
+Edge cases handled:
+- All candidates filtered out -> rc=0 with `empty:true` and the
+  `since` block populated (NOT a failure -- the operator asked for
+  "newer than X" and got "nothing newer").
+- Pretty mode appends `--since '<display>' skipped <n>` to the final
+  tally line so the operator immediately sees how aggressive the
+  filter was.
+- Non-existent / unreadable files in the candidate set are KEPT
+  through the filter so the per-file validator can surface the
+  CODE-RED "file does not exist" error with the exact path
+  (filtering them silently would hide real bugs).
+- Message templates were authored to NOT begin with `--` so the
+  shared `printf "$tmpl"` in `_common.sh::um_msg` does not mistake
+  the leading `--since` for a printf flag.
+
+Verified scenarios: timestamp cutoff keeps newer / drops older,
+run-id resolves via `writtenAt` from the discovered set, run-id
+falls back to manifest mtime when no summary matches, unresolved
+run-id triggers CODE-RED + rc=2, unparseable value triggers rc=64,
+future cutoff filters everything and exits rc=0 with `empty:true`,
+`--results-json` includes the `since` block, mtime stat works on
+both Linux `stat -c %Y` and BSD `stat -f %m`.
