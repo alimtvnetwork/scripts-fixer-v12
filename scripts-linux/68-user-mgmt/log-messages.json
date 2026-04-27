@@ -85,11 +85,11 @@
     ,"summaryDiscoveryRootUnreadable":"discovery root '%s' is not readable (failure: re-run with sudo or fix dir mode 0700/0750)"
     ,"summaryDiscoveryCapHit":    "discovery cap hit: stopped after %s file(s) (failure: raise summaryDiscovery.maxFiles in config.json or narrow --glob -- root='%s')"
     ,"summaryDiscoveryTotal":     "discovery complete: %s unique file(s) from %s pattern(s) under root '%s'"
-    ,"summarySinceCutoff":        "applying --since cutoff: %s (epoch=%s, source=%s) -- only files with mtime > cutoff will be validated"
-    ,"summarySinceRunResolved":   "resolved --since run-id '%s' to cutoff '%s' (epoch=%s) via %s"
-    ,"summarySinceRunUnresolved": "could not resolve --since run-id '%s' to a cutoff (failure: no summary with that runId had a parseable writtenAt under '%s', and no manifest '%s/%s__*.json' was found -- pass --since <ISO-timestamp> instead)"
-    ,"summarySinceBadInput":      "--since value '%s' is neither a recognised run-id (expected pattern YYYYMMDD-HHMMSS-<suffix>) nor a timestamp parseable by 'date -d' (failure: %s)"
-    ,"summarySinceFiltered":      "--since filter: kept %s file(s), skipped %s file(s) older than cutoff '%s'"
-    ,"summarySinceEmpty":         "--since filter removed every candidate (failure: 0 of %s file(s) had mtime > '%s' -- widen the cutoff or drop --since)"
+    ,"summarySinceCutoff":        "applying since-cutoff: %s (epoch=%s, source=%s) -- only files with mtime > cutoff will be validated"
+    ,"summarySinceRunResolved":   "resolved since run-id '%s' to cutoff '%s' (epoch=%s) via %s"
+    ,"summarySinceRunUnresolved": "could not resolve since run-id '%s' to a cutoff (failure: no summary with that runId had a parseable writtenAt under '%s', and no manifest '%s/%s__*.json' was found -- pass an ISO-timestamp to --since instead)"
+    ,"summarySinceBadInput":      "since value '%s' is neither a recognised run-id (expected pattern YYYYMMDD-HHMMSS-<suffix>) nor a timestamp parseable by 'date -d' (failure: %s)"
+    ,"summarySinceFiltered":      "since-filter: kept %s file(s), skipped %s file(s) older than cutoff '%s'"
+    ,"summarySinceEmpty":         "since-filter removed every candidate (failure: 0 of %s file(s) had mtime > '%s' -- widen the cutoff or drop the --since flag)"
   }
 }
