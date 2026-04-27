@@ -13,6 +13,8 @@ param(
     [string]$Path,
 
     [switch]$Help,
+    [switch]$Interactive,
+    [string]$PhpVersion,
     [ValidateSet("php+phpmyadmin", "php-only", "phpmyadmin-only")]
     [string]$Mode = ""
 )
@@ -42,6 +44,7 @@ $script:ScriptDir = $scriptDir
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "interactive.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\php.ps1")
@@ -54,6 +57,41 @@ $logMessages = Import-JsonConfig (Join-Path $scriptDir "log-messages.json")
 if ($Help -or $Command -eq "--help") {
     Show-ScriptHelp -LogMessages $logMessages
     return
+}
+
+# -- Interactive prompt (collect PHP version BEFORE installing anything) -----
+#  -Interactive | --interactive | -i  -> ask before any install verb.
+#  Windows Chocolatey installs the latest by default; the captured answer is
+#  persisted to .resolved/16-interactive.json so downstream tools have an
+#  audit trail of what the operator requested.
+$argList = @()
+try { $argList = @($MyInvocation.UnboundArguments) } catch { $argList = @() }
+$isInteractive = $Interactive -or (Test-InteractiveFlag -Argv $argList)
+if ([string]::IsNullOrWhiteSpace($PhpVersion)) { $PhpVersion = 'latest' }
+
+if ($isInteractive) {
+    Write-Host ""
+    Write-Host "  --interactive: collecting PHP version" -ForegroundColor Cyan
+    $PhpVersion = Read-PromptWithDefault -Label 'PHP version (latest|8.1|8.2|8.3)' -Default $PhpVersion -Validator { param($v) Test-PhpVersion -Value $v }
+    Write-Host ("  -> PHP version='{0}'" -f $PhpVersion) -ForegroundColor Green
+}
+if (-not (Test-PhpVersion -Value $PhpVersion)) {
+    Write-Host ("Invalid -PhpVersion '{0}' (expected: latest|8.1|8.2|8.3)" -f $PhpVersion) -ForegroundColor Red
+    return
+}
+# Persist captured answer.
+$resolvedDir = Join-Path (Split-Path -Parent $scriptDir) ".resolved"
+try {
+    if (-not (Test-Path -LiteralPath $resolvedDir)) {
+        [void](New-Item -ItemType Directory -Path $resolvedDir -Force -ErrorAction Stop)
+    }
+    $rPath = Join-Path $resolvedDir "16-interactive.json"
+    @{ phpVersion = $PhpVersion; capturedAt = (Get-Date).ToString('o'); interactive = [bool]$isInteractive } |
+        ConvertTo-Json -Depth 3 |
+        Set-Content -LiteralPath $rPath -Encoding UTF8
+    Write-Host ("  Wrote PHP version selection to {0}" -f $rPath) -ForegroundColor DarkGray
+} catch {
+    Write-Host ("[FILE-ERROR] path={0} reason={1}" -f $resolvedDir, $_.Exception.Message) -ForegroundColor Red
 }
 
 # -- Banner --------------------------------------------------------------------

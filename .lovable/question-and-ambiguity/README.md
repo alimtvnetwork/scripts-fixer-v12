@@ -35,3 +35,4 @@ _Append new rows here as ambiguities are logged._
 - [12 — Script 54 CI: elevation-gated AllUsers job](./12-script54-ci-elevation-gate.md)
 - [13 — SSH orchestrator: spec + scaffold + kubeadm playbook](./13-ssh-orchestrator-bootstrap.md)
 - [14 — Script 65 (Windows): plan-confirm-apply-verify dispatcher](./14-script65-windows-dispatcher.md)
+- [15 — Interactive mode for 16/18/70 (PHP / MySQL / WordPress)](./15-interactive-mode.md)
