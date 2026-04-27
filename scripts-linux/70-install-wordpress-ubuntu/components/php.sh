@@ -70,6 +70,50 @@ component_php_verify() {
     return 0
 }
 
+# Strict verify: every WordPress-required extension must be loaded, and the
+# PHP version must be >= 7.4 (WordPress 6.x minimum). Logs the missing list
+# on failure so the operator knows exactly what to fix.
+#
+# Required set: mysqli mbstring xml curl intl gd
+# (zip/bcmath/soap/imagick are installed but treated as optional here.)
+component_php_verify_strict() {
+    if ! command -v php >/dev/null 2>&1; then
+        log_err "[70][php][verify] 'php' binary not found in PATH"
+        return 1
+    fi
+    local ver; ver="$(php -r 'echo PHP_VERSION;' 2>/dev/null || echo '')"
+    local major minor
+    major="$(printf '%s' "$ver" | cut -d. -f1)"
+    minor="$(printf '%s' "$ver" | cut -d. -f2)"
+    case "$major$minor" in
+        ''|*[!0-9]*)
+            log_err "[70][php][verify] could not parse PHP version (got '$ver')"
+            return 1
+            ;;
+    esac
+    if [ "$major" -lt 7 ] || { [ "$major" -eq 7 ] && [ "$minor" -lt 4 ]; }; then
+        log_err "[70][php][verify] PHP $ver is below the WordPress minimum (7.4)"
+        return 1
+    fi
+    log_info "[70][php][verify] PHP version $ver detected (>= 7.4 OK)"
+
+    local required="mysqli mbstring xml curl intl gd"
+    local loaded; loaded="$(php -m 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+    local missing="" ext
+    for ext in $required; do
+        if ! printf '%s\n' "$loaded" | grep -qx "$ext"; then
+            missing="$missing $ext"
+        fi
+    done
+    if [ -n "$missing" ]; then
+        log_err "[70][php][verify] missing required PHP extensions:$missing"
+        log_err "[70][php][verify] install with: sudo apt-get install -y$(printf ' php-%s' $missing)"
+        return 1
+    fi
+    log_ok "[70][php][verify] all required extensions present ($required)"
+    return 0
+}
+
 component_php_install() {
     local v; v="$(_php_resolve_version)"
 
