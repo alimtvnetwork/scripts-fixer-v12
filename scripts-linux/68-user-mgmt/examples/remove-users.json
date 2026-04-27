@@ -1,0 +1,5 @@
+[
+  { "name": "olduser1", "purgeHome": true },
+  { "name": "olduser2" },
+  { "name": "olduser3", "purgeHome": true, "removeMailSpool": true }
+]

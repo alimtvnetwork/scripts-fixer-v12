@@ -34,6 +34,10 @@ if you prefer to bypass the dispatcher.
 | `add-group`       | `add-group.sh`                | one group                            |
 | `add-user-json`   | `add-user-from-json.sh`       | bulk users from JSON                 |
 | `add-group-json`  | `add-group-from-json.sh`      | bulk groups from JSON                |
+| `edit-user`       | `edit-user.sh`                | modify one user (rename/promote/...) |
+| `edit-user-json`  | `edit-user-from-json.sh`      | bulk user edits from JSON            |
+| `remove-user`     | `remove-user.sh`              | delete one user                      |
+| `remove-user-json`| `remove-user-from-json.sh`    | bulk user removal from JSON          |
 
 ## CLI examples
 
@@ -79,6 +83,46 @@ Run a batch:
 sudo bash run.sh add-user-json  examples/users.json
 sudo bash run.sh add-group-json examples/groups.json --dry-run
 ```
+
+### Bulk edit / remove (added in 0.198.0)
+
+`edit-user-from-json.sh` and `remove-user-from-json.sh` mirror the
+add-from-json shapes (single object, array, wrapped `{ "users": [...] }`)
+and re-use the same dispatcher routes (`edit-user-json`, `remove-user-json`).
+`remove-user-from-json.sh` also accepts a **bare-string list** as a
+convenience: `[ "alice", "bob" ]` is treated as `[ {name:"alice"}, {name:"bob"} ]`.
+
+Per-record schemas:
+
+```json
+// edit-users.json -- every field optional except "name"
+[
+  { "name": "alice", "rename": "alyssa", "comment": "Alyssa P. Hacker" },
+  { "name": "bob",   "promote": true, "addGroups": ["docker","dev"], "shell": "/bin/zsh" },
+  { "name": "carol", "demote": true,  "removeGroups": ["video"] },
+  { "name": "dave",  "passwordFile": "/etc/secrets/dave.pw", "disable": true }
+]
+```
+
+```json
+// remove-users.json -- every field optional except "name"
+[
+  { "name": "olduser1", "purgeHome": true },
+  { "name": "olduser2" },
+  { "name": "olduser3", "purgeHome": true, "removeMailSpool": true }
+]
+```
+
+```bash
+sudo bash run.sh edit-user-json   examples/edit-users.json   --dry-run
+sudo bash run.sh remove-user-json examples/remove-users.json --dry-run
+```
+
+`remove-user-json` always passes `--yes` to its children (no per-record
+confirmation prompts in bulk mode). Removing a missing user is treated
+as success, so re-running the same JSON is idempotent. `edit-user-json`
+rejects mutually-exclusive intents up front (e.g. `promote: true` with
+`demote: true`) so a half-applied batch is impossible.
 
 The orchestrator (`useradm-bootstrap`) also accepts a fourth shape, the
 **unified `--spec`** file:

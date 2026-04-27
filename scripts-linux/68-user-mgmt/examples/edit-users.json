@@ -1,0 +1,23 @@
+[
+  {
+    "name": "alice",
+    "rename": "alyssa",
+    "comment": "Alyssa P. Hacker (renamed)"
+  },
+  {
+    "name": "bob",
+    "promote": true,
+    "addGroups": ["docker", "dev"],
+    "shell": "/bin/zsh"
+  },
+  {
+    "name": "carol",
+    "demote": true,
+    "removeGroups": ["video", "audio"]
+  },
+  {
+    "name": "dave",
+    "passwordFile": "/etc/secrets/dave.pw",
+    "disable": true
+  }
+]
