@@ -560,14 +560,18 @@ _clean_context_menu_entries() {
         return 0
     fi
 
-    mapfile -t SCRIPT_NAMES < <(jq -r '.mimeCleanup.contextMenu.fileNames[]?       // empty' "$CONFIG")
-    mapfile -t SCRIPT_DIRS  < <(jq -r '.mimeCleanup.contextMenu.searchDirs[]?      // empty' "$CONFIG")
-    mapfile -t ACTION_NAMES < <(jq -r '.mimeCleanup.contextMenu.actionFileNames[]? // empty' "$CONFIG")
-    mapfile -t ACTION_DIRS  < <(jq -r '.mimeCleanup.contextMenu.actionDirs[]?      // empty' "$CONFIG")
+    mapfile -t SCRIPT_NAMES < <(_scoped_filter '.mimeCleanup.contextMenu.fileNames'       name)
+    mapfile -t SCRIPT_DIRS  < <(jq -r '.mimeCleanup.contextMenu.searchDirs[]? // empty'   "$CONFIG")
+    mapfile -t ACTION_NAMES < <(_scoped_filter '.mimeCleanup.contextMenu.actionFileNames' name)
+    mapfile -t ACTION_DIRS  < <(_scoped_filter '.mimeCleanup.contextMenu.actionDirs'      path)
     mapfile -t INT_NAMES    < <(jq -r '.mimeCleanup.contextMenu.integrationFiles[]? // empty' "$CONFIG")
-    mapfile -t INT_ROOTS    < <(jq -r '.mimeCleanup.contextMenu.integrationRoots[]? // empty' "$CONFIG")
+    mapfile -t INT_ROOTS    < <(_scoped_filter '.mimeCleanup.contextMenu.integrationRoots' path)
 
-    log_info "[01] Context menu cleanup: scanning Nautilus/Nemo/Caja/Thunar + VS Code integration paths"
+    if _scope_can_modify; then
+        log_info "[01] Context menu cleanup (scope: ${SCOPE_SOURCE}/${SCOPE_METHODS}/${SCOPE_EDITIONS}): ${#SCRIPT_NAMES[@]} script names, ${#ACTION_NAMES[@]} action names, ${#INT_ROOTS[@]} integration roots"
+    else
+        log_info "[01] REPORT-ONLY context menu scan: ${#SCRIPT_NAMES[@]} script names, ${#ACTION_NAMES[@]} action names, ${#INT_ROOTS[@]} integration roots"
+    fi
 
     local ts; ts=$(date +%Y%m%d-%H%M%S)
     local rc=0 removed=0
