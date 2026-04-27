@@ -145,7 +145,8 @@ try {
             continue
         }
 
-        if ($path -ne "/config") {
+        $isOptionsRoute = ($path -eq "/config/options")
+        if ($path -ne "/config" -and -not $isOptionsRoute) {
             Send-Json $res 404 @{ error = "not found"; path = $path }
             continue
         }
@@ -223,6 +224,74 @@ try {
                 Set-Content -LiteralPath $configPath -Value $body -Encoding UTF8 -NoNewline
                 Write-Host ("    [OK] wrote {0} ({1} bytes)" -f $configPath, $body.Length) -ForegroundColor Green
                 Send-Json $res 200 @{ ok = $true; path = $configPath; bytes = $body.Length }
+            } catch {
+                Write-FileError -Path $configPath -Reason $_.Exception.Message
+                Send-Json $res 500 @{ error = "write failed"; path = $configPath; reason = $_.Exception.Message }
+            }
+            continue
+        }
+
+        # PATCH /config?script=ID            -> deep-merge partial options
+        # POST  /config/options?script=ID    -> same, friendly alias
+        $isMerge = ($method -eq "PATCH") -or ($method -eq "POST" -and $isOptionsRoute)
+        if ($isMerge) {
+            if ($hasToken) {
+                $sent = $req.Headers["X-Bridge-Token"]
+                if ($sent -ne $Token) {
+                    Send-Json $res 401 @{ error = "invalid X-Bridge-Token" }
+                    continue
+                }
+            }
+
+            $reader = [System.IO.StreamReader]::new($req.InputStream, $req.ContentEncoding)
+            $body   = $reader.ReadToEnd()
+            $reader.Close()
+
+            if ([string]::IsNullOrWhiteSpace($body)) {
+                Send-Json $res 400 @{ error = "empty body"; reason = "expected JSON object of options to merge" }
+                continue
+            }
+
+            try {
+                $patch = $body | ConvertFrom-Json -ErrorAction Stop
+            } catch {
+                Send-Json $res 400 @{ error = "invalid JSON body"; reason = $_.Exception.Message }
+                continue
+            }
+
+            if (-not ($patch -is [psobject]) -or ($patch -is [Array])) {
+                Send-Json $res 400 @{ error = "patch must be a JSON object" }
+                continue
+            }
+
+            # Load existing config (or start empty if missing)
+            $current = $null
+            if (Test-Path -LiteralPath $configPath) {
+                try {
+                    $raw = Get-Content -LiteralPath $configPath -Raw -ErrorAction Stop
+                    if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                        $current = $raw | ConvertFrom-Json -ErrorAction Stop
+                    }
+                } catch {
+                    Write-FileError -Path $configPath -Reason ("read/parse failed: " + $_.Exception.Message)
+                    Send-Json $res 500 @{ error = "stored config unreadable"; path = $configPath; reason = $_.Exception.Message }
+                    continue
+                }
+            }
+            if ($null -eq $current) { $current = [pscustomobject]@{} }
+
+            $merged     = Merge-Config -Base $current -Patch $patch
+            $mergedJson = $merged | ConvertTo-Json -Depth 32
+
+            try {
+                Save-ConfigJson -Path $configPath -Json $mergedJson
+                Write-Host ("    [OK] merged options into {0} ({1} bytes)" -f $configPath, $mergedJson.Length) -ForegroundColor Green
+                Send-Json $res 200 @{
+                    ok     = $true
+                    path   = $configPath
+                    bytes  = $mergedJson.Length
+                    config = $merged
+                }
             } catch {
                 Write-FileError -Path $configPath -Reason $_.Exception.Message
                 Send-Json $res 500 @{ error = "write failed"; path = $configPath; reason = $_.Exception.Message }
