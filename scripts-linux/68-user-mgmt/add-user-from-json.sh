@@ -160,10 +160,19 @@ EOF
 
 UM_FILE=""
 UM_DRY_RUN="${UM_DRY_RUN:-0}"
+# Rollback manifest plumbing (v0.172.0). When the operator does NOT pass
+# --run-id we generate one here so EVERY user record in this batch lands
+# in the same logical run -- one rollback removes the whole batch.
+UM_RUN_ID="${UM_RUN_ID:-}"
+UM_MANIFEST_DIR="${UM_MANIFEST_DIR:-}"
+UM_NO_MANIFEST="${UM_NO_MANIFEST:-0}"
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) um_usage; exit 0 ;;
     --dry-run) UM_DRY_RUN=1; shift ;;
+    --run-id)        UM_RUN_ID="${2:-}"; shift 2 ;;
+    --manifest-dir)  UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
+    --no-manifest)   UM_NO_MANIFEST=1; shift ;;
     --) shift; break ;;
     -*) log_err "unknown option: '$1'"; exit 64 ;;
     *)
@@ -212,6 +221,18 @@ rm -f /tmp/68-jq-err.$$
 
 count=$(jq 'length' <<< "$normalised")
 log_info "loaded $count user record(s) from '$UM_FILE'"
+
+# Generate a single batch run-id up-front (unless the operator opted out
+# or supplied one). All add-user.sh children inherit it via env so the
+# whole JSON file rolls back as one unit.
+if [ "$UM_NO_MANIFEST" != "1" ] && [ -z "$UM_RUN_ID" ]; then
+  UM_RUN_ID="batch-$(date +%Y%m%d-%H%M%S 2>/dev/null || echo 00000000-000000)-$$"
+fi
+if [ "$UM_NO_MANIFEST" != "1" ]; then
+  log_info "ssh-key rollback run-id for this batch: '$UM_RUN_ID' (use 'remove-ssh-keys.sh --run-id $UM_RUN_ID' to undo)"
+fi
+export UM_RUN_ID UM_NO_MANIFEST
+[ -n "$UM_MANIFEST_DIR" ] && export UM_MANIFEST_DIR
 
 # Set up a per-batch summary file so we can print a single roll-up.
 UM_SUMMARY_FILE="${UM_SUMMARY_FILE:-$(mktemp -t 68-summary.XXXXXX)}"

@@ -71,6 +71,19 @@ SSH authorized_keys (repeatable; both flags may be combined):
                                recommended -- allows arbitrary egress).
   --allow-insecure-url         Permit http:// URLs (NOT recommended -- key
                                can be tampered with in transit).
+
+Rollback tracking (writes a manifest of every key installed this run so you
+can later remove ONLY those keys via remove-ssh-keys.sh):
+  --run-id <id>                Tag this install run. Default: auto-generated
+                               (YYYYmmdd-HHMMSS-<rand>). Reuse the same id
+                               across multiple add-user.sh calls in one
+                               batch and they all land in the same manifest.
+  --manifest-dir <dir>         Where to write manifests. Default:
+                               /var/lib/68-user-mgmt/ssh-key-runs (created
+                               with mode 0700 root:root). Override only if
+                               you know what you're doing.
+  --no-manifest                Disable manifest writing for this run
+                               (rollback will NOT be possible).
 EOF
 }
 
@@ -100,6 +113,17 @@ UM_SSH_URL_ALLOW_INSECURE="${UM_SSH_URL_ALLOW_INSECURE:-0}"
 # than edit the script.
 UM_SSH_URL_ALLOWLIST_DEFAULT="github.com,gitlab.com,codeberg.org,bitbucket.org,launchpad.net,api.github.com"
 
+# Rollback manifest knobs (v0.172.0). Default dir lives under /var/lib so it
+# survives reboots and is root-only readable. Disabling the manifest is an
+# explicit opt-out -- the operator is telling us "I don't want rollback".
+UM_RUN_ID="${UM_RUN_ID:-}"
+UM_MANIFEST_DIR="${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}"
+UM_NO_MANIFEST="${UM_NO_MANIFEST:-0}"
+# Per-key source tags accumulated during the install pass. Same length /
+# order as the de-duplicated key buffer, used by the manifest writer to
+# remember WHERE each tracked key came from.
+_UM_SSH_SOURCES=()
+
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)         um_usage; exit 0 ;;
@@ -121,6 +145,9 @@ while [ $# -gt 0 ]; do
     --ssh-key-url-max-bytes) UM_SSH_URL_MAX_BYTES="${2:-}"; shift 2 ;;
     --ssh-key-url-allowlist) UM_SSH_URL_ALLOWLIST_EXTRA="${2:-}"; shift 2 ;;
     --allow-insecure-url)    UM_SSH_URL_ALLOW_INSECURE=1; shift ;;
+    --run-id)                UM_RUN_ID="${2:-}"; shift 2 ;;
+    --manifest-dir)          UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
+    --no-manifest)           UM_NO_MANIFEST=1; shift ;;
     --) shift; break ;;
     -*)
       log_err "unknown option: '$1' (failure: see --help)"
@@ -431,6 +458,147 @@ _ssh_fetch_url() {
     return 0
 }
 
+# --- rollback manifest writer (added v0.172.0) ------------------------------
+# Writes one JSON file per (run-id, user) tuple under $UM_MANIFEST_DIR. The
+# manifest records EVERY key we just wrote into authorized_keys along with
+# its fingerprint and source tag. remove-ssh-keys.sh later reads this and
+# strips the matching lines back out.
+#
+# Schema (stable -- bump UM_MANIFEST_VERSION on incompatible change):
+#   {
+#     "manifestVersion": 1,
+#     "runId":   "20260427-153045-ab12",
+#     "writtenAt": "2026-04-27T15:30:45+08:00",
+#     "host":    "myhost",
+#     "user":    "alice",
+#     "authorizedKeysFile": "/home/alice/.ssh/authorized_keys",
+#     "scriptVersion": "0.172.0",
+#     "keys": [
+#       { "fingerprint": "SHA256:abc...", "algo": "ssh-ed25519",
+#         "source": "url:https://github.com/alice.keys",
+#         "line": "ssh-ed25519 AAAA... alice@host" }
+#     ]
+#   }
+#
+# The raw key line is kept (mode 0600 on the manifest dir) because some
+# operators rotate keys faster than fingerprint formats stabilise -- a
+# literal-line fallback guarantees we can always find the row to delete.
+UM_MANIFEST_VERSION=1
+
+_um_gen_run_id() {
+    # ISO-ish stamp + 4 hex chars of randomness. Avoid spaces / colons so
+    # the id can be a filename and a CLI arg without quoting.
+    local stamp rnd
+    stamp=$(date +%Y%m%d-%H%M%S 2>/dev/null || echo "00000000-000000")
+    if [ -r /dev/urandom ]; then
+        rnd=$(LC_ALL=C tr -dc 'a-f0-9' < /dev/urandom 2>/dev/null | head -c 4)
+    fi
+    [ -z "$rnd" ] && rnd=$(printf '%04x' "$$")
+    printf '%s-%s' "$stamp" "$rnd"
+}
+
+# _um_fingerprint_key <key-line>  -> echoes "fp<TAB>algo" (best effort).
+_um_fingerprint_key() {
+    local line="$1"
+    local fp="" algo=""
+    algo=$(printf '%s' "$line" | awk '{print $1}')
+    if command -v ssh-keygen >/dev/null 2>&1; then
+        fp=$(printf '%s\n' "$line" | ssh-keygen -lf - 2>/dev/null | awk '{print $2}')
+    fi
+    if [ -z "$fp" ] && command -v sha256sum >/dev/null 2>&1; then
+        fp="sha256:"$(printf '%s' "$line" | sha256sum | awk '{print $1}')
+    fi
+    [ -z "$fp" ] && fp="literal-only"
+    printf '%s\t%s' "$fp" "$algo"
+}
+
+# _um_write_manifest <user> <auth_keys_path> <key-buffer> <added-count>
+# Writes (or appends to) the per-run manifest. Does nothing when:
+#   - UM_NO_MANIFEST=1 (operator opted out)
+#   - UM_DRY_RUN=1     (dry run -- nothing actually installed)
+#   - added-count == 0 (no new keys -- nothing to roll back)
+_um_write_manifest() {
+    local user="$1" auth_path="$2" key_buf="$3" added="$4"
+    [ "$UM_NO_MANIFEST" = "1" ] && return 0
+    [ "$UM_DRY_RUN" = "1" ]     && return 0
+    [ "${added:-0}" -le 0 ]     && return 0
+    [ -z "$key_buf" ]           && return 0
+
+    if [ -z "$UM_RUN_ID" ]; then UM_RUN_ID=$(_um_gen_run_id); fi
+
+    if ! mkdir -p "$UM_MANIFEST_DIR" 2>/dev/null; then
+        log_err "$(um_msg manifestWriteFail "$UM_MANIFEST_DIR" "could not create manifest dir")"
+        return 1
+    fi
+    chmod 0700 "$UM_MANIFEST_DIR" 2>/dev/null || true
+
+    local manifest_path="$UM_MANIFEST_DIR/${UM_RUN_ID}__${user}.json"
+
+    # Build the JSON body. We map each line in key_buf to its source tag
+    # via _UM_SSH_SOURCES (TSV: source<TAB>key). Multiple sources for the
+    # same key (post-dedup) collapse to the FIRST one we saw.
+    local tmp_json
+    tmp_json=$(mktemp -t 68-manifest.XXXXXX) || {
+        log_err "$(um_msg manifestWriteFail "$manifest_path" "mktemp failed")"
+        return 1
+    }
+
+    {
+        printf '{\n'
+        printf '  "manifestVersion": %s,\n' "$UM_MANIFEST_VERSION"
+        printf '  "runId": "%s",\n' "$UM_RUN_ID"
+        printf '  "writtenAt": "%s",\n' "$(date -Iseconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)"
+        printf '  "host": "%s",\n' "$(hostname 2>/dev/null || echo unknown)"
+        printf '  "user": "%s",\n' "$user"
+        printf '  "authorizedKeysFile": "%s",\n' "$auth_path"
+        printf '  "scriptVersion": "0.172.0",\n'
+        printf '  "keys": [\n'
+
+        local first=1
+        while IFS= read -r kline; do
+            [ -z "$kline" ] && continue
+            # Resolve source tag (first match wins).
+            local src=""
+            local row
+            for row in "${_UM_SSH_SOURCES[@]}"; do
+                local tag="${row%%$'\t'*}"
+                local val="${row#*$'\t'}"
+                if [ "$val" = "$kline" ]; then src="$tag"; break; fi
+            done
+            [ -z "$src" ] && src="unknown"
+
+            local fp_algo fp algo
+            fp_algo=$(_um_fingerprint_key "$kline")
+            fp="${fp_algo%%$'\t'*}"
+            algo="${fp_algo##*$'\t'}"
+
+            # JSON-escape the line + source. We only have to handle "
+            # and \ -- algo/fingerprint are ASCII-safe by construction.
+            local esc_line esc_src
+            esc_line=$(printf '%s' "$kline" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+            esc_src=$(printf  '%s' "$src"   | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+
+            if [ "$first" = "1" ]; then first=0; else printf ',\n'; fi
+            printf '    { "fingerprint": "%s", "algo": "%s", "source": "%s", "line": "%s" }' \
+                "$fp" "$algo" "$esc_src" "$esc_line"
+        done <<< "$key_buf"
+
+        printf '\n  ]\n}\n'
+    } > "$tmp_json" 2>/dev/null
+
+    if ! mv "$tmp_json" "$manifest_path" 2>/dev/null; then
+        rm -f "$tmp_json"
+        log_err "$(um_msg manifestWriteFail "$manifest_path" "mv from tmp failed")"
+        return 1
+    fi
+    chmod 0600 "$manifest_path" 2>/dev/null || true
+
+    local tracked
+    tracked=$(printf '%s\n' "$key_buf" | awk 'NF' | wc -l | tr -d ' ')
+    log_ok "$(um_msg manifestWritten "$manifest_path" "$UM_RUN_ID" "$user" "$tracked")"
+    return 0
+}
+
 if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
 
   # Build a single newline-separated buffer of every requested key.
@@ -438,6 +606,7 @@ if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
   _ssh_buf=""
   _ssh_emit() {
     local k="$1"
+    local src="${2:-unknown}"
     # Strip CR + leading/trailing whitespace; ignore blanks + comments.
     k="${k%$'\r'}"
     k="${k#"${k%%[![:space:]]*}"}"
@@ -454,9 +623,13 @@ if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
     if [ -z "$_ssh_buf" ]; then _ssh_buf="$k"
     else                        _ssh_buf="$_ssh_buf"$'\n'"$k"
     fi
+    # Track origin alongside the key for the rollback manifest. Same
+    # index in _UM_SSH_SOURCES corresponds to the same line in _ssh_buf
+    # AFTER de-dup -- we re-derive the mapping below.
+    _UM_SSH_SOURCES+=("$src"$'\t'"$k")
   }
 
-  for k in "${UM_SSH_KEYS[@]}"; do _ssh_emit "$k"; done
+  for k in "${UM_SSH_KEYS[@]}"; do _ssh_emit "$k" "inline"; done
 
   for f in "${UM_SSH_KEY_FILES[@]}"; do
     if [ ! -f "$f" ]; then
@@ -468,7 +641,7 @@ if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
       continue
     fi
     while IFS= read -r line || [ -n "$line" ]; do
-      _ssh_emit "$line"
+      _ssh_emit "$line" "file:$f"
     done < "$f"
   done
 
@@ -479,7 +652,7 @@ if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
   for u in "${UM_SSH_KEY_URLS[@]}"; do
     body=$(_ssh_fetch_url "$u") || continue
     while IFS= read -r line || [ -n "$line" ]; do
-      _ssh_emit "$line"
+      _ssh_emit "$line" "url:$u"
     done <<< "$body"
   done
 
@@ -551,6 +724,17 @@ if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
               fi
               log_info "  key fingerprint: $fp"
             done <<< "$_ssh_buf"
+
+            # Persist rollback manifest. Only the keys that were actually
+            # appended this run get tracked -- pre-existing keys are
+            # excluded so rollback can never delete keys we didn't put
+            # there. Net-new = (merged set) MINUS (existing set), order
+            # preserved.
+            _new_only=$(awk '
+                NR==FNR { if (NF) seen[$0]=1; next }
+                NF && !seen[$0] { print }
+            ' <(printf '%s\n' "$existing") <(printf '%s\n' "$_ssh_buf"))
+            _um_write_manifest "$UM_NAME" "$_ssh_file" "$_new_only" "$added"
           fi
         fi
       fi

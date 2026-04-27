@@ -38,3 +38,4 @@ NO-QUESTIONS MODE active for next 40 tasks (from 2026-04-26): never call ask_que
 - [Script 54 scope+admin guidance](mem://features/08-script-54-scope-admin-guidance) — Write-ScopeAdminGuidance: actionable elevation messaging w/ verb-specific rerun commands for install/uninstall/repair/sync
 - [Cross-OS startup-add (script 64)](mem://features/03-cross-os-startup-add) — Unix-side startup manager: 6 methods, tag-based enumerate/remove
 - [Script 68 sshKeyUrls](mem://features/16-script-68-ssh-key-urls) — Fetch authorized_keys from HTTPS URLs with timeout + allowlist (v0.171.0)
+- [Script 68 ssh-key rollback](mem://features/17-script-68-ssh-key-rollback) — Per-run JSON manifests + remove-ssh-keys.sh strip ONLY tracked keys (v0.172.0)

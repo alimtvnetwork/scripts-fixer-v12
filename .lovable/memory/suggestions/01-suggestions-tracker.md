@@ -175,3 +175,26 @@ type: feature
 - **Audit trail**: append every (url, http_code, bytes, fingerprint, ts)
   to `.installed/68.url-fetch.log` so post-incident review can see
   exactly which keys came from where and when.
+
+## Script 68 -- ssh-key rollback (added v0.172.0)
+
+- **`--restore <run-id>`**: inverse of rollback -- replay a manifest to
+  re-install previously-removed keys (useful for "oops" scenarios when
+  the operator rolled back the wrong batch).
+- **Manifest GC policy**: prune manifests older than N days via a cron
+  helper so `--list` doesn't accumulate years of history. Add
+  `manifestRetentionDays` to `config.json`.
+- **Sign the manifest**: HMAC the JSON with a per-host key so a
+  compromised user can't forge a manifest that tricks rollback into
+  removing keys from another account.
+- **Per-key rollback**: today `--run-id` is all-or-nothing. Add
+  `--key-fingerprint <fp>` to remove a single key from one tracked run
+  while leaving its siblings.
+- **Cross-host manifest sync**: when the orchestrator runs the same
+  batch across N hosts, collect the manifests back to a central store so
+  rollback can be driven from one place.
+- **Apply same manifest pattern to group memberships**: `add-user.sh`
+  also mutates supplementary group lists (e.g. `--sudo`). Track those in
+  the manifest and let rollback revert membership changes too.
+- **Manifest `--export-json` for `--list`**: machine-readable output so
+  external dashboards can show "tracked runs" without scraping logs.
