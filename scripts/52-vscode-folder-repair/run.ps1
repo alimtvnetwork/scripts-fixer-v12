@@ -323,16 +323,27 @@ try {
     }
 
     # -- Per-edition processing ----------------------------------------------
+    # Auto-detect installed editions (Stable vs Insiders) and skip the ones
+    # that are not present so we never try to write Insiders registry keys
+    # on a Stable-only machine, etc. The shared helper also surfaces the
+    # exact registry paths + Code.exe path per detected edition.
     $installType     = $config.installationType
-    $enabledEditions = $config.enabledEditions
+    $configEditions  = @($config.enabledEditions)
     $removeTargets   = @($config.removeFromTargets)
     $ensureTargets   = @($config.ensureOnTargets)
     $isAllSuccessful = $true
 
     Write-Log ($logMessages.messages.installTypePref -replace '\{type\}', $installType) -Level "info"
-    Write-Log ($logMessages.messages.enabledEditions -replace '\{editions\}', ($enabledEditions -join ', ')) -Level "info"
+    Write-Log ($logMessages.messages.enabledEditions -replace '\{editions\}', ($configEditions -join ', ')) -Level "info"
 
-    foreach ($editionName in $enabledEditions) {
+    $detectedEditions = @(Get-InstalledVsCodeEditions -EnabledEditions $configEditions -LogMsgs $logMessages)
+    $hasNoneInstalled = ($detectedEditions.Count -eq 0)
+    if ($hasNoneInstalled) {
+        Write-Log "[edition-detect] no enabled VS Code editions are installed -- nothing to repair." -Level "warn"
+        return
+    }
+
+    foreach ($editionName in $detectedEditions) {
         $edition = $config.editions.$editionName
 
         $isEditionMissing = -not $edition
