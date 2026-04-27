@@ -173,6 +173,12 @@ function Show-OsHelp {
     Write-Host "    add-group <name> [--description T] [--ask] [--dry-run] Create a local group" -ForegroundColor Green
     Write-Host "    add-group-json <file.json> [--dry-run]                 Bulk groups from JSON" -ForegroundColor Green
     Write-Host ""
+    Write-Host "  SSH KEY MANAGEMENT (cross-OS, idempotent)" -ForegroundColor Cyan
+    Write-Host "    gen-key [--type ed25519|rsa] [--out PATH] [--ask] [--dry-run]" -ForegroundColor Green
+    Write-Host "    install-key --key '...' | --key-file PATH [--user N] [--dry-run]" -ForegroundColor Green
+    Write-Host "    revoke-key --fingerprint SHA256:... | --comment X [--user N] [--all --yes]" -ForegroundColor Green
+    Write-Host "      State ledger: %USERPROFILE%\.lovable\ssh-keys-state.json" -ForegroundColor DarkGray
+    Write-Host ""
     Write-Host "  STARTUP MANAGEMENT (cross-OS feature, Windows side)" -ForegroundColor Cyan
     Write-Host "    startup-add app <path> [--method M] [--name N] [--args ...] [--interactive] [--elevated]" -ForegroundColor Green
     Write-Host "      Methods: startup-folder (default, no admin) | hkcu-run | hklm-run [ADMIN] | task [ADMIN for HIGHEST]" -ForegroundColor DarkGray
