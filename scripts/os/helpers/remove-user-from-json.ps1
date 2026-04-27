@@ -51,6 +51,29 @@
 
     Usage:
       .\run.ps1 os remove-user-json <file.json> [--dry-run]
+
+    Dry-run effect per JSON field (with --dry-run, every record is
+    validated + planned but no host mutation occurs. Each field maps to
+    a single Invoke-UserDelete / Invoke-PurgeHome call which logs
+    "[dry-run] <command>" with the resolved arguments. Confirmation
+    prompts are auto-bypassed (this loader is non-interactive by design).):
+      name             would resolve account + profile path, then call
+                       Remove-LocalUser -Name <name> (SID <sid>). Absent
+                       account -> [WARN] "nothing to remove" and the
+                       record exits 0 (idempotent); no mutation either way.
+      purgeHome        would 'Remove-Item -LiteralPath C:\Users\<name>
+                       -Recurse -Force' AFTER account delete. DESTRUCTIVE
+                       in real-run; in dry-run only the Remove-Item
+                       command is logged.
+      purgeProfile     same as purgeHome (alias only); same dry-run line.
+      removeMailSpool  IGNORED on Windows (Linux only; no log line)
+
+    Loader-level dry-run notes:
+      - The bare-string shorthand is normalised to { "name": ... } before
+        the dry-run banner is printed, so the planned list matches a
+        subsequent real run exactly.
+      - Records with a missing user produce a [WARN] but the loader still
+        exits 0 if every other record was ok.
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
