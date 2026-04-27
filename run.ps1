@@ -1783,6 +1783,8 @@ function Invoke-DoctorSelfCheck {
     }
     Write-Host ""
 }
+
+function Invoke-PathCommand {
     param([string[]]$Args)
 
     # Load dev-dir helper
