@@ -31,6 +31,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 um_usage() {
   cat <<EOF
+# revoke-key -- remove keys by --fingerprint, --comment, --key, or --all;
+# see readme.md "SSH key lifecycle" for the cross-OS contract.
 Usage:
   remove-ssh-keys.sh --list [--manifest-dir DIR]
       Show every tracked run on this host (run-id, timestamp, user, key

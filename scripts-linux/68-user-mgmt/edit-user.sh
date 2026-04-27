@@ -30,7 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 [ -f "$SCRIPT_DIR/helpers/_prompt.sh" ] && . "$SCRIPT_DIR/helpers/_prompt.sh"
 
-um_usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; }
+um_usage() { sed -n '2,31p' "$0" | sed 's/^# \{0,1\}//'; }
 
 UM_NAME=""
 UM_NEW_NAME=""

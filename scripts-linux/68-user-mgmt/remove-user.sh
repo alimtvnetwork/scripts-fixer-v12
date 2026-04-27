@@ -25,7 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 [ -f "$SCRIPT_DIR/helpers/_prompt.sh" ] && . "$SCRIPT_DIR/helpers/_prompt.sh"
 
-um_usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; }
+um_usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; }
 
 UM_NAME=""
 UM_PURGE=0
