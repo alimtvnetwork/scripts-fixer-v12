@@ -162,6 +162,10 @@ while [ $# -gt 0 ]; do
         --https)           WP_HTTPS="1"; shift ;;
         --email)           WP_HTTPS_EMAIL="$2"; shift 2 ;;
         --https-staging)   WP_HTTPS_STAGING="1"; shift ;;
+        --dns)             WP_DNS_PROVIDER="$2"; WP_HTTPS="1"; shift 2 ;;
+        --dns-credentials) WP_DNS_CREDENTIALS="$2"; shift 2 ;;
+        --dns-propagation) WP_DNS_PROPAGATION="$2"; shift 2 ;;
+        --wildcard)        WP_HTTPS_WILDCARD="1"; WP_HTTPS="1"; shift ;;
         --show-credentials) WP_SHOW_CREDENTIALS="1"; shift ;;
         --json)            SHOW_CREDS_JSON="1"; shift ;;
         -h|--help)         _show_help; exit 0 ;;
