@@ -38,6 +38,12 @@ Usage:
 
   run.sh playbook <name> --group <group> [--role control-plane|worker]
       Run a playbook directory under playbooks/<name>/.
+      Optional, repeatable:
+        --with-env  KEY=VALUE       Export KEY on each remote before each step.
+        --with-file ENV_KEY=path    base64-encode the local file and export it
+                                    as ENV_KEY on each remote (use for the
+                                    fanout playbooks: USERS_JSON_B64 / GROUPS_JSON_B64
+                                    / KEYS_B64).
 
   run.sh inventory list | show <alias>
       Inspect parsed inventory.
