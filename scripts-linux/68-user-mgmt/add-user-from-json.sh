@@ -95,6 +95,48 @@ JSON examples (each record below would pass schema validation):
 
   // 3) wrapped (legal at the top level only)
   { "users": [ { "name": "dan", "password": "..." } ] }
+
+Dry-run effect per JSON field (when --dry-run is passed, every record is
+still validated + planned but no host mutation occurs; each per-record
+fan-out call is invoked with --dry-run so add-user.sh logs the planned
+commands. See add-user.sh --help for the underlying "[dry-run] <cmd>"
+wording. Validation (schema + mutex + path checks) ALWAYS runs even
+without --dry-run, so a malformed file fails fast.):
+  name                    would call useradd / sysadminctl create (skipped
+                          with [WARN] if the account already exists; group
+                          + key sync still proceed in plan mode)
+  password                would pipe '<name>:<masked>' to chpasswd / dscl
+                          -passwd; value NEVER logged
+  passwordFile            same as password but reads from FILE; mode is
+                          checked (must be 0600/0400) before the plan runs
+  uid                     would pass --uid N to useradd / set UniqueID
+  primaryGroup            would create the group via groupadd if missing
+                          (Linux only) and pass --gid to useradd
+  groups                  would call usermod -aG / dseditgroup once per group
+  shell                   would pass --shell PATH to useradd / set UserShell
+  home                    would pass --home-dir PATH --create-home (Linux) /
+                          set NFSHomeDirectory + run createhomedir (macOS)
+  comment                 would pass --comment "..." to useradd / set RealName
+  sudo                    would add to 'sudo' (Linux) / 'admin' (macOS)
+  system                  would pass --system to useradd (Linux only;
+                          ignored on macOS with no log line)
+  sshKeys                 each inline key counts as a source; logs
+                          "[dry-run] would install N unique ssh key(s)
+                          to <home>/.ssh/authorized_keys ..." plus one
+                          fingerprint line per unique key
+  sshKeyFiles             same as sshKeys but each file is parsed for one or
+                          many keys (blanks/# comments skipped)
+  sshKeyUrls              URLs ARE still fetched under --dry-run so the
+                          fingerprint/dedup count is accurate; nothing is
+                          written to disk
+  sshKeyUrlTimeout / sshKeyUrlMaxBytes / sshKeyUrlAllowlist /
+  allowInsecureSshKeyUrl
+                          tune the URL fetch above (still honoured in dry-run)
+
+Loader-level dry-run notes:
+  - The rollback manifest is NOT written under --dry-run (see add-user.sh).
+  - The summary-json export is also SKIPPED; the path that WOULD be
+    written is logged at INFO so you can verify TARGET resolution.
 EOF
 }
 
