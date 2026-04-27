@@ -307,6 +307,10 @@ _clean_mime_defaults() {
             log_info "[01]   no matching MIME entries in: $path"
             rm -f "$tmp"; return 0
         fi
+        if ! _scope_can_modify; then
+            log_info "[01]   REPORT-ONLY -- would scrub: $path"
+            rm -f "$tmp"; return 0
+        fi
         # Backup before overwriting.
         local ts backup
         ts=$(date +%Y%m%d-%H%M%S)
