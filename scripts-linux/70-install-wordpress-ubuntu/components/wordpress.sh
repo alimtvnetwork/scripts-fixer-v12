@@ -41,25 +41,67 @@ component_wordpress_install() {
     if [ -f "$install_path/wp-config.php" ]; then
         log_ok "[70][wp] $install_path already contains wp-config.php -- skipping download/extract"
     else
-        local tarball="/tmp/wordpress-latest-$$.tar.gz"
-        local url="https://wordpress.org/latest.tar.gz"
-        log_info "[70][wp] downloading $url -> $tarball"
-        if ! curl -fsSL -o "$tarball" "$url"; then
-            log_file_error "$tarball" "curl download failed from $url"
-            return 1
+        # Prefer ZIP (operator's spec). Fall back to tar.gz only if `unzip` is
+        # missing AND we can't install it; that keeps the script working on
+        # minimal images where unzip isn't preinstalled.
+        if ! command -v unzip >/dev/null 2>&1; then
+            log_info "[70][wp] 'unzip' not found -- attempting 'apt-get install -y unzip'"
+            sudo apt-get install -y unzip >/dev/null 2>&1 || true
         fi
+
         if ! sudo mkdir -p "$install_path"; then
             log_file_error "$install_path" "mkdir -p failed for WordPress install path"
-            rm -f "$tarball"
             return 1
         fi
-        # Extract; --strip-components=1 so files land at $install_path/* not $install_path/wordpress/*
-        if ! sudo tar -xzf "$tarball" -C "$install_path" --strip-components=1; then
-            log_file_error "$install_path" "tar extract failed (source: $tarball)"
+
+        if command -v unzip >/dev/null 2>&1; then
+            local zipfile="/tmp/wordpress-latest-$$.zip"
+            local url="https://wordpress.org/latest.zip"
+            log_info "[70][wp] downloading $url -> $zipfile"
+            if ! curl -fsSL -o "$zipfile" "$url"; then
+                log_file_error "$zipfile" "curl download failed from $url"
+                return 1
+            fi
+            local stage; stage="$(mktemp -d)"
+            log_info "[70][wp] unzipping into staging dir $stage"
+            if ! unzip -q "$zipfile" -d "$stage"; then
+                log_file_error "$zipfile" "unzip extract failed (target: $stage)"
+                rm -rf "$zipfile" "$stage"
+                return 1
+            fi
+            # The ZIP contains a top-level 'wordpress/' directory; move its
+            # contents (including dotfiles) into $install_path so files land
+            # at $install_path/* (matching the previous --strip-components=1).
+            if [ ! -d "$stage/wordpress" ]; then
+                log_file_error "$stage/wordpress" "expected 'wordpress/' top-level dir inside ZIP -- archive layout changed"
+                rm -rf "$zipfile" "$stage"
+                return 1
+            fi
+            if ! sudo bash -c "shopt -s dotglob nullglob; mv '$stage/wordpress'/* '$install_path'/"; then
+                log_file_error "$install_path" "mv from staged ZIP failed (source: $stage/wordpress)"
+                rm -rf "$zipfile" "$stage"
+                return 1
+            fi
+            rm -rf "$zipfile" "$stage"
+            log_ok "[70][wp] ZIP extracted to $install_path"
+        else
+            local tarball="/tmp/wordpress-latest-$$.tar.gz"
+            local url="https://wordpress.org/latest.tar.gz"
+            log_warn "[70][wp] 'unzip' unavailable after apt-get; falling back to tar.gz"
+            log_info "[70][wp] downloading $url -> $tarball"
+            if ! curl -fsSL -o "$tarball" "$url"; then
+                log_file_error "$tarball" "curl download failed from $url"
+                return 1
+            fi
+            # --strip-components=1 so files land at $install_path/* not $install_path/wordpress/*
+            if ! sudo tar -xzf "$tarball" -C "$install_path" --strip-components=1; then
+                log_file_error "$install_path" "tar extract failed (source: $tarball)"
+                rm -f "$tarball"
+                return 1
+            fi
             rm -f "$tarball"
-            return 1
         fi
-        rm -f "$tarball"
+
         sudo chown -R www-data:www-data "$install_path" || true
         sudo find "$install_path" -type d -exec chmod 755 {} \; 2>/dev/null || true
         sudo find "$install_path" -type f -exec chmod 644 {} \; 2>/dev/null || true
