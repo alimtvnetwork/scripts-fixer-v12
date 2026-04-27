@@ -23,6 +23,9 @@ REPO_ROOT="${REPO_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FIX_TARGET="${FIX_TARGET:-v11}"
 FIX_VERSIONS="${FIX_VERSIONS:-8 9 10}"
 DRY_RUN="${DRY_RUN:-0}"
+# JSON summary report. Set REPORT_FILE="" to suppress, or pass an absolute/
+# relative path. Relative paths resolve against $REPO_ROOT.
+REPORT_FILE="${REPORT_FILE-legacy-fix-report.json}"
 
 if [ ! -d "$REPO_ROOT" ]; then
   file_error "$REPO_ROOT" "repo root does not exist"
