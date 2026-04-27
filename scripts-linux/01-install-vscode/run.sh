@@ -12,9 +12,174 @@ CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 01-install-vscode"; exit 1; }
 
 INSTALLED_MARK="$ROOT/.installed/01.ok"
+FINGERPRINT_FILE="$ROOT/.installed/01.fingerprint"
 
 verify_installed() { command -v code >/dev/null 2>&1; }
 
+# --- Scope detection -------------------------------------------------------
+# Cleanup is bounded by THREE sources of truth, in priority order:
+#   1. Override env vars VSCODE_CLEAN_METHODS / VSCODE_CLEAN_EDITIONS
+#      (space-separated). Highest priority -- escape hatch for ops.
+#   2. .installed/01.fingerprint -- written at install time. Captures the
+#      method + edition + version + timestamp of THIS script's install.
+#      Used so that reinstalling via a different method later doesn't make
+#      uninstall lose track of the original.
+#   3. Live detection via config.json -> scope.methodProbes / editionProbes.
+#      Probes apt (dpkg -s), snap (snap list), flatpak (flatpak list),
+#      and presence of method-specific install dirs.
+#
+# Outputs (exported for downstream helpers):
+#   SCOPE_METHODS   = space-separated list of detected install methods
+#                     ("apt snap" / "flatpak" / "tarball" / "" if none)
+#   SCOPE_EDITIONS  = space-separated list of detected editions
+#                     ("stable" / "insiders" / "stable insiders" / "")
+#   SCOPE_SOURCE    = "override" | "fingerprint" | "live"
+#
+# When SCOPE_METHODS is empty, ALL cleanup helpers go into REPORT-ONLY
+# mode -- they list what they WOULD touch but make no changes. This is
+# the safe default when we can't prove anything was installed.
+_resolve_install_scope() {
+    has_jq || { log_warn "[01] jq not available -- scope detection disabled"; SCOPE_METHODS=""; SCOPE_EDITIONS=""; SCOPE_SOURCE="none"; return 0; }
+
+    # 1. Override env wins.
+    if [ -n "${VSCODE_CLEAN_METHODS:-}" ] || [ -n "${VSCODE_CLEAN_EDITIONS:-}" ]; then
+        SCOPE_METHODS="${VSCODE_CLEAN_METHODS:-}"
+        SCOPE_EDITIONS="${VSCODE_CLEAN_EDITIONS:-stable insiders}"
+        SCOPE_SOURCE="override"
+        log_info "[01][scope] using override: methods='$SCOPE_METHODS' editions='$SCOPE_EDITIONS'"
+        return 0
+    fi
+
+    # 2. Fingerprint from a previous install we did.
+    if [ -f "$FINGERPRINT_FILE" ]; then
+        local fp_methods fp_editions fp_version fp_ts
+        fp_methods=$(jq  -r '.methods   // "" | if type=="array" then join(" ") else . end' "$FINGERPRINT_FILE" 2>/dev/null || echo "")
+        fp_editions=$(jq -r '.editions  // "" | if type=="array" then join(" ") else . end' "$FINGERPRINT_FILE" 2>/dev/null || echo "")
+        fp_version=$(jq  -r '.version   // "unknown"' "$FINGERPRINT_FILE" 2>/dev/null || echo "unknown")
+        fp_ts=$(jq       -r '.installedAt // "unknown"' "$FINGERPRINT_FILE" 2>/dev/null || echo "unknown")
+        if [ -n "$fp_methods" ]; then
+            SCOPE_METHODS="$fp_methods"
+            SCOPE_EDITIONS="${fp_editions:-stable}"
+            SCOPE_SOURCE="fingerprint"
+            log_info "[01][scope] using fingerprint: methods='$SCOPE_METHODS' editions='$SCOPE_EDITIONS' version='$fp_version' installed='$fp_ts'"
+            return 0
+        fi
+        log_warn "[01][scope] fingerprint at $FINGERPRINT_FILE has empty .methods -- falling through to live detection"
+    fi
+
+    # 3. Live detection.
+    local methods="" editions=""
+
+    # apt
+    if is_debian_family 2>/dev/null && is_apt_pkg_installed code 2>/dev/null; then
+        methods="$methods apt"
+    elif is_debian_family 2>/dev/null && is_apt_pkg_installed code-insiders 2>/dev/null; then
+        methods="$methods apt"
+    elif [ -d /usr/share/code ] || [ -d /usr/share/code-insiders ]; then
+        methods="$methods apt"
+    fi
+
+    # snap
+    if command -v snap >/dev/null 2>&1; then
+        if snap list 2>/dev/null | awk 'NR>1 {print $1}' | grep -qx 'code\|code-insiders' 2>/dev/null; then
+            methods="$methods snap"
+        elif [ -d /snap/code/current ] || [ -d /snap/code-insiders/current ]; then
+            methods="$methods snap"
+        fi
+    fi
+
+    # flatpak
+    if command -v flatpak >/dev/null 2>&1; then
+        if flatpak list --app --columns=application 2>/dev/null | grep -qx 'com.visualstudio.code\|com.visualstudio.code.insiders' 2>/dev/null; then
+            methods="$methods flatpak"
+        fi
+    fi
+    [ -d /var/lib/flatpak/app/com.visualstudio.code ]                  && methods="$methods flatpak"
+    [ -d /var/lib/flatpak/app/com.visualstudio.code.insiders ]         && methods="$methods flatpak"
+    [ -d "$HOME/.local/share/flatpak/app/com.visualstudio.code" ]      && methods="$methods flatpak"
+
+    # tarball / opt
+    [ -d /opt/visual-studio-code ]      && methods="$methods tarball"
+    [ -d /opt/VSCode-linux-x64 ]        && methods="$methods tarball"
+    [ -d "$HOME/.local/opt/vscode" ]    && methods="$methods tarball"
+
+    # Editions
+    if command -v code >/dev/null 2>&1            || \
+       [ -f /usr/share/applications/code.desktop ] || \
+       [ -f "$HOME/.local/share/applications/code.desktop" ]; then
+        editions="$editions stable"
+    fi
+    if command -v code-insiders >/dev/null 2>&1            || \
+       [ -f /usr/share/applications/code-insiders.desktop ] || \
+       [ -f "$HOME/.local/share/applications/code-insiders.desktop" ]; then
+        editions="$editions insiders"
+    fi
+
+    # Dedupe + trim.
+    SCOPE_METHODS=$(printf '%s\n' $methods  | awk '!seen[$0]++' | xargs echo)
+    SCOPE_EDITIONS=$(printf '%s\n' $editions | awk '!seen[$0]++' | xargs echo)
+    SCOPE_SOURCE="live"
+    if [ -z "$SCOPE_METHODS" ]; then
+        log_warn "[01][scope] live detection found NO VS Code install (no apt pkg, no snap, no flatpak, no /opt) -- cleanup will run in REPORT-ONLY mode (no files modified). Use VSCODE_CLEAN_METHODS=apt VSCODE_CLEAN_EDITIONS=stable to force scrub."
+    else
+        log_info "[01][scope] live detection: methods='$SCOPE_METHODS' editions='${SCOPE_EDITIONS:-<none>}'"
+    fi
+    return 0
+}
+
+# Returns 0 (true) if the given comma/space-separated tag list intersects
+# the active scope dimension. $1 = "methods" or "editions", $2... = tags.
+_scope_matches() {
+    local dim="$1"; shift
+    local active=""
+    case "$dim" in
+        methods)  active="$SCOPE_METHODS" ;;
+        editions) active="$SCOPE_EDITIONS" ;;
+        *)        return 1 ;;
+    esac
+    # Empty active scope -> nothing matches (report-only mode).
+    [ -z "$active" ] && return 1
+    local want a w
+    for want in "$@"; do
+        for a in $active; do
+            if [ "$want" = "$a" ]; then return 0; fi
+        done
+    done
+    return 1
+}
+
+# Returns 0 if we should perform actual writes; 1 for report-only mode.
+_scope_can_modify() {
+    [ -n "$SCOPE_METHODS" ]
+}
+
+# Write a fingerprint when we successfully install. Captures method,
+# edition, version, timestamp, and the apt/snap channel/source.
+_write_install_fingerprint() {
+    local method="$1" edition="${2:-stable}" version source
+    version=$(code --version 2>/dev/null | head -1 || echo "unknown")
+    case "$method" in
+        apt)
+            source=$(dpkg-query -W -f='${Version}|${Source}|${Maintainer}\n' code 2>/dev/null || echo "unknown")
+            ;;
+        snap)
+            source=$(snap info code 2>/dev/null | awk '/^tracking:/ {print $2; exit}')
+            ;;
+        *)  source="unknown" ;;
+    esac
+    mkdir -p "$ROOT/.installed"
+    cat > "$FINGERPRINT_FILE" <<EOF
+{
+  "methods": ["$method"],
+  "editions": ["$edition"],
+  "version": "$version",
+  "source": "$source",
+  "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "installedBy": "scripts-linux/01-install-vscode/run.sh"
+}
+EOF
+    log_info "[01] Wrote install fingerprint: $FINGERPRINT_FILE (method=$method edition=$edition version=$version)"
+}
 # --- MIME cleanup -----------------------------------------------------------
 # Scrub VS Code's shell-integration MIME defaults (the apt/snap postinst hooks
 # register code.desktop as the default handler for dozens of text/source MIME
