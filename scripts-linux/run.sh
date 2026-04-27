@@ -503,6 +503,34 @@ case "${VERB:-help}" in
           bash "$ROOT/68-user-mgmt/add-user-from-json.sh"
         fi
         ;;
+      edit-cli)
+        if [ "${#_usr_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/edit-user.sh" "${_usr_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/edit-user.sh"
+        fi
+        ;;
+      edit-json)
+        if [ "${#_usr_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/edit-user-from-json.sh" "${_usr_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/edit-user-from-json.sh"
+        fi
+        ;;
+      remove-cli)
+        if [ "${#_usr_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/remove-user.sh" "${_usr_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/remove-user.sh"
+        fi
+        ;;
+      remove-json)
+        if [ "${#_usr_filtered[@]}" -gt 0 ]; then
+          bash "$ROOT/68-user-mgmt/remove-user-from-json.sh" "${_usr_filtered[@]}"
+        else
+          bash "$ROOT/68-user-mgmt/remove-user-from-json.sh"
+        fi
+        ;;
       *)
         log_err "internal: unknown usr sub '$USR_SUB'"; exit 64 ;;
     esac
