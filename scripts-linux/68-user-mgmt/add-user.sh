@@ -18,6 +18,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
+. "$SCRIPT_DIR/helpers/_manifest_prune.sh"
 
 um_usage() {
   cat <<EOF
