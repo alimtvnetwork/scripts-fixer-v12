@@ -591,76 +591,17 @@ component_wordpress_install() {
     fi
 
     # 3. wp-config.php -----------------------------------------------------
-    local cfg="$install_path/wp-config.php"
-    if [ ! -f "$install_path/wp-config-sample.php" ]; then
-        log_file_error "$install_path/wp-config-sample.php" "wp-config-sample.php missing -- WordPress tarball was malformed"
-        return 1
-    fi
-    log_info "[70][wp] writing $cfg"
-    sudo cp "$install_path/wp-config-sample.php" "$cfg" || {
-        log_file_error "$cfg" "cp from wp-config-sample.php failed"
-        return 1
-    }
-    sudo sed -i \
-        -e "s/database_name_here/${db_name}/" \
-        -e "s/username_here/${db_user}/" \
-        -e "s|password_here|${db_pass}|" \
-        -e "s/localhost/${db_host}:${db_port}/" \
-        "$cfg" || {
-        log_file_error "$cfg" "sed replacement failed for DB credentials"
-        return 1
-    }
-
-    # Replace the entire SALT block with a fresh set from the WordPress API.
-    local salts; salts="$(curl -fsSL https://api.wordpress.org/secret-key/1.1/salt/ 2>/dev/null || echo '')"
-    if [ -n "$salts" ]; then
-        local tmp; tmp="$(mktemp)"
-        # Drop existing AUTH_KEY..NONCE_SALT lines, append fresh ones.
-        # The redirect runs with the operator's uid (mktemp is operator-writable),
-        # so plain `awk ... > "$tmp"` is correct -- no sudo on the redirect.
-        # shellcheck disable=SC2024 # tmp is operator-owned (mktemp); no sudo redirect needed
-        sudo awk '!/define\(.*(AUTH_KEY|SECURE_AUTH_KEY|LOGGED_IN_KEY|NONCE_KEY|AUTH_SALT|SECURE_AUTH_SALT|LOGGED_IN_SALT|NONCE_SALT).*\);$/' \
-            "$cfg" > "$tmp"
-        printf '\n%s\n' "$salts" >> "$tmp"
-        if ! sudo mv "$tmp" "$cfg"; then
-            log_file_error "$cfg" "mv of salted wp-config.php failed (source: $tmp)"
-            return 1
-        fi
-        sudo chown www-data:www-data "$cfg" || true
-        sudo chmod 640 "$cfg" || true
-        log_ok "[70][wp] wp-config.php written with fresh API salts"
-    else
-        log_warn "[70][wp] could not fetch fresh salts from api.wordpress.org -- wp-config.php contains the placeholder salts; rotate them manually"
-    fi
-
-    # 3b. Strict wp-config.php validation -- DB creds match, 8 unique salts,
-    # no leftover placeholders, PHP syntax clean. Aborts the install if the
-    # generated file is broken so we don't ship a half-baked wp-config.php.
-    if ! component_wordpress_verify_config \
-            "$install_path" "$db_name" "$db_user" "$db_pass" "$db_host" "$db_port"; then
-        log_err "[70][wp] wp-config.php verification failed -- aborting install (see errors above)"
+    # Delegate to the shared helper. keep_salts=0 here -- a fresh install
+    # always gets a fresh salt set from api.wordpress.org. The helper
+    # handles sed substitution, salt rotation, AND the strict verify gate.
+    if ! _wp_write_config "$install_path" "$db_name" "$db_user" "$db_pass" "$db_host" "$db_port" "0"; then
+        log_err "[70][wp] wp-config.php generation failed -- aborting install (see errors above)"
         return 1
     fi
 
     # 4. Save credential record (so the operator can recover the auto-generated pw)
-    local rec_dir="$ROOT/.installed"
-    mkdir -p "$rec_dir"
-    local rec="$rec_dir/70-wordpress-credentials.json"
-    cat > "$rec" <<EOF
-{
-  "install_path": "$install_path",
-  "site_url": "http://${WP_SERVER_NAME:-localhost}:${WP_SITE_PORT:-80}/",
-  "db_engine": "${WP_DB_ENGINE:-mysql}",
-  "db_host": "${db_host}",
-  "db_port": ${db_port},
-  "db_name": "${db_name}",
-  "db_user": "${db_user}",
-  "db_pass": "${db_pass}",
-  "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-}
-EOF
-    chmod 600 "$rec" 2>/dev/null || true
-    log_info "[70][wp] credentials saved -> $rec (chmod 600)"
+    _wp_save_credentials_record "$install_path" "${WP_DB_ENGINE:-mysql}" \
+        "$db_host" "$db_port" "$db_name" "$db_user" "$db_pass" || true
 
     if ! component_wordpress_verify; then
         log_err "[70][wp] post-install verify failed (wp-config.php or index.php missing in $install_path)"
