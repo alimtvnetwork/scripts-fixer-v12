@@ -5,6 +5,9 @@
 # Verbs:
 #   install               install all components in order
 #   install wp-only       install ONLY WordPress (assumes prereqs are present)
+#   install prereqs       install ONLY prerequisites (MySQL + PHP + extensions),
+#                         then run strict PHP verification (mysqli mbstring
+#                         xml curl intl gd) and check PHP version >= 7.4
 #   install <component>   install one of: mysql | php | nginx | wordpress
 #   check                 verify every installed component
 #   repair                wipe markers, re-run install
@@ -69,7 +72,7 @@ while [ $# -gt 0 ]; do
             VERB="$1"; shift
             # Optional positional: component (mysql|php|nginx|wordpress|wp-only|wp)
             case "${1:-}" in
-                mysql|php|nginx|wordpress|wp-only|wp)
+                mysql|php|nginx|wordpress|wp-only|wp|prereqs|prerequisites)
                     SUBCOMPONENT="$1"; shift ;;
             esac
             ;;
