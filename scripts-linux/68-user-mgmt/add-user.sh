@@ -19,6 +19,9 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
 . "$SCRIPT_DIR/helpers/_manifest_prune.sh"
+# Optional prompt helper -- only sourced if --ask is passed (loaded lazily
+# below to keep non-interactive runs free of /dev/tty side-effects).
+_UM_PROMPT_SH="$SCRIPT_DIR/helpers/_prompt.sh"
 
 um_usage() {
   cat <<EOF
