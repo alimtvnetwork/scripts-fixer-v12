@@ -2,7 +2,7 @@
 #  fix-and-verify-legacy-refs.ps1
 #  One-command pipeline:
 #    1. Dry-run the fixer to PREVIEW what would change
-#    2. APPLY the rewrite (scripts-fixer-v11/v9/v10 -> v11)
+#    2. APPLY the rewrite (scripts-fixer-v8/v9/v10 -> v11)
 #    3. Run the scanner; FAIL the whole command unless it reports PASS
 #
 #  Usage:
@@ -77,7 +77,7 @@ if ($scanExit -eq 0) {
     Write-OkMsg 'scanner reports PASS -- repo is clean'
     exit 0
 } elseif ($scanExit -eq 1) {
-    Write-Fail1 'scanner reports FAIL -- legacy scripts-fixer-v11/v9/v10 references still present'
+    Write-Fail1 'scanner reports FAIL -- legacy scripts-fixer-v8/v9/v10 references still present'
     exit 1
 } else {
     Write-Fail1 "scanner errored (exit $scanExit)"

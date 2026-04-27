@@ -3,7 +3,7 @@
 #  fix-and-verify-legacy-refs.sh
 #  One-command pipeline:
 #    1. Dry-run the fixer to PREVIEW what would change
-#    2. APPLY the rewrite (scripts-fixer-v11/v9/v10 -> v11)
+#    2. APPLY the rewrite (scripts-fixer-v8/v9/v10 -> v11)
 #    3. Run the scanner; FAIL the whole command unless it reports PASS
 #
 #  Use this when you want a single safe command that previews, fixes, and
@@ -76,7 +76,7 @@ if bash "$SCANNER"; then
 else
   rc=$?
   if [ "$rc" = "1" ]; then
-    fail "scanner reports FAIL -- legacy scripts-fixer-v11/v9/v10 references still present"
+    fail "scanner reports FAIL -- legacy scripts-fixer-v8/v9/v10 references still present"
     exit 1
   fi
   fail "scanner errored (exit $rc)"
