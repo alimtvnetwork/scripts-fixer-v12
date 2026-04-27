@@ -104,6 +104,14 @@ bash "$SCANNER"
 scan_rc=$?
 if [ "$scan_rc" = "0" ]; then
   ok "scanner reports PASS -- repo is clean"
+  # Remove the backup directory if it ended up empty (no files were rewritten),
+  # so successful no-op runs don't litter the repo.
+  if [ -d "$BACKUP_DIR_ABS" ] && [ -z "$(ls -A "$BACKUP_DIR_ABS" 2>/dev/null)" ]; then
+    rmdir "$BACKUP_DIR_ABS" 2>/dev/null || true
+    # And the parent if it's now empty too
+    parent_dir="$(dirname "$BACKUP_DIR_ABS")"
+    [ -d "$parent_dir" ] && [ -z "$(ls -A "$parent_dir" 2>/dev/null)" ] && rmdir "$parent_dir" 2>/dev/null || true
+  fi
   exit 0
 fi
 if [ "$scan_rc" != "1" ]; then
