@@ -13,18 +13,23 @@
       2. Array:           [ { ... }, { ... } ]
       3. Wrapped:         { "users": [ ... ] }
 
-    Per-record schema (every field optional except 'name'):
-      name           (required)         account to edit
-      rename                             new login name
-      password                           plain new password (accepted risk)
-      promote        true/false          add to local 'Administrators'
-      demote         true/false          remove from local 'Administrators'
-      addGroups      ["docker","dev"]    add to each local group
-      removeGroups   ["video"]           remove from each local group
-      comment                            account comment / GECOS
-      enable         true/false          unlock account
-      disable        true/false          lock account
-      shell                              accepted but no-op on Windows (logged info)
+    Per-record schema (verbatim from readme.md "Bulk edit / remove";
+    every field optional except 'name'):
+      name          string    REQUIRED -- account to edit
+      rename        string    --rename <newName>
+      password      string    --reset-password (visible in process listing)
+      passwordFile  string    --password-file (mode 0600 or stricter; ignored on Windows)
+      promote       bool      --promote (add to sudo/admin -- 'Administrators' on Windows)
+      demote        bool      --demote (remove from sudo/admin -- 'Administrators' on Windows)
+      addGroups     string[]  --add-group (one per array entry)
+      removeGroups  string[]  --remove-group (one per array entry)
+      shell         string    --shell <PATH> (accepted but no-op on Windows; logged info)
+      comment       string    --comment "..." (may be empty string to clear GECOS / FullName)
+      enable        bool      --enable (unlock the account)
+      disable       bool      --disable (lock the account)
+
+    Mutually-exclusive intents (e.g. promote+demote, enable+disable) are
+    rejected up front so a half-applied batch is impossible.
 
     Removing a missing user / no-op records produce a [WARN] line but do not
     fail the batch. Exit 0 if every record succeeded, 1 if any failed.

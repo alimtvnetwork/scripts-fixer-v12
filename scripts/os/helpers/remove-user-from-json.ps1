@@ -16,11 +16,18 @@
       3. Wrapped:         { "users": [ ... ] }
       4. Bare strings:    [ "alice", "bob" ]   (shorthand: name only)
 
-    Per-record schema (every field optional except 'name'):
-      name           (required)         account to remove
-      purgeHome      true/false         also delete C:\Users\<name> (DESTRUCTIVE)
-      purgeProfile   true/false         alias of purgeHome (Windows-native name)
-      removeMailSpool                   accepted but ignored (Linux-only concept)
+    Per-record schema (verbatim from readme.md "Bulk edit / remove";
+    every field optional except 'name'):
+      name             string  REQUIRED -- account to remove
+      purgeHome        bool    --purge-home (DESTRUCTIVE: deletes the home dir;
+                               C:\Users\<name> on Windows, /home/<name> on Linux,
+                               /Users/<name> on macOS)
+      removeMailSpool  bool    --remove-mail-spool (Linux only: also deletes
+                               /var/mail/<name>; passes -r to userdel; ignored
+                               on Windows + macOS)
+
+    Windows-only alias (no-op on Linux/macOS):
+      purgeProfile  bool  alias of purgeHome (Windows-native name)
 
     Removing a missing user is a no-op (idempotent), so this is safe to re-run.
 

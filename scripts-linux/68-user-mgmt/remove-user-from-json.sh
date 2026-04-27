@@ -56,6 +56,13 @@ Four accepted shapes (mirrors readme.md "Bulk edit / remove"):
 Each record applies in-process via the um_user_delete shared helper and
 always passes --yes (no per-record confirmation prompts in bulk mode).
 Removing a missing user is a no-op (idempotent), so this is safe to re-run.
+
+Per-record schema (verbatim from readme.md "Bulk edit / remove";
+every field optional except 'name'):
+  name             string  REQUIRED -- account to remove
+  purgeHome        bool    --purge-home (DESTRUCTIVE: deletes the home dir)
+  removeMailSpool  bool    --remove-mail-spool (Linux only: also deletes
+                           /var/mail/<name>; passes -r to userdel)
 EOF
 }
 

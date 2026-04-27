@@ -11,14 +11,27 @@
       2. Array:           [ { ... }, { ... } ]
       3. Wrapped:         { "users": [ ... ] }
 
-    Per-entry fields (all optional except name + password):
-      name                 (required)  Username
-      password             (required)  Plain password (accepted risk)
-      pin                              Hint for Windows Hello PIN
-      email                            Free-form note (set as account comment)
-      role                             "admin" | "standard" (default standard)
-      microsoftAccount                 Outlook/Live email -- triggers MS hint
-      msAccountOnLogon                 true -> queue RunOnce for that user
+    User record fields (verbatim from readme.md "User record fields";
+    every field optional except 'name'):
+      name          string    REQUIRED
+      password      string    plain text (never logged; masked in console)
+      passwordFile  string    path to a 0600/0400 file containing the password (preferred)
+      uid           number    explicit UID (auto-allocated on macOS if omitted; ignored on Windows)
+      primaryGroup  string    primary group; created if missing on Linux (no-op on Windows)
+      groups        string[]  supplementary groups
+      shell         string    login shell (default: /bin/bash Linux, /bin/zsh macOS; ignored on Windows)
+      home          string    home dir (default: /home/<name> | /Users/<name>; ignored on Windows)
+      comment       string    GECOS / RealName (becomes account FullName on Windows)
+      sudo          bool      also add to 'sudo' (Linux) / 'admin' (macOS) / 'Administrators' (Windows)
+      system        bool      system account (Linux only; ignored on macOS + Windows)
+      sshKeys       string[]  inline OpenSSH public keys to install in ~/.ssh/authorized_keys
+      sshKeyFiles   string[]  host paths to .pub files (one or many keys per file; comments ok)
+
+    Windows-only convenience fields (no-op on Linux/macOS):
+      role             "admin" | "standard" (alias for sudo:true / sudo:false)
+      pin              Windows Hello PIN hint
+      microsoftAccount Outlook/Live email -- triggers MS account RunOnce hint
+      msAccountOnLogon true -> queue MS-account RunOnce on first logon
 
     Usage:
       .\run.ps1 os add-user-json <file.json> [--dry-run]

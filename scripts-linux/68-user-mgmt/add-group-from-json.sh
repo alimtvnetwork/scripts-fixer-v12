@@ -26,6 +26,11 @@ Three accepted shapes (mirrors readme.md "JSON examples"):
   - array         : [ { "name": "devs", ... }, { "name": "ops", ... } ]
   - wrapped       : { "groups": [ ... ] }
 Each record fans out to add-group.sh.
+
+Group record fields (verbatim from readme.md "Group record fields"):
+  name    string  REQUIRED
+  gid     number  explicit GID (auto-allocated on macOS if omitted)
+  system  bool    system group (Linux only; ignored on macOS)
 EOF
 }
 

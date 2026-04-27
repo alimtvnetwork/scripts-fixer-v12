@@ -39,6 +39,34 @@ Three accepted shapes (mirrors readme.md "JSON examples"):
   - array         : [ { "name": "alice", ... }, { "name": "bob", ... } ]
   - wrapped       : { "users": [ ... ] }
 Each record fans out to add-user.sh.
+
+User record fields (verbatim from readme.md "User record fields"):
+  name          string    REQUIRED
+  password      string    plain text (never logged; masked in console)
+  passwordFile  string    path to a 0600/0400 file containing the password (preferred)
+  uid           number    explicit UID (auto-allocated on macOS if omitted)
+  primaryGroup  string    primary group; created if missing on Linux
+  groups        string[]  supplementary groups
+  shell         string    login shell (default: /bin/bash Linux, /bin/zsh macOS)
+  home          string    home dir (default: /home/<name> or /Users/<name>)
+  comment       string    GECOS / RealName
+  sudo          bool      also add to 'sudo' (Linux) or 'admin' (macOS)
+  system        bool      system account (Linux only; ignored on macOS)
+  sshKeys       string[]  inline OpenSSH public keys to install in ~/.ssh/authorized_keys
+  sshKeyFiles   string[]  host paths to .pub files (one or many keys per file; comments ok)
+
+SSH-key install behaviour (verbatim from readme.md):
+  - Dir/file perms enforced: ~/.ssh -> 0700, authorized_keys -> 0600,
+    both chown'd to the new user + their primary group.
+  - Existing authorized_keys content is preserved; new keys are appended
+    and the merged file is de-duplicated.
+  - Each key is sanity-checked for an OpenSSH algo prefix (ssh-rsa,
+    ssh-ed25519, ecdsa-sha2-*, sk-*, ssh-dss); malformed lines are
+    warn-logged and skipped.
+  - Key bodies are NEVER written to logs -- only a SHA-256 fingerprint
+    per installed key.
+  - Both fields can be combined; both flags (--ssh-key, --ssh-key-file)
+    are repeatable on the CLI.
 EOF
 }
 

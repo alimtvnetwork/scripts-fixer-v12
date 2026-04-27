@@ -60,9 +60,20 @@ Three accepted shapes (mirrors readme.md "Bulk edit / remove"):
   - wrapped       : { "users": [ ... ] }
 Each record applies in-process via the um_user_modify shared helper.
 
-Per-record schema (every field optional except 'name'):
-  name, rename, password, passwordFile, promote, demote,
-  addGroups[], removeGroups[], shell, comment, enable, disable.
+Per-record schema (verbatim from readme.md "Bulk edit / remove";
+every field optional except 'name'):
+  name          string    REQUIRED -- account to edit
+  rename        string    --rename <newName>
+  password      string    --reset-password (visible in process listing)
+  passwordFile  string    --password-file (mode 0600 or stricter)
+  promote       bool      --promote (add to sudo/admin)
+  demote        bool      --demote (remove from sudo/admin)
+  addGroups     string[]  --add-group (one per array entry)
+  removeGroups  string[]  --remove-group (one per array entry)
+  shell         string    --shell <PATH>
+  comment       string    --comment "..." (may be empty string to clear GECOS)
+  enable        bool      --enable (unlock the account)
+  disable       bool      --disable (lock the account)
 
 Mutually-exclusive intents (e.g. promote+demote, enable+disable) are
 rejected up front so a half-applied batch is impossible.
