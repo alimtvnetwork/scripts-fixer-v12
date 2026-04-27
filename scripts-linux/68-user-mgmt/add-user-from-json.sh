@@ -408,5 +408,75 @@ while [ "$i" -lt "$count" ]; do
   i=$((i+1))
 done
 
+# v0.182.0 -- assemble the batch rollup if the operator asked for one.
+# Slurps every per-user summary file we just wrote (keyed by run-id),
+# wraps them in a batch envelope with aggregated counters, and emits
+# to the requested target. Failures are non-fatal -- the per-user docs
+# stay on disk and are still independently parseable.
+if [ -n "$UM_BATCH_SUMMARY_TARGET" ]; then
+    sdir="${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}/summaries"
+    shopt -s nullglob
+    per_user_files=("$sdir/${UM_RUN_ID}__"*.summary.json)
+    shopt -u nullglob
+    if [ "${#per_user_files[@]}" -eq 0 ]; then
+        log_warn "[68][batch-summary] no per-user summary JSONs found under '$sdir' for run-id '$UM_RUN_ID' (failure: nothing to aggregate -- did any record install ssh keys?)"
+    else
+        # Aggregate counters across all per-user docs via jq.
+        rollup=$(jq -s --arg rid "$UM_RUN_ID" \
+                       --arg src "$UM_FILE" \
+                       --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+            {
+                summaryVersion: 1,
+                kind: "batch",
+                writtenAt: $now,
+                runId: $rid,
+                sourceFile: $src,
+                userCount: length,
+                aggregate: {
+                    sources_requested:  ([.[].summary.sources_requested]  | add // 0),
+                    keys_parsed:        ([.[].summary.keys_parsed]        | add // 0),
+                    keys_unique:        ([.[].summary.keys_unique]        | add // 0),
+                    keys_installed_new: ([.[].summary.keys_installed_new] | add // 0),
+                    keys_preserved:     ([.[].summary.keys_preserved]     | add // 0)
+                },
+                users: .
+            }' "${per_user_files[@]}" 2>/dev/null) || rollup=""
+        if [ -z "$rollup" ]; then
+            log_err "[68][batch-summary] jq failed to build rollup from ${#per_user_files[@]} file(s) under '$sdir' (failure: per-user JSONs may be malformed -- inspect them manually)"
+        else
+            case "$UM_BATCH_SUMMARY_TARGET" in
+                stdout)
+                    printf '\n---SSH-SUMMARY-JSON---\n%s\n' "$rollup"
+                    log_ok "$(um_msg summaryJsonBatchWritten "<stdout>" "$UM_RUN_ID" "${#per_user_files[@]}")"
+                    ;;
+                auto)
+                    rollup_path="$sdir/${UM_RUN_ID}__BATCH.summary.json"
+                    if printf '%s\n' "$rollup" > "$rollup_path.tmp" 2>/dev/null \
+                       && mv "$rollup_path.tmp" "$rollup_path" 2>/dev/null; then
+                        chmod 0600 "$rollup_path" 2>/dev/null || true
+                        log_ok "$(um_msg summaryJsonBatchWritten "$rollup_path" "$UM_RUN_ID" "${#per_user_files[@]}")"
+                    else
+                        rm -f "$rollup_path.tmp"
+                        log_file_error "$rollup_path" "could not write batch summary rollup (failure: write/mv failed -- check ownership of $sdir)"
+                    fi
+                    ;;
+                *)
+                    sparent=$(dirname "$UM_BATCH_SUMMARY_TARGET")
+                    if [ ! -d "$sparent" ]; then
+                        log_file_error "$sparent" "batch summary target parent dir does not exist (failure: create '$sparent' first or use --summary-json=auto)"
+                    elif printf '%s\n' "$rollup" > "$UM_BATCH_SUMMARY_TARGET.tmp" 2>/dev/null \
+                         && mv "$UM_BATCH_SUMMARY_TARGET.tmp" "$UM_BATCH_SUMMARY_TARGET" 2>/dev/null; then
+                        chmod 0600 "$UM_BATCH_SUMMARY_TARGET" 2>/dev/null || true
+                        log_ok "$(um_msg summaryJsonBatchWritten "$UM_BATCH_SUMMARY_TARGET" "$UM_RUN_ID" "${#per_user_files[@]}")"
+                    else
+                        rm -f "$UM_BATCH_SUMMARY_TARGET.tmp"
+                        log_file_error "$UM_BATCH_SUMMARY_TARGET" "could not write batch summary rollup (failure: write/mv failed)"
+                    fi
+                    ;;
+            esac
+        fi
+    fi
+fi
+
 um_summary_print
 exit "$rc_total"
