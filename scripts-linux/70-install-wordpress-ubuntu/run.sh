@@ -34,6 +34,15 @@
 #   --http nginx|apache   HTTP server (default: nginx)
 #   --firewall            open WP_SITE_PORT in UFW after install (UFW must
 #                         be enabled separately; this only adds the rule)
+#   --https               obtain a Let's Encrypt cert for --server-name and
+#                         rewrite the vhost to redirect HTTP -> HTTPS
+#                         (requires a real public FQDN + port 80 reachable
+#                         from the internet for the http-01 challenge)
+#   --email <addr>        contact email for Let's Encrypt renewal warnings
+#                         (omit to register without email -- not recommended)
+#   --https-staging       use Let's Encrypt staging endpoint (cert is NOT
+#                         browser-trusted) -- useful for dry-runs without
+#                         hitting prod rate limits
 #   -h | --help           show this help and exit
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -49,6 +58,7 @@ export ROOT
 . "$SCRIPT_DIR/components/apache.sh"
 . "$SCRIPT_DIR/components/firewall.sh"
 . "$SCRIPT_DIR/components/http-verify.sh"
+. "$SCRIPT_DIR/components/https.sh"
 . "$SCRIPT_DIR/components/wordpress.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
@@ -73,6 +83,9 @@ export WP_DB_USER="wp_user"
 export WP_DB_PASS=""
 export WP_HTTP_SERVER="nginx"   # nginx | apache
 export WP_FIREWALL="0"          # 1 = open WP_SITE_PORT via UFW
+export WP_HTTPS="0"             # 1 = obtain LE cert + redirect HTTP->HTTPS
+export WP_HTTPS_EMAIL=""        # contact email for Let's Encrypt
+export WP_HTTPS_STAGING="0"     # 1 = use LE staging endpoint
 
 _show_help() {
     sed -n '2,/^set -u$/p' "$0" | sed 's/^# \{0,1\}//' | head -n -1
@@ -85,7 +98,7 @@ while [ $# -gt 0 ]; do
             VERB="$1"; shift
             # Optional positional: component (mysql|php|nginx|wordpress|wp-only|wp)
             case "${1:-}" in
-                mysql|php|nginx|apache|http|firewall|http-verify|wordpress|wp-only|wp|prereqs|prerequisites)
+                mysql|php|nginx|apache|http|firewall|http-verify|https|wordpress|wp-only|wp|prereqs|prerequisites)
                     SUBCOMPONENT="$1"; shift ;;
             esac
             ;;
@@ -104,6 +117,9 @@ while [ $# -gt 0 ]; do
         --db-pass)         WP_DB_PASS="$2"; shift 2 ;;
         --http)            WP_HTTP_SERVER="$2"; shift 2 ;;
         --firewall)        WP_FIREWALL="1"; shift ;;
+        --https)           WP_HTTPS="1"; shift ;;
+        --email)           WP_HTTPS_EMAIL="$2"; shift 2 ;;
+        --https-staging)   WP_HTTPS_STAGING="1"; shift ;;
         -h|--help)         _show_help; exit 0 ;;
         *)
             log_warn "[70] Unknown arg: '$1' -- run with --help for usage"
@@ -195,6 +211,7 @@ _install_one() {
         http)      _install_http               ;;
         firewall)  component_firewall_install  ;;
         http-verify) component_http_verify     ;;
+        https)     WP_HTTPS=1 component_https_install ;;
         wordpress|wp|wp-only) component_wordpress_install ;;
         prereqs|prerequisites) _install_prerequisites ;;
         *)         log_err "[70] Unknown component: '$1'"; return 2 ;;
@@ -264,6 +281,10 @@ _install_all() {
     [ $rc -eq 0 ] && _install_http               || rc=$?
     [ $rc -eq 0 ] && component_wordpress_install || rc=$?
     [ $rc -eq 0 ] && component_firewall_install  || rc=$?
+    # HTTPS runs AFTER firewall so port 443 (and the redirected :80 traffic)
+    # can reach this host before certbot tries the http-01 challenge.
+    # Skipped automatically when WP_HTTPS=0.
+    [ $rc -eq 0 ] && component_https_install     || rc=$?
     if [ $rc -eq 0 ]; then
         # HTTP-loads check is best-effort: don't fail the whole install if
         # the wizard page isn't reachable yet (DNS, container networking).
@@ -289,9 +310,16 @@ _check_all() {
     if [ "${WP_FIREWALL:-0}" = "1" ]; then
         component_firewall_verify && log_ok "[70][verify] firewall OK" || { log_err "[70][verify] firewall FAILED (port ${WP_SITE_PORT}/tcp not allowed in UFW)"; rc=1; }
     fi
+    if [ "${WP_HTTPS:-0}" = "1" ] || [ -f "$ROOT/.installed/70-https.ok" ]; then
+        component_https_verify && log_ok "[70][verify] https OK" || { log_err "[70][verify] https FAILED (no cert lineage for ${WP_SERVER_NAME%% *})"; rc=1; }
+    fi
     if [ $rc -eq 0 ]; then
         log_ok "[70][verify] OK -- all components reachable"
-        log_info "[70][verify] site: http://${WP_SERVER_NAME}:${WP_SITE_PORT}/"
+        if [ "${WP_HTTPS:-0}" = "1" ] || [ -f "$ROOT/.installed/70-https.ok" ]; then
+            log_info "[70][verify] site: https://${WP_SERVER_NAME%% *}/"
+        else
+            log_info "[70][verify] site: http://${WP_SERVER_NAME%% *}:${WP_SITE_PORT}/"
+        fi
     else
         log_err "[70][verify] FAILED -- see lines above for the failing component"
     fi
@@ -300,9 +328,12 @@ _check_all() {
 
 _uninstall_all() {
     log_info "[70][uninstall] === uninstall stage start ==="
-    log_info "[70][uninstall] removing: WordPress files, DB, web vhost (nginx & apache), firewall rule"
+    log_info "[70][uninstall] removing: WordPress files, DB, web vhost (nginx & apache), firewall rule, HTTPS certs"
     log_info "[70][uninstall] PRESERVING: PHP packages, MySQL/MariaDB packages and data"
     local rc=0
+    # HTTPS first so we revoke certs while nginx/apache still has the vhost
+    # certbot recognizes (avoids 'no installer' warnings).
+    component_https_uninstall    || rc=$?
     component_wordpress_uninstall || rc=$?
     component_firewall_uninstall  || rc=$?
     component_nginx_uninstall     || rc=$?
@@ -354,6 +385,7 @@ case "$VERB" in
                 nginx)     component_nginx_uninstall     ;;
                 apache)    component_apache_uninstall    ;;
                 firewall)  component_firewall_uninstall  ;;
+                https)     component_https_uninstall     ;;
                 wordpress|wp|wp-only) component_wordpress_uninstall ;;
             esac
         else
