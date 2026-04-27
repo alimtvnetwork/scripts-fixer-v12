@@ -157,3 +157,21 @@ type: feature
   Ansible templates, CI) can validate at edit time.
 - **Apply same validator to add-group-from-json.sh** -- it has the same
   silent-skip bug for `members[]`.
+
+## Script 68 -- sshKeyUrls (added v0.171.0)
+
+- **Pin host fingerprints**: today the host allowlist trusts the system
+  CA bundle. For zero-trust setups, allow `sshKeyUrlPin: "sha256/abc..."`
+  (curl `--pinnedpubkey`).
+- **TTL/refresh mode**: re-fetch URL keys on a schedule (cron) so a
+  rotated GitHub key propagates without re-running the JSON apply.
+- **gpg-verified URL**: support `https://example.com/keys.asc` plus a
+  pinned signing key, only install if signature verifies.
+- **Per-URL allowlist override** in the URL itself (e.g. trailing
+  `#allow=keys.example.com`) so one bad URL can't open the gate for
+  others in the same record.
+- **Negative caching**: remember failed URL fetches for N minutes so a
+  flaky DNS or 503 doesn't burn the timeout budget on every batch run.
+- **Audit trail**: append every (url, http_code, bytes, fingerprint, ts)
+  to `.installed/68.url-fetch.log` so post-incident review can see
+  exactly which keys came from where and when.

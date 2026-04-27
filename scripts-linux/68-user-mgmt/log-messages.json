@@ -33,6 +33,12 @@
     "schemaArrayItemType": "JSON record #%s in '%s' field '%s[%s]' has wrong type: expected non-empty string, got %s (value=%s) (failure: rejecting record)",
     "schemaUnknownField":  "JSON record #%s in '%s' has unknown field '%s' (warning: ignored -- check for typo; allowed fields: %s)",
     "schemaRecordRejected":"JSON record #%s in '%s' (name='%s') rejected: %s validation error(s) -- see above (failure: not creating user)",
-    "schemaTopLevelType":  "JSON record #%s in '%s' is not an object: got %s (failure: rejecting record)"
+    "schemaTopLevelType":  "JSON record #%s in '%s' is not an object: got %s (failure: rejecting record)",
+    "sshUrlFetched":       "fetched ssh key(s) from URL '%s' (HTTP %s, %s bytes, %s key(s) parsed)",
+    "sshUrlFetchFail":     "could not fetch ssh keys from URL '%s' (failure: %s -- skipping this URL)",
+    "sshUrlNotAllowed":    "ssh key URL host '%s' is not in the allowlist (failure: refusing to fetch from '%s'; allowed hosts: %s; pass --ssh-key-url-allowlist to extend)",
+    "sshUrlTooBig":        "ssh key URL '%s' returned more than %s bytes (failure: refusing oversized response; raise --ssh-key-url-max-bytes if intentional)",
+    "sshUrlInsecure":      "ssh key URL '%s' uses insecure scheme (failure: only https:// is allowed; pass --allow-insecure-url to override at your own risk)",
+    "sshUrlNoCurl":        "neither curl nor wget is on PATH -- cannot fetch ssh key URLs (failure: install curl)"
   }
 }

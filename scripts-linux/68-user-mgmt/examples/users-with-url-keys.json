@@ -1,0 +1,34 @@
+{
+  "_comment": "Example: pull SSH public keys from URLs (added v0.171.0). Default allowlist covers github.com, gitlab.com, codeberg.org, bitbucket.org, launchpad.net, api.github.com. Use sshKeyUrlAllowlist to extend; use leading '.' for subdomain match (e.g. '.internal.corp' allows a.internal.corp).",
+  "users": [
+    {
+      "name": "alice",
+      "comment": "Alice -- keys pulled from her GitHub account",
+      "groups": ["sudo"],
+      "sshKeyUrls": [
+        "https://github.com/alice.keys"
+      ]
+    },
+    {
+      "name": "bob",
+      "comment": "Bob -- mix of inline + URL keys",
+      "sshKeys": [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleInlineKey bob-laptop"
+      ],
+      "sshKeyUrls": [
+        "https://github.com/bob.keys",
+        "https://gitlab.com/bob.keys"
+      ],
+      "sshKeyUrlTimeout": 15
+    },
+    {
+      "name": "carol",
+      "comment": "Carol -- internal corp keyserver via extended allowlist",
+      "sshKeyUrls": [
+        "https://keys.internal.corp/carol.pub"
+      ],
+      "sshKeyUrlAllowlist": ".internal.corp",
+      "sshKeyUrlMaxBytes": 32768
+    }
+  ]
+}

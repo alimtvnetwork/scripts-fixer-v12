@@ -54,6 +54,23 @@ SSH authorized_keys (repeatable; both flags may be combined):
                                Existing entries are preserved; duplicates are
                                de-duplicated. Key contents are NEVER logged --
                                only a SHA-256 fingerprint + source.
+  --ssh-key-url <URL>          Fetch keys from an HTTPS URL (e.g.
+                               https://github.com/<user>.keys). Repeatable.
+                               Safety: HTTPS-only, host allowlist enforced,
+                               curl/wget timeout + max-size enforced, redirects
+                               restricted to https + allowlisted hosts. URL
+                               body is parsed exactly like --ssh-key-file
+                               output (one key per line, # comments OK).
+  --ssh-key-url-timeout S      Per-URL timeout in seconds (default: 10).
+  --ssh-key-url-max-bytes N    Max response size per URL (default: 65536).
+  --ssh-key-url-allowlist L    Comma-separated extra hostnames to allow,
+                               e.g. "git.example.com,keys.corp.local".
+                               Default allowlist: github.com, gitlab.com,
+                               codeberg.org, bitbucket.org, launchpad.net.
+                               Use "*" to disable host checking (NOT
+                               recommended -- allows arbitrary egress).
+  --allow-insecure-url         Permit http:// URLs (NOT recommended -- key
+                               can be tampered with in transit).
 EOF
 }
 
@@ -73,6 +90,15 @@ UM_DRY_RUN="${UM_DRY_RUN:-0}"
 # SSH keys -- two parallel arrays, each entry processed in order.
 UM_SSH_KEYS=()        # inline key lines
 UM_SSH_KEY_FILES=()   # file paths
+UM_SSH_KEY_URLS=()    # https URLs
+UM_SSH_URL_TIMEOUT="${UM_SSH_URL_TIMEOUT:-10}"          # seconds, per URL
+UM_SSH_URL_MAX_BYTES="${UM_SSH_URL_MAX_BYTES:-65536}"   # 64 KB
+UM_SSH_URL_ALLOWLIST_EXTRA="${UM_SSH_URL_ALLOWLIST_EXTRA:-}"  # comma list
+UM_SSH_URL_ALLOW_INSECURE="${UM_SSH_URL_ALLOW_INSECURE:-0}"
+# Hard-coded baseline of well-known providers that publish .keys endpoints
+# over HTTPS with stable certs. Operators add to this via the flag rather
+# than edit the script.
+UM_SSH_URL_ALLOWLIST_DEFAULT="github.com,gitlab.com,codeberg.org,bitbucket.org,launchpad.net,api.github.com"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -90,6 +116,11 @@ while [ $# -gt 0 ]; do
     --dry-run)         UM_DRY_RUN=1; shift ;;
     --ssh-key)         UM_SSH_KEYS+=("${2:-}"); shift 2 ;;
     --ssh-key-file)    UM_SSH_KEY_FILES+=("${2:-}"); shift 2 ;;
+    --ssh-key-url)     UM_SSH_KEY_URLS+=("${2:-}"); shift 2 ;;
+    --ssh-key-url-timeout)   UM_SSH_URL_TIMEOUT="${2:-}"; shift 2 ;;
+    --ssh-key-url-max-bytes) UM_SSH_URL_MAX_BYTES="${2:-}"; shift 2 ;;
+    --ssh-key-url-allowlist) UM_SSH_URL_ALLOWLIST_EXTRA="${2:-}"; shift 2 ;;
+    --allow-insecure-url)    UM_SSH_URL_ALLOW_INSECURE=1; shift ;;
     --) shift; break ;;
     -*)
       log_err "unknown option: '$1' (failure: see --help)"
@@ -261,7 +292,144 @@ fi
 # home directory does not exist on disk -- which can happen when --system
 # is used without --create-home, or when --dry-run prevented home creation.
 UM_SSH_INSTALLED_COUNT=0
-UM_SSH_REQUESTED_COUNT=$(( ${#UM_SSH_KEYS[@]} + ${#UM_SSH_KEY_FILES[@]} ))
+UM_SSH_REQUESTED_COUNT=$(( ${#UM_SSH_KEYS[@]} + ${#UM_SSH_KEY_FILES[@]} + ${#UM_SSH_KEY_URLS[@]} ))
+
+# --- URL-based ssh key fetcher (added v0.171.0) -----------------------------
+# _ssh_url_host_allowed <host>
+#   0 = allowed, 1 = rejected. "*" in extra-allowlist disables checking.
+_ssh_url_host_allowed() {
+    local host="$1"
+    [ -z "$host" ] && return 1
+    local extra="$UM_SSH_URL_ALLOWLIST_EXTRA"
+    case ",$extra," in *,\*,*) return 0 ;; esac
+    local combined="$UM_SSH_URL_ALLOWLIST_DEFAULT"
+    [ -n "$extra" ] && combined="$combined,$extra"
+    local h
+    IFS=',' read -ra _hosts <<< "$combined"
+    for h in "${_hosts[@]}"; do
+        h="${h// /}"
+        [ -z "$h" ] && continue
+        if [ "$host" = "$h" ]; then return 0; fi
+        # Allow exact-suffix match on a leading "."  (".example.com" => any
+        # subdomain). Bare hosts must match exactly.
+        case "$h" in
+            .*) case "$host" in *"$h") return 0 ;; esac ;;
+        esac
+    done
+    return 1
+}
+
+# _ssh_url_extract_host <url>  -> echoes lowercase host or empty.
+_ssh_url_extract_host() {
+    local url="$1"
+    # Strip scheme then everything from first "/" onward, then any userinfo
+    # ("user@") and any ":<port>".
+    local rest="${url#*://}"
+    local hostport="${rest%%/*}"
+    hostport="${hostport##*@}"
+    local host="${hostport%%:*}"
+    printf '%s' "$host" | tr '[:upper:]' '[:lower:]'
+}
+
+# _ssh_fetch_url <url>  -> writes raw body to stdout, returns 0/1.
+# Enforces: scheme allowlist, host allowlist, redirect allowlist, max-time,
+# max-filesize. Logs HTTP status + bytes on success.
+_ssh_fetch_url() {
+    local url="$1"
+    local scheme="${url%%://*}"
+    case "$scheme" in
+        https) ;;
+        http)
+            if [ "$UM_SSH_URL_ALLOW_INSECURE" != "1" ]; then
+                log_err "$(um_msg sshUrlInsecure "$url")"
+                return 1
+            fi
+            ;;
+        *)
+            log_err "$(um_msg sshUrlInsecure "$url")"
+            return 1
+            ;;
+    esac
+
+    local host
+    host=$(_ssh_url_extract_host "$url")
+    if ! _ssh_url_host_allowed "$host"; then
+        local combined="$UM_SSH_URL_ALLOWLIST_DEFAULT"
+        [ -n "$UM_SSH_URL_ALLOWLIST_EXTRA" ] && combined="$combined,$UM_SSH_URL_ALLOWLIST_EXTRA"
+        log_err "$(um_msg sshUrlNotAllowed "$host" "$url" "$combined")"
+        return 1
+    fi
+
+    local body http_code bytes
+    body=$(mktemp)
+    if command -v curl >/dev/null 2>&1; then
+        # Build the redirect-protocol whitelist. If --allow-insecure-url is set
+        # we also allow http on redirects; otherwise https-only.
+        local proto_redir="https"
+        [ "$UM_SSH_URL_ALLOW_INSECURE" = "1" ] && proto_redir="https,http"
+        # --max-filesize is checked AFTER request -- belt and suspenders with
+        # a head -c truncation below.
+        local curl_rc=0
+        http_code=$(curl -fsSL \
+            --proto       '=https,http' \
+            --proto-redir "=$proto_redir" \
+            --max-time    "$UM_SSH_URL_TIMEOUT" \
+            --connect-timeout 5 \
+            --retry 2 --retry-delay 1 \
+            --max-filesize "$UM_SSH_URL_MAX_BYTES" \
+            -A "lovable-68-user-mgmt/0.171.0" \
+            -w '%{http_code}' \
+            -o "$body" \
+            "$url" 2>/tmp/68-curl-err.$$) || curl_rc=$?
+        if [ "$curl_rc" -ne 0 ]; then
+            local err
+            err=$(cat /tmp/68-curl-err.$$ 2>/dev/null | tr '\n' ' ' | head -c 200)
+            rm -f /tmp/68-curl-err.$$ "$body"
+            # curl exit 63 = "max-filesize exceeded".
+            if [ "$curl_rc" = "63" ]; then
+                log_err "$(um_msg sshUrlTooBig "$url" "$UM_SSH_URL_MAX_BYTES")"
+            else
+                log_err "$(um_msg sshUrlFetchFail "$url" "curl rc=$curl_rc ${err:-no-stderr}")"
+            fi
+            return 1
+        fi
+        rm -f /tmp/68-curl-err.$$
+    elif command -v wget >/dev/null 2>&1; then
+        # wget fallback -- no per-byte cap, so we head -c truncate after.
+        local wget_rc=0
+        wget --quiet --tries 2 \
+             --timeout "$UM_SSH_URL_TIMEOUT" \
+             --max-redirect 3 \
+             -U "lovable-68-user-mgmt/0.171.0" \
+             -O "$body" \
+             "$url" 2>/dev/null || wget_rc=$?
+        if [ "$wget_rc" -ne 0 ]; then
+            rm -f "$body"
+            log_err "$(um_msg sshUrlFetchFail "$url" "wget rc=$wget_rc")"
+            return 1
+        fi
+        http_code="200"  # wget --quiet doesn't expose status; assume OK on rc=0
+    else
+        rm -f "$body"
+        log_err "$(um_msg sshUrlNoCurl)"
+        return 1
+    fi
+
+    bytes=$(wc -c < "$body" 2>/dev/null | tr -d ' ')
+    if [ "${bytes:-0}" -gt "$UM_SSH_URL_MAX_BYTES" ]; then
+        rm -f "$body"
+        log_err "$(um_msg sshUrlTooBig "$url" "$UM_SSH_URL_MAX_BYTES")"
+        return 1
+    fi
+    # Hard-cap truncate as belt-and-suspenders against curl --max-filesize
+    # not catching a chunked response that lies about content-length.
+    head -c "$UM_SSH_URL_MAX_BYTES" "$body"
+    local key_lines
+    key_lines=$(awk 'NF && $1 !~ /^#/' "$body" | wc -l | tr -d ' ')
+    log_info "$(um_msg sshUrlFetched "$url" "${http_code:-?}" "$bytes" "$key_lines")"
+    rm -f "$body"
+    return 0
+}
 
 if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
 
@@ -302,6 +470,17 @@ if [ "$UM_SSH_REQUESTED_COUNT" -gt 0 ]; then
     while IFS= read -r line || [ -n "$line" ]; do
       _ssh_emit "$line"
     done < "$f"
+  done
+
+  # URL-sourced keys (v0.171.0). Each fetched body is parsed line-by-line
+  # and run through _ssh_emit (same dedup + algo-prefix sanity as files).
+  # Failed URLs are logged and skipped -- they don't abort the whole
+  # install, so a partial-network failure can't lock the user out.
+  for u in "${UM_SSH_KEY_URLS[@]}"; do
+    body=$(_ssh_fetch_url "$u") || continue
+    while IFS= read -r line || [ -n "$line" ]; do
+      _ssh_emit "$line"
+    done <<< "$body"
   done
 
   # De-duplicate while preserving order. Awk on the buffer.

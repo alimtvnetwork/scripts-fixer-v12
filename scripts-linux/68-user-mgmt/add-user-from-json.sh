@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # a "schemaUnknownField" warning (typo guard) but does NOT reject the
 # record on its own -- the user can still opt in to strict-mode rejection
 # via UM_STRICT_UNKNOWN=1.
-UM_ALLOWED_FIELDS="name password passwordFile uid shell home comment primaryGroup groups sudo system sshKeys sshKeyFiles"
+UM_ALLOWED_FIELDS="name password passwordFile uid shell home comment primaryGroup groups sudo system sshKeys sshKeyFiles sshKeyUrls sshKeyUrlTimeout sshKeyUrlMaxBytes sshKeyUrlAllowlist allowInsecureSshKeyUrl"
 
 # Validate one record's schema. Emits TSV error rows on stdout:
 #   ERROR<TAB>field<TAB>reason
@@ -132,6 +132,13 @@ _validate_user_record() {
         expect_str_array("groups"),
         expect_str_array("sshKeys"),
         expect_str_array("sshKeyFiles"),
+        expect_str_array("sshKeyUrls"),
+
+        # URL-fetcher knobs.
+        expect_uid("sshKeyUrlTimeout"),
+        expect_uid("sshKeyUrlMaxBytes"),
+        expect_nonempty_string("sshKeyUrlAllowlist"),
+        expect("allowInsecureSshKeyUrl"; "boolean"),
 
         # Unknown-field warnings (typo guard).
         ( ($allowed | split(" ")) as $known
@@ -325,6 +332,25 @@ while [ "$i" -lt "$count" ]; do
       j=$((j+1))
     done
   fi
+  # URL-sourced ssh keys (v0.171.0). Same array shape as sshKeyFiles;
+  # extra knobs map to the matching --ssh-key-url-* CLI flags.
+  if jq -e 'has("sshKeyUrls")' <<< "$rec" >/dev/null 2>&1; then
+    n=$(jq '.sshKeyUrls | length' <<< "$rec")
+    j=0
+    while [ "$j" -lt "$n" ]; do
+      uv=$(jq -r ".sshKeyUrls[$j]" <<< "$rec")
+      args+=(--ssh-key-url "$uv")
+      j=$((j+1))
+    done
+  fi
+  url_to=$(jq -r       '.sshKeyUrlTimeout   // empty' <<< "$rec")
+  url_mb=$(jq -r       '.sshKeyUrlMaxBytes  // empty' <<< "$rec")
+  url_al=$(jq -r       '.sshKeyUrlAllowlist // empty' <<< "$rec")
+  url_ins=$(jq -r 'if .allowInsecureSshKeyUrl == true then "1" else "" end' <<< "$rec")
+  [ -n "$url_to" ]  && args+=(--ssh-key-url-timeout   "$url_to")
+  [ -n "$url_mb" ]  && args+=(--ssh-key-url-max-bytes "$url_mb")
+  [ -n "$url_al" ]  && args+=(--ssh-key-url-allowlist "$url_al")
+  [ "$url_ins" = "1" ] && args+=(--allow-insecure-url)
 
   log_info "--- record $((i+1))/$count: user='$name' ---"
   if ! bash "$SCRIPT_DIR/add-user.sh" "${args[@]}"; then
