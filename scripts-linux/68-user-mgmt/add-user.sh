@@ -71,6 +71,19 @@ SSH authorized_keys (repeatable; both flags may be combined):
                                recommended -- allows arbitrary egress).
   --allow-insecure-url         Permit http:// URLs (NOT recommended -- key
                                can be tampered with in transit).
+
+Rollback tracking (writes a manifest of every key installed this run so you
+can later remove ONLY those keys via remove-ssh-keys.sh):
+  --run-id <id>                Tag this install run. Default: auto-generated
+                               (YYYYmmdd-HHMMSS-<rand>). Reuse the same id
+                               across multiple add-user.sh calls in one
+                               batch and they all land in the same manifest.
+  --manifest-dir <dir>         Where to write manifests. Default:
+                               /var/lib/68-user-mgmt/ssh-key-runs (created
+                               with mode 0700 root:root). Override only if
+                               you know what you're doing.
+  --no-manifest                Disable manifest writing for this run
+                               (rollback will NOT be possible).
 EOF
 }
 
@@ -100,6 +113,17 @@ UM_SSH_URL_ALLOW_INSECURE="${UM_SSH_URL_ALLOW_INSECURE:-0}"
 # than edit the script.
 UM_SSH_URL_ALLOWLIST_DEFAULT="github.com,gitlab.com,codeberg.org,bitbucket.org,launchpad.net,api.github.com"
 
+# Rollback manifest knobs (v0.172.0). Default dir lives under /var/lib so it
+# survives reboots and is root-only readable. Disabling the manifest is an
+# explicit opt-out -- the operator is telling us "I don't want rollback".
+UM_RUN_ID="${UM_RUN_ID:-}"
+UM_MANIFEST_DIR="${UM_MANIFEST_DIR:-/var/lib/68-user-mgmt/ssh-key-runs}"
+UM_NO_MANIFEST="${UM_NO_MANIFEST:-0}"
+# Per-key source tags accumulated during the install pass. Same length /
+# order as the de-duplicated key buffer, used by the manifest writer to
+# remember WHERE each tracked key came from.
+_UM_SSH_SOURCES=()
+
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help)         um_usage; exit 0 ;;
@@ -121,6 +145,9 @@ while [ $# -gt 0 ]; do
     --ssh-key-url-max-bytes) UM_SSH_URL_MAX_BYTES="${2:-}"; shift 2 ;;
     --ssh-key-url-allowlist) UM_SSH_URL_ALLOWLIST_EXTRA="${2:-}"; shift 2 ;;
     --allow-insecure-url)    UM_SSH_URL_ALLOW_INSECURE=1; shift ;;
+    --run-id)                UM_RUN_ID="${2:-}"; shift 2 ;;
+    --manifest-dir)          UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
+    --no-manifest)           UM_NO_MANIFEST=1; shift ;;
     --) shift; break ;;
     -*)
       log_err "unknown option: '$1' (failure: see --help)"
