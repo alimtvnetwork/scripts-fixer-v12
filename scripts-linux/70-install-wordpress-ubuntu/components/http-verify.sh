@@ -19,8 +19,8 @@ component_http_verify() {
 
     local body_file; body_file="$(mktemp)"
     local code
-    code="$(curl -sS -o "$body_file" -w '%{http_code}' \
-              --connect-timeout 5 --max-time 15 \
+    code="$(curl -sSL -o "$body_file" -w '%{http_code}' \
+              --connect-timeout 5 --max-time 15 --max-redirs 5 \
               -H 'Host: '"${server_name}" \
               "$url" 2>/dev/null || echo "000")"
     # curl may emit several concatenated http_code values on retry/redirect
