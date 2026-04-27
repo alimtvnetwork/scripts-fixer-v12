@@ -68,3 +68,24 @@ type: feature
   lines WOULD be scrubbed without writing. Useful for ops review.
 - **Backup retention**: `.bak-01-<timestamp>` files accumulate over
   repeat uninstalls. Add a 30-day reaper or keep-last-N policy.
+
+## Script 01 — .desktop entry scrub (added v0.166.0)
+
+- **Reverse-cleanup mode for partial reinstalls**: After scrubbing, the
+  next `apt-get install code` re-writes the original `MimeType=`/`Actions=`
+  lines unmodified. Add `verb_install --no-mime-claim` that re-runs
+  `_clean_vscode_desktop_entries` post-install for users who want to
+  keep VS Code on disk but stop it claiming MIME ownership.
+- **`X-Desktop-File-Install-Version` audit**: Some distros (Solus,
+  openSUSE) inject `X-Desktop-File-Install-Version=...` lines that may
+  contain MIME-claim metadata in custom keys. Add a vendor-extension
+  audit pass that warns (but does not strip) unknown `X-*` keys.
+- **Per-extension cleanup**: Some VS Code extensions (e.g. PlatformIO,
+  Quarto) write THEIR OWN `.desktop` files into
+  `~/.config/Code/User/globalStorage/<ext-id>/`. Deferred until a user
+  reports it; would need an extension-driven allow-list rather than a
+  static list.
+- **Action-block whitelist**: Right now we drop ALL `[Desktop Action *]`
+  blocks. A user might want to keep `[Desktop Action new-empty-window]`
+  (it's harmless and useful) and only drop the MIME-related ones. Add
+  `mimeCleanup.preserveActions[]` to keep named blocks.

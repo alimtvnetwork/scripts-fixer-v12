@@ -88,8 +88,17 @@ _clean_mime_defaults() {
         local _changed=1
         if command -v cmp >/dev/null 2>&1; then
             cmp -s "$path" "$tmp" && _changed=0
-        else
+        elif command -v diff >/dev/null 2>&1; then
             diff -q "$path" "$tmp" >/dev/null 2>&1 && _changed=0
+        elif command -v md5sum >/dev/null 2>&1; then
+            local h1 h2
+            h1=$($sudo_pfx md5sum "$path" | awk '{print $1}')
+            h2=$(md5sum "$tmp" | awk '{print $1}')
+            [ "$h1" = "$h2" ] && _changed=0
+        else
+            local s1 s2
+            s1=$($sudo_pfx cat "$path"); s2=$(cat "$tmp")
+            [ "$s1" = "$s2" ] && _changed=0
         fi
         if [ "$_changed" -eq 0 ]; then
             log_info "[01]   no matching MIME entries in: $path"
@@ -155,6 +164,161 @@ _clean_mime_defaults() {
     return 0
 }
 
+# --- VS Code .desktop entry scrub ------------------------------------------
+# `code --install-extension <id>` (and the apt/snap postinst hooks) write
+# `MimeType=`, `Actions=`, and `[Desktop Action <name>]` group blocks into
+# VS Code's OWN .desktop files (e.g. /usr/share/applications/code.desktop,
+# ~/.local/share/applications/code-url-handler.desktop). After uninstall
+# those files may already be gone, but on snap removal and on partial
+# uninstalls the per-user copies survive and still claim MIME ownership.
+#
+# This helper STRIPS only:
+#   * `MimeType=...` lines (entire line)
+#   * `Actions=...`  lines (entire line)
+#   * any `[Desktop Action <name>]` group block, from the group header
+#     through (but not including) the next group header or EOF
+#
+# It PRESERVES every other key (Name, GenericName, Comment, Exec, TryExec,
+# Icon, Type, Categories, StartupNotify, StartupWMClass, Keywords,
+# NoDisplay, Hidden, OnlyShowIn, NotShowIn, X-*, etc.) so the launcher
+# entry itself keeps working until the package is fully removed.
+#
+# It NEVER touches a .desktop file whose basename is not in
+# `mimeCleanup.desktopFiles[]`. Unrelated entries (firefox.desktop,
+# gimp.desktop, anything else in /usr/share/applications) are left
+# byte-for-byte intact.
+_clean_vscode_desktop_entries() {
+    has_jq || { log_warn "[01] jq not available -- skipping .desktop entry scrub"; return 0; }
+
+    local enabled
+    enabled=$(jq -r '.mimeCleanup.enabled // false' "$CONFIG")
+    if [ "$enabled" != "true" ]; then
+        log_info "[01] mimeCleanup.enabled=false -- skipping .desktop entry scrub"
+        return 0
+    fi
+
+    mapfile -t DESKTOPS < <(jq -r '.mimeCleanup.desktopFiles[]'   "$CONFIG")
+    mapfile -t DIRS     < <(jq -r '.mimeCleanup.desktopEntryDirs[]? // empty' "$CONFIG")
+
+    if [ "${#DESKTOPS[@]}" -eq 0 ]; then
+        log_warn "[01] mimeCleanup.desktopFiles is empty -- nothing to scrub"
+        return 0
+    fi
+    if [ "${#DIRS[@]}" -eq 0 ]; then
+        log_warn "[01] mimeCleanup.desktopEntryDirs is empty -- skipping .desktop entry scrub"
+        return 0
+    fi
+
+    log_info "[01] Scrubbing MimeType=/Actions=/[Desktop Action *] from VS Code .desktop files"
+
+    # awk program: strip MimeType=/Actions= lines AND drop any
+    # [Desktop Action <name>] group block until the next group header.
+    # Preserves [Desktop Entry] and any other [GroupName] block.
+    local awk_prog='
+        /^\[Desktop Action / { in_action = 1; next }
+        /^\[/                { in_action = 0; print; next }
+        in_action            { next }
+        /^[[:space:]]*MimeType[[:space:]]*=/ { next }
+        /^[[:space:]]*Actions[[:space:]]*=/  { next }
+        { print }
+    '
+
+    _scrub_one_desktop_file() {
+        local path="$1" sudo_pfx="$2" mode_pre tmp
+        if [ ! -f "$path" ]; then
+            return 0
+        fi
+        # Sanity: only operate on Desktop Entry files. If the first line
+        # isn't "[Desktop Entry]" or a comment, refuse to touch it.
+        local first
+        first=$($sudo_pfx head -1 "$path" 2>/dev/null || echo "")
+        case "$first" in
+            "[Desktop Entry]"|"#"*|"") ;;
+            *)
+                log_warn "[01]   refuse to scrub non-DesktopEntry file: $path (first line: ${first:0:40})"
+                return 0
+                ;;
+        esac
+        mode_pre=$(stat -c '%a' "$path" 2>/dev/null || echo "")
+        tmp=$(mktemp /tmp/01-deskent.XXXXXX) || { log_file_error "/tmp" "mktemp failed for .desktop scrub of $path"; return 1; }
+        if ! $sudo_pfx awk "$awk_prog" "$path" > "$tmp"; then
+            log_file_error "$path" "awk scrub failed -- original NOT modified"
+            rm -f "$tmp"; return 1
+        fi
+        local _changed=1
+        if command -v cmp >/dev/null 2>&1; then
+            cmp -s "$path" "$tmp" && _changed=0
+        elif command -v diff >/dev/null 2>&1; then
+            diff -q "$path" "$tmp" >/dev/null 2>&1 && _changed=0
+        elif command -v md5sum >/dev/null 2>&1; then
+            local h1 h2
+            h1=$($sudo_pfx md5sum "$path" | awk '{print $1}')
+            h2=$(md5sum "$tmp" | awk '{print $1}')
+            [ "$h1" = "$h2" ] && _changed=0
+        else
+            # Last-resort: byte-for-byte string compare via shell read.
+            local s1 s2
+            s1=$($sudo_pfx cat "$path"); s2=$(cat "$tmp")
+            [ "$s1" = "$s2" ] && _changed=0
+        fi
+        if [ "$_changed" -eq 0 ]; then
+            log_info "[01]   no MimeType=/Actions= in: $path"
+            rm -f "$tmp"; return 0
+        fi
+        local ts backup
+        ts=$(date +%Y%m%d-%H%M%S)
+        backup="${path}.bak-01de-${ts}"
+        if ! $sudo_pfx cp -p "$path" "$backup"; then
+            log_file_error "$backup" "backup copy failed -- aborting scrub of $path"
+            rm -f "$tmp"; return 1
+        fi
+        if ! $sudo_pfx cp "$tmp" "$path"; then
+            log_file_error "$path" "write-back failed after .desktop scrub (backup preserved at $backup)"
+            rm -f "$tmp"; return 1
+        fi
+        rm -f "$tmp"
+        if [ -n "$mode_pre" ]; then
+            $sudo_pfx chmod "$mode_pre" "$path" 2>/dev/null || true
+        fi
+        log_ok "[01]   scrubbed .desktop entries from: $path (backup: $backup)"
+        return 0
+    }
+
+    local rc=0 dir d_raw d_path basename sudo_pfx
+    for d_raw in "${DIRS[@]}"; do
+        dir="${d_raw//\$\{HOME\}/$HOME}"
+        if [ ! -d "$dir" ]; then
+            log_info "[01]   skip dir (not present): $dir"
+            continue
+        fi
+        # Decide sudo: HOME-rooted dirs no, anything else yes.
+        case "$dir" in
+            "$HOME"/*) sudo_pfx="" ;;
+            *)         sudo_pfx="sudo" ;;
+        esac
+        for basename in "${DESKTOPS[@]}"; do
+            d_path="$dir/$basename"
+            _scrub_one_desktop_file "$d_path" "$sudo_pfx" || rc=1
+        done
+    done
+
+    # Refresh the desktop database so the (now MimeType-less) entries no
+    # longer claim ownership. We already did this in _clean_mime_defaults
+    # but call again is cheap and idempotent.
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        sudo update-desktop-database -q 2>/dev/null || true
+        [ -d "$HOME/.local/share/applications" ] && \
+            update-desktop-database -q "$HOME/.local/share/applications" 2>/dev/null || true
+    fi
+
+    if [ "$rc" -ne 0 ]; then
+        log_warn "[01] .desktop entry scrub completed with one or more file errors (see above)"
+    else
+        log_ok "[01] .desktop entry scrub complete"
+    fi
+    return 0
+}
+
 install_via_ms_repo() {
   log_info "[01] Adding Microsoft apt repo + key"
   has_curl || { log_err "[01] curl required for Microsoft key"; return 1; }
@@ -214,6 +378,7 @@ verb_uninstall() {
   if is_apt_pkg_installed code; then sudo apt-get remove -y code; fi
   if is_snap_pkg_installed code; then sudo snap remove code; fi
   _clean_mime_defaults
+  _clean_vscode_desktop_entries
   rm -f "$INSTALLED_MARK"
   log_ok "[01] VS Code uninstalled"
 }

@@ -77,3 +77,55 @@ for-byte.
   the MIME unset, letting xdg-open's normal precedence rules pick)
 - Cleanup for the .deb variant's per-arch `/var/lib/snapd/desktop/applications/`
   cache (snapd manages it itself on `snap remove`)
+
+## v0.166.0 — `_clean_vscode_desktop_entries` (in-file scrub)
+
+The original `_clean_mime_defaults` only scrubbed REFERENCES from
+`mimeapps.list` / `defaults.list`. But VS Code's OWN `.desktop` files
+(written by apt postinst, snap install, and `code --install-extension`
+shell-integration prompts) also contain `MimeType=`, `Actions=`, and
+`[Desktop Action <name>]` group blocks. On snap removal and partial
+uninstalls these per-user copies survive and still claim MIME ownership.
+
+`_clean_vscode_desktop_entries` strips ONLY:
+- `MimeType=...` lines (whole line)
+- `Actions=...`  lines (whole line)
+- `[Desktop Action <name>]` group blocks (header through next group/EOF)
+
+It PRESERVES every other key (`Name`, `GenericName`, `Comment`, `Exec`,
+`TryExec`, `Icon`, `Type`, `Categories`, `StartupNotify`, `StartupWMClass`,
+`Keywords`, `NoDisplay`, `Hidden`, `OnlyShowIn`, `NotShowIn`, `X-*`).
+
+It NEVER touches a `.desktop` file whose basename is not in
+`mimeCleanup.desktopFiles[]`. `firefox.desktop`, `gimp.desktop`, etc. are
+verified byte-for-byte unchanged via sha256sum in the test fixture.
+
+### Searched directories (`mimeCleanup.desktopEntryDirs[]`)
+- `${HOME}/.local/share/applications`
+- `${HOME}/.local/share/applications/wine/Programs`
+- `/usr/share/applications`
+- `/var/lib/snapd/desktop/applications`
+- `/var/lib/flatpak/exports/share/applications`
+- `${HOME}/.local/share/flatpak/exports/share/applications`
+
+Only files matching `desktopFiles[] x desktopEntryDirs[]` are considered.
+Sudo is used for any path outside `$HOME`. First-line sanity check
+refuses to touch any file that doesn't start with `[Desktop Entry]` or a
+`#` comment.
+
+### Change-detection hardening
+Both helpers now try `cmp` -> `diff` -> `md5sum` -> shell string compare
+(handles minimal sandbox/container environments missing coreutils
+diff/cmp). No-op files no longer get spurious `.bak-*` backups.
+
+Backup naming differs to keep the two scrubs distinct on disk:
+- `_clean_mime_defaults` writes `<file>.bak-01-<ts>`
+- `_clean_vscode_desktop_entries` writes `<file>.bak-01de-<ts>`
+
+### Verified test cases (v0.166.0)
+| Input | Outcome | Verified |
+|---|---|---|
+| `code.desktop` with MimeType/Actions/2 Action blocks | keys + blocks stripped, all other keys preserved | ✅ |
+| `code-url-handler.desktop` with no MimeType/Actions | NO change, NO backup written | ✅ |
+| `firefox.desktop` with MimeType + Actions + `[Desktop Action ...]` | byte-for-byte unchanged (sha256 verified) | ✅ |
+| Non-existent dirs (snap, flatpak, wine, /usr/share missing) | skipped silently | ✅ |

@@ -27,6 +27,15 @@
     "cacheFiles": [
       "${HOME}/.local/share/applications/mimeinfo.cache",
       "/usr/share/applications/mimeinfo.cache"
+    ],
+    "_desktopEntryComment": "Directories searched for VS Code .desktop files whose MimeType= / Actions= / [Desktop Action *] groups should be stripped. We ONLY touch files whose basename matches mimeCleanup.desktopFiles[] above -- every other .desktop in these dirs is left alone byte-for-byte. Keys we strip: MimeType, Actions, and any [Desktop Action <name>] group block. Keys preserved: Name, GenericName, Comment, Exec, TryExec, Icon, Type, Categories, StartupNotify, StartupWMClass, Keywords, NoDisplay, Hidden, OnlyShowIn, NotShowIn, X-*.",
+    "desktopEntryDirs": [
+      "${HOME}/.local/share/applications",
+      "${HOME}/.local/share/applications/wine/Programs",
+      "/usr/share/applications",
+      "/var/lib/snapd/desktop/applications",
+      "/var/lib/flatpak/exports/share/applications",
+      "${HOME}/.local/share/flatpak/exports/share/applications"
     ]
   }
 }
