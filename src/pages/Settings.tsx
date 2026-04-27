@@ -226,11 +226,63 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Local bridge
+              <StatusDot status={bridgeStatus} />
+            </CardTitle>
+            <CardDescription>
+              Run <code className="rounded bg-muted px-1 py-0.5 text-xs">.\tools\config-bridge.ps1</code>{" "}
+              on your machine, then save directly to {CONFIG_PATH}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="bridge-url" className="text-xs">Bridge URL</Label>
+                <Input
+                  id="bridge-url"
+                  value={bridgeUrl}
+                  onChange={(e) => setBridgeUrl(e.target.value)}
+                  placeholder="http://127.0.0.1:7531"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="bridge-token" className="text-xs">
+                  X-Bridge-Token <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="bridge-token"
+                  type="password"
+                  value={bridgeToken}
+                  onChange={(e) => setBridgeToken(e.target.value)}
+                  placeholder="leave blank if -Token not set"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Status:{" "}
+              <span className="font-medium text-foreground">{bridgeStatus}</span>
+              {bridgeStatus === "offline" &&
+                " — start the bridge with .\\tools\\config-bridge.ps1 from the repo root."}
+            </p>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-wrap justify-end gap-3">
           <Button variant="outline" asChild>
             <Link to="/">Cancel</Link>
           </Button>
-          <Button onClick={handleDownload}>Download config.json</Button>
+          <Button variant="secondary" onClick={handleDownload}>
+            Download config.json
+          </Button>
+          <Button
+            onClick={handleSaveToBridge}
+            disabled={isSaving || bridgeStatus !== "online"}
+          >
+            {isSaving ? "Saving…" : "Save to local config.json"}
+          </Button>
         </div>
       </div>
     </main>
@@ -260,5 +312,22 @@ const ToggleRow = ({
     <Switch id={id} checked={checked} onCheckedChange={onChange} />
   </div>
 );
+
+const StatusDot = ({ status }: { status: BridgeStatus }) => {
+  const color =
+    status === "online"
+      ? "bg-green-500"
+      : status === "checking"
+      ? "bg-yellow-500 animate-pulse"
+      : status === "offline"
+      ? "bg-red-500"
+      : "bg-muted-foreground";
+  return (
+    <span
+      aria-label={`bridge ${status}`}
+      className={`inline-block h-2.5 w-2.5 rounded-full ${color}`}
+    />
+  );
+};
 
 export default Settings;
