@@ -33,6 +33,13 @@ Subverbs:
   add-group       <name> [options]          create one local group
   add-user-json   <file.json> [--dry-run]   bulk users from JSON (object/array)
   add-group-json  <file.json> [--dry-run]   bulk groups from JSON (object/array)
+  edit-user       <name> [options]          modify an existing local user
+                                            (--rename, --reset-password,
+                                             --promote/--demote, --add-group,
+                                             --remove-group, --shell, --comment,
+                                             --enable/--disable, --ask, --dry-run)
+  remove-user     <name> [options]          delete a local user
+                                            (--purge-home, --yes, --ask, --dry-run)
   bootstrap       [orchestrator flags]      parse-only orchestrator: runs all
                                             four leaves in correct order with
                                             a shared summary. See:
@@ -76,6 +83,10 @@ case "$SUBVERB" in
     exec bash "$SCRIPT_DIR/add-user-from-json.sh" "$@" ;;
   add-group-json|add-groups-json|group-json)
     exec bash "$SCRIPT_DIR/add-group-from-json.sh" "$@" ;;
+  edit-user|modify-user|edituser)
+    exec bash "$SCRIPT_DIR/edit-user.sh" "$@" ;;
+  remove-user|delete-user|deluser|removeuser)
+    exec bash "$SCRIPT_DIR/remove-user.sh" "$@" ;;
   bootstrap|orchestrate|all)
     exec bash "$SCRIPT_DIR/orchestrate.sh" "$@" ;;
   verify|check|verify-state)

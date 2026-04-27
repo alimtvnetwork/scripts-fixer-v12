@@ -84,5 +84,45 @@ else
   printf '  [SKIP] JSON tests need jq (not installed)\n'
 fi
 
+# 8. edit-user without name -> exit 64
+out=$(bash "$RUN" edit-user --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ]; then
+  _pass "edit-user without name exits 64"
+else
+  _fail "edit-user without name" "rc=64" "rc=$rc"
+fi
+
+# 9. edit-user with no flags -> warn + exit 0 (nothing to do)
+out=$(bash "$RUN" edit-user someuser --dry-run 2>&1); rc=$?
+if [ $rc -eq 0 ] && echo "$out" | grep -q "no changes requested"; then
+  _pass "edit-user with no flags warns and exits 0"
+else
+  _fail "edit-user no flags" "rc=0 + 'no changes requested'" "rc=$rc out=$out"
+fi
+
+# 10. edit-user --promote and --demote together -> exit 64
+out=$(bash "$RUN" edit-user someuser --promote --demote --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ]; then
+  _pass "edit-user --promote+--demote rejected (exit 64)"
+else
+  _fail "edit-user --promote+--demote" "rc=64" "rc=$rc out=$out"
+fi
+
+# 11. remove-user without name -> exit 64
+out=$(bash "$RUN" remove-user --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ]; then
+  _pass "remove-user without name exits 64"
+else
+  _fail "remove-user without name" "rc=64" "rc=$rc"
+fi
+
+# 12. remove-user --dry-run on nonexistent -> exit 0 (idempotent: warns)
+out=$(bash "$RUN" remove-user no-such-user-xyz --yes --dry-run 2>&1); rc=$?
+if [ $rc -eq 0 ]; then
+  _pass "remove-user dry-run on nonexistent exits 0 (idempotent)"
+else
+  _fail "remove-user nonexistent" "rc=0" "rc=$rc out=$out"
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 test "$fail" -eq 0
