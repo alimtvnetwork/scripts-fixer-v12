@@ -1,17 +1,55 @@
 {
-  "_comment": "01-install-vscode config. The 'mimeCleanup' block is a STRICT allow-list of .desktop files written by VS Code's apt/snap shell integration. Uninstall scrubs ONLY these exact tokens from mimeapps.list / defaults.list -- never deletes whole files, never touches sibling associations.",
+  "_comment": "01-install-vscode config. Cleanup is SCOPED to the detected install method (apt/snap/flatpak/tarball) AND edition (stable/insiders). Each allow-list entry carries 'methods' + 'editions' tags; entries whose tags don't intersect the detected scope are SKIPPED at runtime, not deleted.",
   "install": { "snap": "code", "msRepo": true },
   "snapClassic": true,
   "notes": "Microsoft apt repo OR snap classic",
+  "scope": {
+    "_comment": "Scope resolution rules used by _resolve_install_scope. Output is a fingerprint file at .installed/01.fingerprint AND in-memory vars SCOPE_METHODS / SCOPE_EDITIONS. If a fingerprint exists from a prior install we did, it WINS over live detection (so reinstalling via a different method doesn't make uninstall lose track of the original).",
+    "methodProbes": {
+      "apt": {
+        "packages": ["code", "code-insiders"],
+        "binaryDirs": ["/usr/share/code", "/usr/share/code-insiders"]
+      },
+      "snap": {
+        "snapNames": ["code", "code-insiders"],
+        "binaryDirs": ["/snap/code/current", "/snap/code-insiders/current"]
+      },
+      "flatpak": {
+        "appIds": ["com.visualstudio.code", "com.visualstudio.code.insiders"],
+        "binaryDirs": [
+          "/var/lib/flatpak/app/com.visualstudio.code",
+          "/var/lib/flatpak/app/com.visualstudio.code.insiders",
+          "${HOME}/.local/share/flatpak/app/com.visualstudio.code",
+          "${HOME}/.local/share/flatpak/app/com.visualstudio.code.insiders"
+        ]
+      },
+      "tarball": {
+        "binaryDirs": [
+          "/opt/visual-studio-code",
+          "/opt/VSCode-linux-x64",
+          "${HOME}/.local/opt/vscode",
+          "${HOME}/VSCode-linux-x64"
+        ]
+      }
+    },
+    "editionProbes": {
+      "stable":   { "binaries": ["code"],          "desktopFiles": ["code.desktop", "code-url-handler.desktop", "code_code.desktop"] },
+      "insiders": { "binaries": ["code-insiders"], "desktopFiles": ["code-insiders.desktop", "code-insiders-url-handler.desktop"] }
+    }
+  },
   "mimeCleanup": {
-    "_enabledComment": "Set false to keep MIME associations even after uninstall (e.g. you reinstalled VS Code via flatpak and don't want those handlers wiped).",
+    "_enabledComment": "Set false to keep MIME associations even after uninstall.",
     "enabled": true,
+    "_desktopFilesComment": "Each entry tags which install methods + editions it belongs to. _resolve_install_scope filters this list at runtime to the intersection of detected scope.",
     "desktopFiles": [
-      "code.desktop",
-      "code-url-handler.desktop",
-      "code_code.desktop",
-      "code-insiders.desktop",
-      "code-insiders-url-handler.desktop"
+      { "name": "code.desktop",                          "methods": ["apt", "tarball"],  "editions": ["stable"]   },
+      { "name": "code-url-handler.desktop",              "methods": ["apt", "tarball"],  "editions": ["stable"]   },
+      { "name": "code_code.desktop",                     "methods": ["snap"],            "editions": ["stable"]   },
+      { "name": "code-insiders.desktop",                 "methods": ["apt", "tarball"],  "editions": ["insiders"] },
+      { "name": "code-insiders-url-handler.desktop",     "methods": ["apt", "tarball"],  "editions": ["insiders"] },
+      { "name": "code_code-insiders.desktop",            "methods": ["snap"],            "editions": ["insiders"] },
+      { "name": "com.visualstudio.code.desktop",         "methods": ["flatpak"],         "editions": ["stable"]   },
+      { "name": "com.visualstudio.code.insiders.desktop","methods": ["flatpak"],         "editions": ["insiders"] }
     ],
     "userFiles": [
       "${HOME}/.config/mimeapps.list",
@@ -19,38 +57,40 @@
       "${HOME}/.local/share/applications/defaults.list",
       "${HOME}/.config/menus/applications-merged"
     ],
+    "_systemFilesComment": "System mimeapps lists are touched ONLY when the active install method writes to system locations (apt yes, snap no, flatpak no, tarball only if the user manually copied). Each entry tags which methods are allowed to scrub it.",
     "systemFiles": [
-      "/usr/share/applications/mimeapps.list",
-      "/usr/share/applications/defaults.list",
-      "/etc/xdg/mimeapps.list"
+      { "path": "/usr/share/applications/mimeapps.list", "methods": ["apt", "tarball"] },
+      { "path": "/usr/share/applications/defaults.list", "methods": ["apt", "tarball"] },
+      { "path": "/etc/xdg/mimeapps.list",                "methods": ["apt", "tarball"] }
     ],
     "cacheFiles": [
       "${HOME}/.local/share/applications/mimeinfo.cache",
       "/usr/share/applications/mimeinfo.cache"
     ],
-    "_desktopEntryComment": "Directories searched for VS Code .desktop files whose MimeType= / Actions= / [Desktop Action *] groups should be stripped. We ONLY touch files whose basename matches mimeCleanup.desktopFiles[] above -- every other .desktop in these dirs is left alone byte-for-byte. Keys we strip: MimeType, Actions, and any [Desktop Action <name>] group block. Keys preserved: Name, GenericName, Comment, Exec, TryExec, Icon, Type, Categories, StartupNotify, StartupWMClass, Keywords, NoDisplay, Hidden, OnlyShowIn, NotShowIn, X-*.",
+    "_desktopEntryComment": "Per-method dirs to search for VS Code .desktop files. apt drops them in /usr/share/applications, snap in /var/lib/snapd/desktop/applications, flatpak in /var/lib/flatpak/exports/share/applications. Per-user .local/share/applications is shared across all methods (extensions / first-launch additions).",
     "desktopEntryDirs": [
-      "${HOME}/.local/share/applications",
-      "${HOME}/.local/share/applications/wine/Programs",
-      "/usr/share/applications",
-      "/var/lib/snapd/desktop/applications",
-      "/var/lib/flatpak/exports/share/applications",
-      "${HOME}/.local/share/flatpak/exports/share/applications"
+      { "path": "${HOME}/.local/share/applications",                       "methods": ["apt", "snap", "flatpak", "tarball"] },
+      { "path": "${HOME}/.local/share/applications/wine/Programs",         "methods": ["apt", "snap", "flatpak", "tarball"] },
+      { "path": "/usr/share/applications",                                 "methods": ["apt", "tarball"] },
+      { "path": "/var/lib/snapd/desktop/applications",                     "methods": ["snap"] },
+      { "path": "/var/lib/flatpak/exports/share/applications",             "methods": ["flatpak"] },
+      { "path": "${HOME}/.local/share/flatpak/exports/share/applications", "methods": ["flatpak"] }
     ],
-    "_contextMenuComment": "Nautilus / Nemo / Caja 'Open with Code' shell-script integrations and VS Code-shipped integration scripts. STRICT allow-list: we only delete files whose BASENAME matches contextMenu.fileNames[] AND whose parent dir is in contextMenu.searchDirs[]. Sibling scripts the user wrote themselves (e.g. 'Open with Sublime', 'Compress to zip') are left untouched. Directories are NEVER deleted; only matching files inside them.",
+    "_contextMenuComment": "Nautilus / Nemo / Caja context-menu integrations. fileNames[] is per-edition (Insiders has its own labels), searchDirs[] is shared across all methods (file-manager scripts live in $HOME regardless of how VS Code was installed). actionDirs[] systemwide entries are scoped to apt/tarball.",
     "contextMenu": {
       "enabled": true,
       "fileNames": [
-        "Open with Code",
-        "Open with Code.sh",
-        "Open in Code",
-        "Open with VSCode",
-        "Open with VS Code",
-        "Open with Code - Insiders",
-        "open-with-code",
-        "open-with-code.sh",
-        "code-context.sh",
-        "vscode-open-here.sh"
+        { "name": "Open with Code",                  "editions": ["stable"]   },
+        { "name": "Open with Code.sh",               "editions": ["stable"]   },
+        { "name": "Open in Code",                    "editions": ["stable"]   },
+        { "name": "Open with VSCode",                "editions": ["stable"]   },
+        { "name": "Open with VS Code",               "editions": ["stable"]   },
+        { "name": "open-with-code",                  "editions": ["stable"]   },
+        { "name": "open-with-code.sh",               "editions": ["stable"]   },
+        { "name": "vscode-open-here.sh",             "editions": ["stable"]   },
+        { "name": "code-context.sh",                 "editions": ["stable", "insiders"] },
+        { "name": "Open with Code - Insiders",       "editions": ["insiders"] },
+        { "name": "open-with-code-insiders.sh",      "editions": ["insiders"] }
       ],
       "searchDirs": [
         "${HOME}/.local/share/nautilus/scripts",
@@ -62,30 +102,31 @@
         "${HOME}/.local/share/Thunar/sendto",
         "${HOME}/.config/Thunar/uca.xml.d"
       ],
-      "_actionDirsComment": "Nautilus 'actions' (newer Files >= 43) and Nemo/Caja XML actions live in *.desktop / *.nemo_action / *-action files. We only delete files whose basename matches actionFileNames[] in actionDirs[].",
       "actionFileNames": [
-        "open-with-code.desktop",
-        "open-with-code.nemo_action",
-        "open-with-code-insiders.desktop",
-        "open-with-code-insiders.nemo_action",
-        "vscode-open.desktop"
+        { "name": "open-with-code.desktop",          "editions": ["stable"]   },
+        { "name": "open-with-code.nemo_action",      "editions": ["stable"]   },
+        { "name": "vscode-open.desktop",             "editions": ["stable"]   },
+        { "name": "open-with-code-insiders.desktop", "editions": ["insiders"] },
+        { "name": "open-with-code-insiders.nemo_action", "editions": ["insiders"] }
       ],
       "actionDirs": [
-        "${HOME}/.local/share/file-manager/actions",
-        "/usr/share/file-manager/actions",
-        "${HOME}/.local/share/nemo/actions",
-        "/usr/share/nemo/actions",
-        "${HOME}/.config/caja/actions",
-        "/usr/share/caja/actions"
+        { "path": "${HOME}/.local/share/file-manager/actions", "methods": ["apt", "snap", "flatpak", "tarball"] },
+        { "path": "/usr/share/file-manager/actions",           "methods": ["apt", "tarball"] },
+        { "path": "${HOME}/.local/share/nemo/actions",         "methods": ["apt", "snap", "flatpak", "tarball"] },
+        { "path": "/usr/share/nemo/actions",                   "methods": ["apt", "tarball"] },
+        { "path": "${HOME}/.config/caja/actions",              "methods": ["apt", "snap", "flatpak", "tarball"] },
+        { "path": "/usr/share/caja/actions",                   "methods": ["apt", "tarball"] }
       ],
-      "_integrationPathsComment": "VS Code's own install tree ships shell-integration helpers (resources/app/out/vs/workbench/contrib/terminal/browser/media/*.sh and the bin/code-context.sh shim some packagers add). We delete from these locations ONLY when the parent dir under integrationRoots[] still exists AND the file name matches integrationFiles[].",
+      "_integrationRootsComment": "VS Code install-tree shims are scoped to the SPECIFIC method that owns that path. apt -> /usr/share/code, snap -> /snap/code/current, flatpak -> /var/lib/flatpak/.../files, tarball -> /opt or $HOME.",
       "integrationRoots": [
-        "/usr/share/code/resources/app/bin",
-        "/usr/share/code-insiders/resources/app/bin",
-        "/snap/code/current/usr/share/code/resources/app/bin",
-        "/opt/visual-studio-code/bin",
-        "${HOME}/.vscode/bin",
-        "${HOME}/.vscode-insiders/bin"
+        { "path": "/usr/share/code/resources/app/bin",                              "methods": ["apt"],     "editions": ["stable"]   },
+        { "path": "/usr/share/code-insiders/resources/app/bin",                     "methods": ["apt"],     "editions": ["insiders"] },
+        { "path": "/snap/code/current/usr/share/code/resources/app/bin",            "methods": ["snap"],    "editions": ["stable"]   },
+        { "path": "/snap/code-insiders/current/usr/share/code-insiders/resources/app/bin", "methods": ["snap"], "editions": ["insiders"] },
+        { "path": "/var/lib/flatpak/app/com.visualstudio.code/current/active/files/extra/vscode/bin", "methods": ["flatpak"], "editions": ["stable"] },
+        { "path": "/opt/visual-studio-code/bin",                                    "methods": ["tarball"], "editions": ["stable"]   },
+        { "path": "${HOME}/.vscode/bin",                                            "methods": ["apt", "snap", "flatpak", "tarball"], "editions": ["stable"]   },
+        { "path": "${HOME}/.vscode-insiders/bin",                                   "methods": ["apt", "snap", "flatpak", "tarball"], "editions": ["insiders"] }
       ],
       "integrationFiles": [
         "code-context.sh",
