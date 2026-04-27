@@ -166,6 +166,11 @@ UM_DRY_RUN="${UM_DRY_RUN:-0}"
 UM_RUN_ID="${UM_RUN_ID:-}"
 UM_MANIFEST_DIR="${UM_MANIFEST_DIR:-}"
 UM_NO_MANIFEST="${UM_NO_MANIFEST:-0}"
+# v0.182.0 -- batch-level summary JSON. Same target semantics as the
+# child flag, plus the additional behaviour that per-user JSONs are also
+# written so the rollup can aggregate them. Set explicitly via
+# --summary-json=<target> or implicitly inherited from the env.
+UM_SUMMARY_JSON="${UM_SUMMARY_JSON:-}"
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) um_usage; exit 0 ;;
@@ -173,6 +178,14 @@ while [ $# -gt 0 ]; do
     --run-id)        UM_RUN_ID="${2:-}"; shift 2 ;;
     --manifest-dir)  UM_MANIFEST_DIR="${2:-}"; shift 2 ;;
     --no-manifest)   UM_NO_MANIFEST=1; shift ;;
+    --summary-json)
+        if [ $# -ge 2 ] && [ -n "${2:-}" ] && [ "${2#-}" = "$2" ]; then
+            UM_SUMMARY_JSON="$2"; shift 2
+        else
+            UM_SUMMARY_JSON="auto"; shift
+        fi
+        ;;
+    --summary-json=*) UM_SUMMARY_JSON="${1#--summary-json=}"; shift ;;
     --) shift; break ;;
     -*) log_err "unknown option: '$1'"; exit 64 ;;
     *)
