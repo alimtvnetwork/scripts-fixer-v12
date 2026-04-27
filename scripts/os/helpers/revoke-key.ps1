@@ -21,6 +21,39 @@
     treated as errors. Removal logged to ~/.lovable/ssh-keys-state.json.
 
     CODE-RED: every file/path error logs the EXACT path + reason.
+
+    Dry-run effect per flag (with --dry-run, the diff against the
+    target authorized_keys is computed and logged but NO file is
+    rewritten, NO .bak is created, and the ledger at
+    ~/.lovable/ssh-keys-state.json is NOT updated):
+      --fingerprint "SHA256:..."  would log "[dry-run] would remove key
+                                  <fingerprint> from <user>\.ssh\
+                                  authorized_keys" per match. Keys not
+                                  present are reported as "already
+                                  revoked" (warning, not error).
+      --key "<line>"              same as --fingerprint but matched by
+                                  literal key body
+      --comment "<text>"          same as --fingerprint but matched by
+                                  the trailing comment column
+      --all                       would log every key currently in
+                                  authorized_keys as a planned removal;
+                                  REQUIRES --yes (real-run only) but the
+                                  prompt is auto-bypassed under --dry-run
+      --user <name>               affects target resolution only; the
+                                  planned path is included in every
+                                  dry-run log line
+      --backup                    default ON; under --dry-run no .bak is
+                                  actually written but the planned
+                                  filename "<file>.<ts>.bak" is logged
+      --no-backup                 suppresses the .bak plan line
+      --yes                       no dry-run effect on its own (only
+                                  needed for --all in real-run)
+      --ask                       prompts BEFORE the dry-run banner;
+                                  collected match-spec still drives the
+                                  would-do log lines
+      --dry-run                   this flag itself; gates every
+                                  authorized_keys rewrite, .bak creation,
+                                  and ledger write
 #>
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argv = @())
 
