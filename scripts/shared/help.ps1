@@ -79,6 +79,8 @@ function Show-ScriptHelp {
         if (-not $Description) {
             $candDesc = _GetProp $LogMessages 'description'
             if (-not $candDesc) { $candDesc = _GetProp $LogMessages 'synopsis' }
+            if (-not $candDesc) { $candDesc = _GetProp $LogMessages 'scriptDesc' }
+            if (-not $candDesc) { $candDesc = _GetProp $LogMessages 'scriptTitle' }
             if (-not $candDesc) {
                 $msgsNode = _GetProp $LogMessages 'messages'
                 $candDesc = _GetProp $msgsNode 'scriptDesc'
