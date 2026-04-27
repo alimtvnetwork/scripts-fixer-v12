@@ -85,6 +85,36 @@ can later remove ONLY those keys via remove-ssh-keys.sh):
                                you know what you're doing.
   --no-manifest                Disable manifest writing for this run
                                (rollback will NOT be possible).
+
+SSH-key install summary export (v0.182.0):
+  --summary-json [TARGET]      Emit a structured JSON document with the
+                               SSH-key install counters
+                               (sources_requested, keys_parsed,
+                               keys_unique, keys_installed_new,
+                               keys_preserved) plus context (run-id,
+                               user, host, timestamp, authorized_keys
+                               path, per-source-type breakdown).
+                               TARGET resolution:
+                                 (omitted) or "auto"  -> write to
+                                   <manifest-dir>/summaries/<run-id>__<user>.summary.json
+                                   (mode 0600, dir 0700 root) AND log
+                                   the path. Survives reboots; pairs
+                                   1:1 with the rollback manifest.
+                                 "stdout"             -> append the JSON
+                                   to stdout AFTER the human summary,
+                                   prefixed by the marker line
+                                   '---SSH-SUMMARY-JSON---' so callers
+                                   can split parsable JSON from
+                                   ANSI-coloured text.
+                                 <path>               -> write to that
+                                   exact path (mode 0600). Parent dir
+                                   must already exist.
+                               Failure is non-fatal: the user is still
+                               created. CODE-RED: every failure logs
+                               the exact path + reason.
+  --no-summary-json            Disable summary export even if
+                               UM_SUMMARY_JSON is set in the env. Use
+                               in batch loaders that already aggregate.
 EOF
 }
 
