@@ -129,44 +129,29 @@ try { $user = Get-LocalUser -Name $Name -ErrorAction Stop } catch {
     Save-LogFile -Status "fail"; exit 1
 }
 
-# ---- Apply ----
-if ($newPass) {
-    try {
-        $sec = ConvertTo-SecureString $newPass -AsPlainText -Force
-        Set-LocalUser -Name $Name -Password $sec -ErrorAction Stop
-        Write-Log "Password reset for '$Name'." -Level "success"
-    } catch {
-        Write-Log "Failed to reset password for '$Name': $($_.Exception.Message)" -Level "fail"
-        Save-LogFile -Status "fail"; exit 1
-    }
-}
-if ($enable)  { try { Enable-LocalUser  -Name $Name -ErrorAction Stop; Write-Log "Enabled '$Name'."  -Level "success" } catch { Write-Log "Failed to enable '$Name': $($_.Exception.Message)" -Level "fail" } }
-if ($disable) { try { Disable-LocalUser -Name $Name -ErrorAction Stop; Write-Log "Disabled '$Name'." -Level "success" } catch { Write-Log "Failed to disable '$Name': $($_.Exception.Message)" -Level "fail" } }
-
-if ($null -ne $comment) {
-    try { & net.exe user $Name /comment:"$comment" 2>&1 | Out-Null; Write-Log "Set comment for '$Name'." -Level "success" }
-    catch { Write-Log "Failed to set comment for '$Name': $($_.Exception.Message)" -Level "warn" }
-}
+# ---- Apply (delegates to shared Invoke-UserModify in _common.ps1) ----
+# Order matters: rename is LAST so all prior ops still reference the
+# original $Name. This mirrors edit-user-from-json.sh on the Unix side.
+$failed = 0
+if ($newPass)            { if (-not (Invoke-UserModify -Name $Name -Op 'password' -Value $newPass)) { $failed++ } }
+if ($enable)             { if (-not (Invoke-UserModify -Name $Name -Op 'enable'))                   { $failed++ } }
+if ($disable)            { if (-not (Invoke-UserModify -Name $Name -Op 'disable'))                  { $failed++ } }
+if ($null -ne $comment)  { if (-not (Invoke-UserModify -Name $Name -Op 'comment'  -Value $comment)) { $failed++ } }
 
 if ($promote) { $addGroups += "Administrators" }
 if ($demote)  { $removeGroups += "Administrators" }
 
 foreach ($g in ($addGroups | Where-Object { $_ })) {
-    try { Add-LocalGroupMember -Group $g -Member $Name -ErrorAction Stop; Write-Log "Added '$Name' to '$g'." -Level "success" }
-    catch {
-        if ($_.Exception.Message -match "already a member") { Write-Log "'$Name' already in '$g'." -Level "info" }
-        else { Write-Log "Failed to add '$Name' to '$g': $($_.Exception.Message)" -Level "warn" }
-    }
+    if (-not (Invoke-UserModify -Name $Name -Op 'add-group' -Value $g)) { $failed++ }
 }
 foreach ($g in ($removeGroups | Where-Object { $_ })) {
-    try { Remove-LocalGroupMember -Group $g -Member $Name -ErrorAction Stop; Write-Log "Removed '$Name' from '$g'." -Level "success" }
-    catch { Write-Log "Failed to remove '$Name' from '$g': $($_.Exception.Message)" -Level "warn" }
+    if (-not (Invoke-UserModify -Name $Name -Op 'rm-group' -Value $g)) { $failed++ }
 }
 
 if ($newName) {
-    try { Rename-LocalUser -Name $Name -NewName $newName -ErrorAction Stop; Write-Log "Renamed '$Name' -> '$newName'." -Level "success" }
-    catch { Write-Log "Failed to rename '$Name' -> '$newName': $($_.Exception.Message)" -Level "fail" }
+    if (-not (Invoke-UserModify -Name $Name -Op 'rename' -Value $newName)) { $failed++ }
 }
 
+if ($failed -gt 0) { Save-LogFile -Status "fail"; exit 1 }
 Save-LogFile -Status "ok"
 exit 0
