@@ -138,15 +138,48 @@ _install_one() {
         php)       component_php_install       ;;
         nginx)     component_nginx_install     ;;
         wordpress|wp|wp-only) component_wordpress_install ;;
+        prereqs|prerequisites) _install_prerequisites ;;
         *)         log_err "[70] Unknown component: '$1'"; return 2 ;;
     esac
+}
+
+# ---- prerequisites ---------------------------------------------------------
+# Installs MySQL/MariaDB and PHP-FPM (with mysqli, mbstring, xml, curl, intl,
+# gd, plus zip/bcmath/soap/imagick), then runs strict verification: PHP
+# version >= 7.4 and every required extension loaded. Refuses to return
+# success unless both engines pass strict verify -- nginx + WordPress stages
+# rely on this contract.
+_install_prerequisites() {
+    log_info "[70][prereqs] === prerequisites stage start ==="
+    log_info "[70][prereqs] components: $WP_DB_ENGINE + PHP-FPM ($WP_PHP_VERSION)"
+    log_info "[70][prereqs] required PHP extensions: mysqli mbstring xml curl intl gd"
+
+    if ! component_mysql_install; then
+        log_err "[70][prereqs] MySQL/MariaDB install failed -- cannot continue"
+        return 1
+    fi
+    if ! component_mysql_verify; then
+        log_err "[70][prereqs] MySQL/MariaDB verify failed after install"
+        return 1
+    fi
+    log_ok "[70][prereqs] MySQL/MariaDB OK"
+
+    if ! component_php_install; then
+        log_err "[70][prereqs] PHP-FPM install failed -- cannot continue"
+        return 1
+    fi
+    if ! component_php_verify_strict; then
+        log_err "[70][prereqs] PHP strict verify failed -- see missing extensions above"
+        return 1
+    fi
+    log_ok "[70][prereqs] === prerequisites stage complete ==="
+    return 0
 }
 
 _install_all() {
     log_info "[70] Starting Ubuntu WordPress installer (engine=$WP_DB_ENGINE php=$WP_PHP_VERSION path=$WP_INSTALL_PATH)"
     local rc=0
-    component_mysql_install     || rc=$?
-    [ $rc -eq 0 ] && component_php_install       || rc=$?
+    _install_prerequisites      || rc=$?
     [ $rc -eq 0 ] && component_nginx_install     || rc=$?
     [ $rc -eq 0 ] && component_wordpress_install || rc=$?
     return $rc
