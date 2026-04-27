@@ -81,6 +81,8 @@ while IFS= read -r -d '' f; do
   rel="${f#$REPO_ROOT/}"
   [[ "$rel" =~ $skip_ext_re ]] && continue
   [[ "$rel" =~ $self_re ]] && continue
+  rel_lc="$(printf '%s' "$rel" | tr 'A-Z' 'a-z')"
+  [[ "$rel_lc" =~ $docs_re ]] && continue
 
   if ! grep -Eq "$match_re" "$f" 2>/dev/null; then
     continue
