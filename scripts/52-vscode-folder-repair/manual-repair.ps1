@@ -120,9 +120,30 @@ $ErrorActionPreference = 'Stop'
 # Interactive edition prompt -- only fires when -Edition is OMITTED.
 # Detects which installs are present so we can mark them in the menu and
 # auto-pick when only one edition is installed.
+#
+# Detection delegates to the shared helper scripts/shared/vscode-edition-detect.ps1
+# when available so Stable-vs-Insiders probing stays consistent across all
+# entry points (run.ps1, manual-repair.ps1, rollback.ps1). A self-contained
+# inline fallback is kept so this file remains runnable on its own.
 # --------------------------------------------------------------------------
+$_sharedDetect = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "shared\vscode-edition-detect.ps1"
+# $PSScriptRoot resolves to scripts\52-vscode-folder-repair when run.ps1 dot-sources
+# this file, but manual-repair.ps1 lives at the same depth so the join is identical.
+$_sharedDetectAlt = Join-Path (Split-Path -Parent $PSScriptRoot) "shared\vscode-edition-detect.ps1"
+foreach ($_p in @($_sharedDetect, $_sharedDetectAlt)) {
+    if (Test-Path -LiteralPath $_p) { . $_p; break }
+}
+
 function Test-VsCodeEditionInstalled {
     param([string]$EditionName)
+    # Prefer the shared helper when it has been dot-sourced above.
+    $sharedCmd = Get-Command -Name 'Test-VsCodeEditionInstalled' -CommandType Function -ErrorAction SilentlyContinue |
+        Where-Object { $_.ScriptBlock.File -and ($_.ScriptBlock.File -ne $PSCommandPath) } |
+        Select-Object -First 1
+    if ($sharedCmd) { return (& $sharedCmd -EditionName $EditionName) }
+
+    # Fallback: same logic as the shared helper, kept inline so this script
+    # works even when shared\vscode-edition-detect.ps1 is missing.
     $exeName = if ($EditionName -eq 'insiders') { 'Code - Insiders.exe' } else { 'Code.exe' }
     $folder  = if ($EditionName -eq 'insiders') { 'Microsoft VS Code Insiders' } else { 'Microsoft VS Code' }
     foreach ($base in @($env:LOCALAPPDATA, $env:ProgramFiles)) {
