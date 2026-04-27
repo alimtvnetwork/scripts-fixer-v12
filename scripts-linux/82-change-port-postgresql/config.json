@@ -1,0 +1,6 @@
+{
+  "service": "PostgreSQL",
+  "defaultPort": "5432",
+  "systemdUnit": "postgresql",
+  "firewallProto": "tcp"
+}

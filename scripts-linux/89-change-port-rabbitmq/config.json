@@ -1,0 +1,6 @@
+{
+  "service": "RabbitMQ AMQP",
+  "defaultPort": "5672",
+  "systemdUnit": "rabbitmq-server",
+  "firewallProto": "tcp"
+}

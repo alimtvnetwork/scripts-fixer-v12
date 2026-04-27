@@ -1,0 +1,6 @@
+{
+  "service": "OpenSSH server",
+  "defaultPort": "22",
+  "systemdUnit": "ssh",
+  "firewallProto": "tcp"
+}

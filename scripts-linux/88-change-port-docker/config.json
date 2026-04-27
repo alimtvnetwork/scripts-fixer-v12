@@ -1,0 +1,6 @@
+{
+  "service": "Docker daemon (TCP socket)",
+  "defaultPort": "2375",
+  "systemdUnit": "docker",
+  "firewallProto": "tcp"
+}

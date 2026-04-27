@@ -12,7 +12,7 @@
 [![Tools Installed](https://img.shields.io/badge/Tools-46%2B-8b5cf6?logo=tools&logoColor=white)](#what-it-does)
 [![Databases](https://img.shields.io/badge/Databases-12-0ea5e9?logo=databricks&logoColor=white)](#databases-18-29)
 [![License](https://img.shields.io/badge/License-MIT-eab308)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-v0.95.0-f97316)](scripts/version.json)
+[![Version](https://img.shields.io/badge/Version-v0.175.0-f97316)](scripts/version.json)
 [![AI Models](https://img.shields.io/badge/AI%20Models-90-ef4444?logo=huggingface&logoColor=white)](scripts/43-install-llama-cpp/models-list.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Latest-ec4899)](changelog.md)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows)
@@ -1220,6 +1220,70 @@ A modular collection of **46 PowerShell scripts** that automate everything from 
 ## Root Dispatcher
 
 The root `run.ps1` is the **single entry point** for all scripts. It handles git pull, log cleanup, environment flags, and cache management before delegating.
+
+### Root-level Linux helpers (v0.175.0)
+
+Two new top-level shell scripts at the repository root sit alongside
+`install.sh` for the Linux side of the toolkit. Each one is a thin
+dispatcher to its interactive menu and the per-service worker scripts
+under `scripts-linux/`.
+
+| Root script | Forwards to | What it does |
+|-------------|-------------|--------------|
+| `./change-port.sh` | `scripts-linux/91-change-port-menu/run.sh` | Change the listening port for SSH, MySQL, PostgreSQL, FTP, Redis, MongoDB, nginx, Apache, Docker, RabbitMQ. SMTP (Postfix) is read-only on purpose. |
+| `./install-dns.sh` | `scripts-linux/109-install-dns-menu/run.sh` | Install BIND9, Unbound, PowerDNS Authoritative, PowerDNS Recursor, dnsmasq, Knot DNS, Knot Resolver, CoreDNS, or NSD with one command. |
+
+Both scripts accept a friendly service name as the first argument and
+forward the rest of the command line to the per-service worker. With no
+arguments they open the interactive menu.
+
+```bash
+# change-port.sh — SSH on a custom port, with safe defaults
+./change-port.sh                      # interactive menu
+./change-port.sh ssh --port 2222      # prompt-and-confirm flow
+./change-port.sh ssh --port 2222 --yes
+./change-port.sh mysql --interactive
+./change-port.sh smtp                 # READ-ONLY inspection of Postfix listeners
+./change-port.sh --list               # show all 11 supported services
+
+# install-dns.sh — pick a DNS server and let the script handle defaults
+./install-dns.sh                      # interactive menu (defaults to install -i)
+./install-dns.sh bind9                # install with config.json defaults
+./install-dns.sh unbound --interactive
+./install-dns.sh coredns --port 5353 --listen 0.0.0.0 --forwarders 1.1.1.1,9.9.9.9
+./install-dns.sh dnsmasq check        # verify install
+./install-dns.sh --list               # show all 9 supported DNS servers
+```
+
+#### Safety guarantees (change-port family)
+
+Every per-service port-change script (`scripts-linux/80-90/`) is built on
+`scripts-linux/_shared/port-change.sh`, which enforces:
+
+1. **Backup before touch** — every targeted config file is copied to
+   `<path>.bak.<timestamp>` *before* the first edit. CODE RED file-error
+   logging fires with the exact path and reason if any backup fails.
+2. **Service-native validation** — `sshd -t`, `nginx -t`,
+   `apache2ctl configtest` etc. run *after* the edit and *before* the
+   restart. Validator failure triggers automatic rollback from backup.
+3. **Plan-then-confirm** — a render of every planned edit is shown to
+   the operator before any change. `--yes` skips the prompt for CI;
+   `--dry-run` shows the diff and changes nothing.
+4. **Firewall opens new, never closes old** — `ufw allow <new>/tcp` (or
+   the firewalld equivalent) is added for the new port. The old port is
+   left alone with an explicit warning so you can audit clients first.
+5. **SMTP is intentionally locked** — script `90-change-port-smtp/`
+   refuses to mutate Postfix. Changing inbound port 25 silently breaks
+   mail delivery from every other MTA, so the script only reports the
+   current listener state.
+
+#### Defaults live in JSON (DNS family)
+
+Each `scripts-linux/100-108-install-dns-*/config.json` declares the apt
+packages, optional snap/binary fallbacks, the `systemd` unit to restart,
+the path to the drop-in config the installer writes, and the default
+port / listen address / forwarders. Edit the JSON to change defaults
+for your environment without touching shell code.
 
 ```powershell
 .\run.ps1                           # Show help (after git pull)

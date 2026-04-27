@@ -1,0 +1,6 @@
+{
+  "service": "nginx",
+  "defaultPort": "80",
+  "systemdUnit": "nginx",
+  "firewallProto": "tcp"
+}

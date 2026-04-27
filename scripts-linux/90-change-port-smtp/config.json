@@ -1,0 +1,6 @@
+{
+  "service": "Postfix SMTP",
+  "defaultPort": "25",
+  "systemdUnit": "",
+  "firewallProto": "tcp"
+}

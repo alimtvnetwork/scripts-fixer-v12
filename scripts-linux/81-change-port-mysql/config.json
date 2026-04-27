@@ -1,0 +1,6 @@
+{
+  "service": "MySQL server",
+  "defaultPort": "3306",
+  "systemdUnit": "mysql",
+  "firewallProto": "tcp"
+}

@@ -1,0 +1,6 @@
+{
+  "service": "vsftpd FTP",
+  "defaultPort": "21",
+  "systemdUnit": "vsftpd",
+  "firewallProto": "tcp"
+}

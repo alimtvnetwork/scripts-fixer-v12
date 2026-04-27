@@ -1,0 +1,6 @@
+{
+  "service": "Redis",
+  "defaultPort": "6379",
+  "systemdUnit": "redis-server",
+  "firewallProto": "tcp"
+}

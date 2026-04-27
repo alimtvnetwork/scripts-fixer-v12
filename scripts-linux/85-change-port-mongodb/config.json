@@ -1,0 +1,6 @@
+{
+  "service": "MongoDB",
+  "defaultPort": "27017",
+  "systemdUnit": "mongod",
+  "firewallProto": "tcp"
+}

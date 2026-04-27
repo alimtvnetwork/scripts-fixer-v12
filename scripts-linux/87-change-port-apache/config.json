@@ -1,0 +1,6 @@
+{
+  "service": "Apache (apache2)",
+  "defaultPort": "80",
+  "systemdUnit": "apache2",
+  "firewallProto": "tcp"
+}
