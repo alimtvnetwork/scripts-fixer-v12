@@ -214,5 +214,86 @@ if command -v jq >/dev/null 2>&1; then
   fi
 fi
 
+# ============================================================
+# Phase 2 dry-run smoke cases (T1..T18) -- guard regressions in
+# edit-user / remove-user leaves + the JSON loaders + dispatcher.
+# Cases that overlap earlier blocks (#8..#19) are intentionally
+# kept here as well so the Phase-2 spec is self-contained.
+# ============================================================
+
+# T1b -- second multi-flag combo: demote + remove-group + disable + comment
+out=$(bash "$RUN" edit-user someuser --demote --remove-group docker \
+        --disable --comment "retired" --dry-run 2>&1)
+if echo "$out" | grep -q "edit-user plan for 'someuser'" \
+   && echo "$out" | grep -q "demote (remove from" \
+   && echo "$out" | grep -q "remove groups: docker" \
+   && echo "$out" | grep -q "disable account" \
+   && echo "$out" | grep -q "set comment: 'retired'"; then
+  _pass "T1b edit-user demote+remove-group+disable+comment plan banner"
+else
+  _fail "T1b edit-user multi-flag combo #2" "all four lines present" "$(echo "$out" | head -10)"
+fi
+
+# T5 -- edit-user unknown flag -> exit 64
+out=$(bash "$RUN" edit-user someuser --bogus-flag --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ]; then
+  _pass "T5 edit-user unknown flag exits 64"
+else
+  _fail "T5 edit-user unknown flag" "rc=64" "rc=$rc out=$(echo "$out" | head -3)"
+fi
+
+# T5b -- remove-user unknown flag -> exit 64
+out=$(bash "$RUN" remove-user someuser --bogus-flag --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ]; then
+  _pass "T5b remove-user unknown flag exits 64"
+else
+  _fail "T5b remove-user unknown flag" "rc=64" "rc=$rc out=$(echo "$out" | head -3)"
+fi
+
+# T6 -- explicit --purge-home flag accepted on Unix (sister of #15 --purge-profile)
+out=$(bash "$RUN" remove-user no-such-user-xyz --purge-home --yes --dry-run 2>&1); rc=$?
+if [ $rc -eq 0 ] && echo "$out" | grep -q "remove-user plan for 'no-such-user-xyz'"; then
+  _pass "T6 remove-user --purge-home accepted"
+else
+  _fail "T6 remove-user --purge-home" "rc=0 + plan banner" "rc=$rc out=$(echo "$out" | head -5)"
+fi
+
+# T8 -- edit-user without positional prints usage AND exits 64
+out=$(bash "$RUN" edit-user --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ] && echo "$out" | grep -qi 'usage:' && echo "$out" | grep -q 'edit-user.sh'; then
+  _pass "T8 edit-user missing positional prints usage + exit 64"
+else
+  _fail "T8 edit-user missing positional" "rc=64 + 'Usage:' line" "rc=$rc out=$(echo "$out" | head -5)"
+fi
+
+# T8b -- remove-user without positional prints usage AND exits 64
+out=$(bash "$RUN" remove-user --dry-run 2>&1); rc=$?
+if [ $rc -eq 64 ] && echo "$out" | grep -qi 'usage:' && echo "$out" | grep -q 'remove-user.sh'; then
+  _pass "T8b remove-user missing positional prints usage + exit 64"
+else
+  _fail "T8b remove-user missing positional" "rc=64 + 'Usage:' line" "rc=$rc out=$(echo "$out" | head -5)"
+fi
+
+# T16 -- edit-user-json missing file -> exit 2 + FILE-ERROR with exact path
+if command -v jq >/dev/null 2>&1; then
+  bogus=/nonexistent/path/edit-users.json
+  out=$(bash "$RUN" edit-user-json "$bogus" 2>&1); rc=$?
+  if [ $rc -eq 2 ] && echo "$out" | grep -q "FILE-ERROR" && echo "$out" | grep -q "$bogus"; then
+    _pass "T16 edit-user-json missing file: rc=2 + FILE-ERROR with exact path"
+  else
+    _fail "T16 edit-user-json missing file" "rc=2 + FILE-ERROR exact path" "rc=$rc out=$(echo "$out" | head -5)"
+  fi
+
+  # T17 -- per-record purgeHome flag propagates into the plan banner
+  out=$(bash "$RUN" remove-user-json "$SCRIPT_DIR/examples/remove-users.json" --dry-run 2>&1)
+  if echo "$out" | grep -q "purge home"; then
+    _pass "T17 remove-user-json per-record purgeHome propagates to plan"
+  else
+    _fail "T17 remove-user-json purgeHome" "+purge home line in banner" "$(echo "$out" | head -10)"
+  fi
+else
+  printf '  [SKIP] T16/T17 need jq\n'
+fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 test "$fail" -eq 0
