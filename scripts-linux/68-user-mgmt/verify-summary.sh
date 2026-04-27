@@ -542,6 +542,7 @@ if [ -n "$VS_SINCE_RAW" ]; then
   _vs_kept=()
   _vs_pre_total="${#VS_FILES[@]}"
   for _f in "${VS_FILES[@]}"; do
+    [ -z "$_f" ] && continue
     if [ ! -e "$_f" ]; then
       # Keep non-existent paths so vs_validate_one can produce the proper
       # CODE-RED "file does not exist" failure for the operator.
@@ -560,7 +561,13 @@ if [ -n "$VS_SINCE_RAW" ]; then
       VS_SINCE_SKIPPED=$((VS_SINCE_SKIPPED+1))
     fi
   done
-  VS_FILES=("${_vs_kept[@]:-}")
+  # Reset VS_FILES safely under `set -u`. Don't use ${arr[@]:-} -- on bash
+  # that expands to a single empty-string element when the array is empty,
+  # which would make the script try to validate "".
+  VS_FILES=()
+  if [ "${#_vs_kept[@]}" -gt 0 ]; then
+    VS_FILES=("${_vs_kept[@]}")
+  fi
 
   if [ "$VS_JSON" != "1" ] && [ "$VS_QUIET" != "1" ] && [ "$_vs_results_to_stdout" != "1" ]; then
     log_info "$(um_msg summarySinceFiltered "${#VS_FILES[@]}" "$VS_SINCE_SKIPPED" "$VS_SINCE_DISPLAY")"
