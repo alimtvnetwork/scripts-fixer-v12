@@ -109,3 +109,18 @@ type: feature
 - **Restore command**: Add `verb_restore` that walks `.bak-01ctx-*`,
   `.bak-01-*`, and `.bak-01de-*` files and copies them back over the
   current path. Useful if cleanup was too aggressive.
+
+## Script 01 — scoped cleanup (added v0.168.0)
+
+- **`--force` flag** to override empty-scope REPORT-ONLY mode without
+  setting env vars (cleaner CLI than `VSCODE_CLEAN_METHODS=...`).
+- **Multi-method fingerprints**: Today fingerprint stores ONE method.
+  If a user runs install twice (apt then snap fallback succeeded), only
+  the last one is tracked. Append to a methods array instead.
+- **Version-pin scope**: fingerprint already captures version; add a
+  `--require-version <X.Y.Z>` guard so uninstall refuses if the
+  installed binary version doesn't match the fingerprint (prevents
+  scrubbing a manually-upgraded install we didn't track).
+- **Per-method post-install hooks**: snap installs need
+  `snap connect code:removable-media` etc. Add a `postInstallHooks`
+  block keyed by method.
