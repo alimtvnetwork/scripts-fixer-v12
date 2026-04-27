@@ -33,3 +33,4 @@ Tracks every point of unclear requirement or inference made during the
 
 _Append new rows here as ambiguities are logged._
 - [12 — Script 54 CI: elevation-gated AllUsers job](./12-script54-ci-elevation-gate.md)
+- [13 — SSH orchestrator: spec + scaffold + kubeadm playbook](./13-ssh-orchestrator-bootstrap.md)
