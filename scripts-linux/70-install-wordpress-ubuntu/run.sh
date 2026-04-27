@@ -258,14 +258,23 @@ _check_all() {
 }
 
 _uninstall_all() {
-    component_wordpress_uninstall
-    component_firewall_uninstall
-    component_nginx_uninstall
-    component_apache_uninstall
-    # Leave php + mysql in place by default (other apps may depend on them).
-    # The operator can run `install uninstall mysql` / `install uninstall php`
-    # explicitly to remove those packages too.
-    log_info "[70] WordPress + nginx vhost removed. To also remove PHP / MySQL packages, run: $0 uninstall php   and   $0 uninstall mysql"
+    log_info "[70][uninstall] === uninstall stage start ==="
+    log_info "[70][uninstall] removing: WordPress files, DB, web vhost (nginx & apache), firewall rule"
+    log_info "[70][uninstall] PRESERVING: PHP packages, MySQL/MariaDB packages and data"
+    local rc=0
+    component_wordpress_uninstall || rc=$?
+    component_firewall_uninstall  || rc=$?
+    component_nginx_uninstall     || rc=$?
+    component_apache_uninstall    || rc=$?
+    if [ "$rc" -eq 0 ]; then
+        log_ok "[70][uninstall] === uninstall complete ==="
+    else
+        log_warn "[70][uninstall] uninstall finished with errors (rc=$rc) -- see lines above"
+    fi
+    log_info "[70] To also remove PHP / MySQL packages, run explicitly:"
+    log_info "[70]   $0 uninstall php"
+    log_info "[70]   $0 uninstall mysql"
+    return $rc
 }
 
 # ---- main -------------------------------------------------------------------
