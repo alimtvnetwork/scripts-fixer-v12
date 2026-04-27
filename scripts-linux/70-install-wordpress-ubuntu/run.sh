@@ -51,6 +51,20 @@
 #   --https-staging       use Let's Encrypt staging endpoint (cert is NOT
 #                         browser-trusted) -- useful for dry-runs without
 #                         hitting prod rate limits
+#   --dns <provider>      use DNS-01 challenge (cloudflare|route53|
+#                         digitalocean|manual). Required for --wildcard.
+#                         When unset, certbot uses HTTP-01 (port 80 must
+#                         reach the host from the internet).
+#   --dns-credentials <f> path to certbot DNS credentials INI file
+#                         (chmod 600). Required for cloudflare and
+#                         digitalocean. route53 reads ~/.aws/credentials
+#                         or AWS_ACCESS_KEY_ID env vars instead.
+#   --dns-propagation <s> seconds to wait for TXT record propagation
+#                         (default: 60; raise for slow DNS providers)
+#   --wildcard            request a wildcard cert (*.example.com) covering
+#                         the root + every subdomain. Forces DNS-01.
+#                         server_name tokens are reduced to their apex
+#                         (www.example.com -> example.com + *.example.com)
 #   --show-credentials    after a successful 'install', also print the saved
 #                         DB credentials + salts location (otherwise stays
 #                         silent so logs can be safely shared)
