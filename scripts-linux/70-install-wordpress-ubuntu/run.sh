@@ -43,7 +43,18 @@
 #   --https-staging       use Let's Encrypt staging endpoint (cert is NOT
 #                         browser-trusted) -- useful for dry-runs without
 #                         hitting prod rate limits
+#   --show-credentials    after a successful 'install', also print the saved
+#                         DB credentials + salts location (otherwise stays
+#                         silent so logs can be safely shared)
+#   --json                with 'show-credentials' verb, emit raw JSON
+#                         instead of the human-readable block
 #   -h | --help           show this help and exit
+#
+# Extra verbs:
+#   show-credentials | creds | show-creds
+#                         print the saved DB credentials + salts location
+#                         from .installed/70-wordpress-credentials.json
+#                         (add --json for machine-readable output)
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -86,6 +97,8 @@ export WP_FIREWALL="0"          # 1 = open WP_SITE_PORT via UFW
 export WP_HTTPS="0"             # 1 = obtain LE cert + redirect HTTP->HTTPS
 export WP_HTTPS_EMAIL=""        # contact email for Let's Encrypt
 export WP_HTTPS_STAGING="0"     # 1 = use LE staging endpoint
+export WP_SHOW_CREDENTIALS="0"  # 1 = print credentials block after install
+SHOW_CREDS_JSON="0"             # 1 = show-credentials verb emits raw JSON
 
 _show_help() {
     sed -n '2,/^set -u$/p' "$0" | sed 's/^# \{0,1\}//' | head -n -1
@@ -102,6 +115,8 @@ while [ $# -gt 0 ]; do
                     SUBCOMPONENT="$1"; shift ;;
             esac
             ;;
+        show-credentials|show-creds|creds)
+            VERB="show-credentials"; shift ;;
         -i|--interactive)  INTERACTIVE=1; shift ;;
         --db)              WP_DB_ENGINE="$2"; shift 2 ;;
         --php)             WP_PHP_VERSION="$2"; shift 2 ;;
@@ -120,6 +135,8 @@ while [ $# -gt 0 ]; do
         --https)           WP_HTTPS="1"; shift ;;
         --email)           WP_HTTPS_EMAIL="$2"; shift 2 ;;
         --https-staging)   WP_HTTPS_STAGING="1"; shift ;;
+        --show-credentials) WP_SHOW_CREDENTIALS="1"; shift ;;
+        --json)            SHOW_CREDS_JSON="1"; shift ;;
         -h|--help)         _show_help; exit 0 ;;
         *)
             log_warn "[70] Unknown arg: '$1' -- run with --help for usage"
@@ -366,10 +383,25 @@ case "$VERB" in
             log_info "[70]   db engine   : $WP_DB_ENGINE (port $WP_MYSQL_PORT)"
             log_info "[70]   credentials : $ROOT/.installed/70-wordpress-credentials.json"
             log_info "[70] Now visit the site URL in a browser to finish the WordPress setup wizard."
+            if [ "${WP_SHOW_CREDENTIALS:-0}" = "1" ]; then
+                # Only after a successful install, and only when explicitly
+                # opted in -- printing credentials by default would leak them
+                # into shared CI logs.
+                component_wordpress_show_credentials || true
+            else
+                log_info "[70]   (run '$0 show-credentials' to print the DB password + salts location)"
+            fi
         fi
         ;;
     check)
         _check_all || rc=$?
+        ;;
+    show-credentials)
+        if [ "$SHOW_CREDS_JSON" = "1" ]; then
+            component_wordpress_show_credentials --json || rc=$?
+        else
+            component_wordpress_show_credentials || rc=$?
+        fi
         ;;
     repair)
         rm -f "$ROOT/.installed/70-mysql.ok" "$ROOT/.installed/70-php.ok" \

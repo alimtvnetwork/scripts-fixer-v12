@@ -195,6 +195,98 @@ EOF
     return 0
 }
 
+# component_wordpress_show_credentials [--json]
+# Prints the database credentials and salts location for the installed
+# WordPress site, sourced from .installed/70-wordpress-credentials.json
+# (the chmod 600 record written during install). Salts are embedded
+# inline in wp-config.php -- there is no separate salts file -- so we
+# point the operator at that exact location and offer a one-liner to
+# extract them.
+component_wordpress_show_credentials() {
+    local mode="text"
+    if [ "${1:-}" = "--json" ]; then
+        mode="json"
+    fi
+
+    local rec="$ROOT/.installed/70-wordpress-credentials.json"
+    if [ ! -f "$rec" ]; then
+        log_file_error "$rec" "credentials record missing -- run 'install wordpress' first (file is written with chmod 600 at end of install)"
+        return 1
+    fi
+
+    if [ "$mode" = "json" ]; then
+        # Raw passthrough -- callers can pipe to jq.
+        cat "$rec"
+        return 0
+    fi
+
+    # Parse with a tiny awk extractor so we don't add a jq dependency.
+    _wp_field() {
+        awk -v key="\"$1\"" '
+            $0 ~ key {
+                # split on the first colon, then strip quotes/commas/whitespace
+                sub(/^[^:]*:[[:space:]]*/, "")
+                gsub(/^[[:space:]"]+|[[:space:],"]+$/, "")
+                print
+                exit
+            }' "$rec"
+    }
+
+    local install_path site_url db_engine db_host db_port db_name db_user db_pass generated_at
+    install_path="$(_wp_field install_path)"
+    site_url="$(_wp_field site_url)"
+    db_engine="$(_wp_field db_engine)"
+    db_host="$(_wp_field db_host)"
+    db_port="$(_wp_field db_port)"
+    db_name="$(_wp_field db_name)"
+    db_user="$(_wp_field db_user)"
+    db_pass="$(_wp_field db_pass)"
+    generated_at="$(_wp_field generated_at)"
+
+    local cfg="${install_path}/wp-config.php"
+    local cfg_status="present"
+    if [ ! -f "$cfg" ]; then
+        cfg_status="MISSING (expected at this path -- WordPress files may have been removed)"
+    fi
+
+    # Print to stdout (not the logger) so the operator can pipe/redirect
+    # cleanly. Logger lines still announce the section header.
+    log_info "[70][wp] showing saved credentials from $rec"
+    cat <<EOF
+
+============================================================
+ WordPress installation -- saved credentials
+============================================================
+ Generated at : ${generated_at}
+ Install path : ${install_path}
+ Site URL     : ${site_url}
+
+ Database
+ --------
+ Engine       : ${db_engine}
+ Host         : ${db_host}
+ Port         : ${db_port}
+ Name         : ${db_name}
+ User         : ${db_user}
+ Password     : ${db_pass}
+
+ wp-config.php
+ -------------
+ Path         : ${cfg}
+ Status       : ${cfg_status}
+ Salts path   : ${cfg}  (salts are embedded inline -- no separate file)
+ Show salts   : sudo grep -E "^define\\( *'(AUTH|SECURE_AUTH|LOGGED_IN|NONCE)_(KEY|SALT)'" ${cfg}
+
+ Credentials record
+ ------------------
+ JSON file    : ${rec}  (chmod 600)
+ Re-show JSON : $0 show-credentials --json
+============================================================
+
+EOF
+    return 0
+}
+
 component_wordpress_uninstall() {
     local install_path="${WP_INSTALL_PATH:-/var/www/wordpress}"
     local db_name="${WP_DB_NAME:-wordpress}"
