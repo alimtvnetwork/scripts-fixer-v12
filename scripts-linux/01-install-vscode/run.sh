@@ -404,19 +404,23 @@ _clean_vscode_desktop_entries() {
         return 0
     fi
 
-    mapfile -t DESKTOPS < <(jq -r '.mimeCleanup.desktopFiles[]'   "$CONFIG")
-    mapfile -t DIRS     < <(jq -r '.mimeCleanup.desktopEntryDirs[]? // empty' "$CONFIG")
+    mapfile -t DESKTOPS < <(_scoped_filter '.mimeCleanup.desktopFiles' name)
+    mapfile -t DIRS     < <(_scoped_filter '.mimeCleanup.desktopEntryDirs' path)
 
     if [ "${#DESKTOPS[@]}" -eq 0 ]; then
-        log_warn "[01] mimeCleanup.desktopFiles is empty -- nothing to scrub"
+        log_warn "[01] No desktopFiles match active scope (methods='$SCOPE_METHODS' editions='$SCOPE_EDITIONS') -- skipping .desktop entry scrub"
         return 0
     fi
     if [ "${#DIRS[@]}" -eq 0 ]; then
-        log_warn "[01] mimeCleanup.desktopEntryDirs is empty -- skipping .desktop entry scrub"
+        log_warn "[01] No desktopEntryDirs match active scope (methods='$SCOPE_METHODS') -- skipping .desktop entry scrub"
         return 0
     fi
 
-    log_info "[01] Scrubbing MimeType=/Actions=/[Desktop Action *] from VS Code .desktop files"
+    if _scope_can_modify; then
+        log_info "[01] Scrubbing MimeType=/Actions= from VS Code .desktop files (scope: ${SCOPE_METHODS}/${SCOPE_EDITIONS})"
+    else
+        log_info "[01] REPORT-ONLY -- would scrub MimeType=/Actions= from: ${DESKTOPS[*]}"
+    fi
 
     # awk program: strip MimeType=/Actions= lines AND drop any
     # [Desktop Action <name>] group block until the next group header.
