@@ -10,6 +10,15 @@
       2) Array:          [ { ... }, { ... } ]
       3) Wrapped:        { "groups": [ ... ] }
 
+    Group record fields (verbatim from readme.md "Group record fields";
+    every field optional except 'name'):
+      name    string  REQUIRED
+      gid     number  explicit GID (auto-allocated on macOS if omitted; ignored on Windows)
+      system  bool    system group (Linux only; ignored on macOS + Windows)
+
+    Windows-only convenience field (no-op on Linux/macOS):
+      description  string  becomes the local group's Description property
+
     Each record is dispatched to add-group.ps1. Per-record failures are
     counted but do NOT abort the run -- the script continues and exits with
     rc=1 if any record failed.
