@@ -283,6 +283,28 @@
       "folder": "70-install-wordpress-ubuntu",
       "phase": "14",
       "title": "Ubuntu WordPress installer (Nginx + PHP-FPM + MySQL/MariaDB + latest WordPress; modular components with --interactive prompts)"
-    }
+    },
+    { "id": "80", "folder": "80-change-port-ssh",          "phase": "15", "title": "Change OpenSSH listening port (backup+validate+prompt+ufw)" },
+    { "id": "81", "folder": "81-change-port-mysql",        "phase": "15", "title": "Change MySQL listening port (backup+prompt+ufw)" },
+    { "id": "82", "folder": "82-change-port-postgresql",   "phase": "15", "title": "Change PostgreSQL listening port (backup+prompt+ufw)" },
+    { "id": "83", "folder": "83-change-port-ftp",          "phase": "15", "title": "Change vsftpd FTP listening port (backup+prompt+ufw)" },
+    { "id": "84", "folder": "84-change-port-redis",        "phase": "15", "title": "Change Redis listening port (backup+prompt+ufw)" },
+    { "id": "85", "folder": "85-change-port-mongodb",      "phase": "15", "title": "Change MongoDB listening port (backup+prompt+ufw)" },
+    { "id": "86", "folder": "86-change-port-nginx",        "phase": "15", "title": "Change nginx listen port on default vhost (nginx -t validated)" },
+    { "id": "87", "folder": "87-change-port-apache",       "phase": "15", "title": "Change Apache (apache2) Listen port (apache2ctl configtest validated)" },
+    { "id": "88", "folder": "88-change-port-docker",       "phase": "15", "title": "Change Docker daemon TCP socket port (/etc/docker/daemon.json)" },
+    { "id": "89", "folder": "89-change-port-rabbitmq",     "phase": "15", "title": "Change RabbitMQ AMQP listener port (rabbitmq.conf)" },
+    { "id": "90", "folder": "90-change-port-smtp",         "phase": "15", "title": "Postfix SMTP port inspector (READ-ONLY; refuses to change port 25)" },
+    { "id": "91", "folder": "91-change-port-menu",         "phase": "15", "title": "Interactive change-port menu (dispatches to 80-90)" },
+    { "id": "100", "folder": "100-install-dns-bind9",              "phase": "16", "title": "Install BIND9 DNS server (auth + recursive)" },
+    { "id": "101", "folder": "101-install-dns-unbound",            "phase": "16", "title": "Install Unbound recursive caching resolver" },
+    { "id": "102", "folder": "102-install-dns-powerdns-auth",      "phase": "16", "title": "Install PowerDNS Authoritative server" },
+    { "id": "103", "folder": "103-install-dns-powerdns-recursor",  "phase": "16", "title": "Install PowerDNS Recursor" },
+    { "id": "104", "folder": "104-install-dns-dnsmasq",            "phase": "16", "title": "Install dnsmasq (lightweight DNS + DHCP)" },
+    { "id": "105", "folder": "105-install-dns-knot",               "phase": "16", "title": "Install Knot DNS authoritative server" },
+    { "id": "106", "folder": "106-install-dns-knot-resolver",      "phase": "16", "title": "Install Knot Resolver (kresd)" },
+    { "id": "107", "folder": "107-install-dns-coredns",            "phase": "16", "title": "Install CoreDNS (apt or binary fallback)" },
+    { "id": "108", "folder": "108-install-dns-nsd",                "phase": "16", "title": "Install NSD (NLnet authoritative-only DNS)" },
+    { "id": "109", "folder": "109-install-dns-menu",               "phase": "16", "title": "Interactive DNS-install menu (dispatches to 100-108)" }
   ]
 }
