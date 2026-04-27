@@ -15,6 +15,7 @@
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/helpers/_common.sh"
+. "$SCRIPT_DIR/helpers/_schema.sh"
 
 # --- Strict JSON-schema validation (added v0.170.0) ----------------------
 # Allowed top-level fields per record. Anything outside this set triggers
@@ -23,131 +24,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # via UM_STRICT_UNKNOWN=1.
 UM_ALLOWED_FIELDS="name password passwordFile uid shell home comment primaryGroup groups sudo system sshKeys sshKeyFiles sshKeyUrls sshKeyUrlTimeout sshKeyUrlMaxBytes sshKeyUrlAllowlist allowInsecureSshKeyUrl"
 
-# Validate one record's schema. Emits TSV error rows on stdout:
-#   ERROR<TAB>field<TAB>reason
-#   WARN <TAB>field<TAB>reason
-# Caller counts ERROR rows; >0 => reject the record.
-#
-# Type rules (jq's type names: string|number|boolean|array|object|null):
-#   name           REQUIRED string non-empty
-#   password       OPTIONAL string non-empty (if present)
-#   passwordFile   OPTIONAL string non-empty
-#   uid            OPTIONAL number OR numeric-string
-#   shell          OPTIONAL string non-empty
-#   home           OPTIONAL string non-empty
-#   comment        OPTIONAL string (may be empty)
-#   primaryGroup   OPTIONAL string non-empty
-#   groups         OPTIONAL array of non-empty strings
-#   sudo           OPTIONAL boolean
-#   system         OPTIONAL boolean
-#   sshKeys        OPTIONAL array of non-empty strings
-#   sshKeyFiles    OPTIONAL array of non-empty strings
-_validate_user_record() {
-    local rec="$1"
-    # Top-level shape.
-    local toptype
-    toptype=$(jq -r 'type' <<< "$rec")
-    if [ "$toptype" != "object" ]; then
-        printf 'ERROR\t<root>\tnot an object (got %s)\n' "$toptype"
-        return 0
-    fi
-
-    # Single jq pass that emits one TSV row per problem found.
-    # Using a jq program (not multiple invocations) so a 50-record file
-    # validates in ~50 jq calls instead of ~600.
-    jq -r --arg allowed "$UM_ALLOWED_FIELDS" '
-        def expect(field; want):
-            if has(field) then
-                (.[field] | type) as $t
-                | if $t != want then
-                      "ERROR\t\(field)\twrong type: expected \(want), got \($t)"
-                  else empty end
-            else empty end;
-
-        def expect_nonempty_string(field):
-            if has(field) then
-                (.[field]) as $v | ($v | type) as $t
-                | if $t == "null" then
-                      "ERROR\t\(field)\tnull value"
-                  elif $t != "string" then
-                      "ERROR\t\(field)\twrong type: expected string, got \($t)"
-                  elif ($v | length) == 0 then
-                      "ERROR\t\(field)\tempty string"
-                  else empty end
-            else empty end;
-
-        def expect_uid(field):
-            if has(field) then
-                (.[field]) as $v | ($v | type) as $t
-                | if $t == "number" then
-                      if ($v | floor) != $v or $v < 0 then
-                          "ERROR\t\(field)\tnot a non-negative integer (\($v))"
-                      else empty end
-                  elif $t == "string" then
-                      if ($v | test("^[0-9]+$")) then empty
-                      else "ERROR\t\(field)\tstring is not numeric (\($v))" end
-                  else
-                      "ERROR\t\(field)\twrong type: expected integer or numeric string, got \($t)"
-                  end
-            else empty end;
-
-        def expect_str_array(field):
-            if has(field) then
-                (.[field]) as $arr | ($arr | type) as $t
-                | if $t != "array" then
-                      "ERROR\t\(field)\twrong type: expected array, got \($t) -- did you forget the [...] brackets?"
-                  else
-                      $arr
-                      | to_entries
-                      | map(
-                          (.value | type) as $vt
-                          | if $vt != "string" then
-                                "ERROR\t\(field)[\(.key)]\twrong type: expected non-empty string, got \($vt) (value=\(.value | tostring | .[0:80]))"
-                            elif (.value | length) == 0 then
-                                "ERROR\t\(field)[\(.key)]\tempty string"
-                            else empty end
-                        )
-                      | .[]
-                  end
-            else empty end;
-
-        # Required: name.
-        ( if has("name") | not then
-              "ERROR\tname\tmissing required field"
-          else empty end ),
-        expect_nonempty_string("name"),
-
-        # Optional scalars.
-        expect_nonempty_string("password"),
-        expect_nonempty_string("passwordFile"),
-        expect_nonempty_string("shell"),
-        expect_nonempty_string("home"),
-        expect("comment"; "string"),
-        expect_nonempty_string("primaryGroup"),
-        expect_uid("uid"),
-        expect("sudo"; "boolean"),
-        expect("system"; "boolean"),
-
-        # Arrays.
-        expect_str_array("groups"),
-        expect_str_array("sshKeys"),
-        expect_str_array("sshKeyFiles"),
-        expect_str_array("sshKeyUrls"),
-
-        # URL-fetcher knobs.
-        expect_uid("sshKeyUrlTimeout"),
-        expect_uid("sshKeyUrlMaxBytes"),
-        expect_nonempty_string("sshKeyUrlAllowlist"),
-        expect("allowInsecureSshKeyUrl"; "boolean"),
-
-        # Unknown-field warnings (typo guard).
-        ( ($allowed | split(" ")) as $known
-          | keys[]
-          | select(. as $k | ($known | index($k)) | not)
-          | "WARN\t\(.)\tunknown field (allowed: \($allowed))"
-        )
-    ' <<< "$rec" 2>/dev/null
-}
+# Schema (consumed by helpers/_schema.sh; see that file for the rule DSL).
+UM_SCHEMA_REQUIRED="name"
+UM_SCHEMA_FIELDS="name:nestr password:nestr passwordFile:nestr shell:nestr home:nestr comment:str primaryGroup:nestr uid:uid sudo:bool system:bool groups:nestrarr sshKeys:nestrarr sshKeyFiles:nestrarr sshKeyUrls:nestrarr sshKeyUrlTimeout:uid sshKeyUrlMaxBytes:uid sshKeyUrlAllowlist:nestr allowInsecureSshKeyUrl:bool"
 
 um_usage() {
   cat <<EOF
