@@ -104,9 +104,79 @@ EOF
 }
 
 component_nginx_uninstall() {
-    sudo rm -f /etc/nginx/sites-enabled/wordpress.conf 2>/dev/null || true
-    sudo rm -f /etc/nginx/sites-available/wordpress.conf 2>/dev/null || true
-    sudo systemctl reload nginx 2>/dev/null || true
+    local enabled="/etc/nginx/sites-enabled/wordpress.conf"
+    local available="/etc/nginx/sites-available/wordpress.conf"
+    local rc=0
+
+    log_info "[70][nginx] removing WordPress site config (preserving nginx + PHP + MySQL packages)"
+
+    # 1. Disable the site (remove the symlink) ------------------------------
+    if [ -L "$enabled" ] || [ -e "$enabled" ]; then
+        if ! sudo rm -f "$enabled"; then
+            log_file_error "$enabled" "rm failed while disabling WordPress site"
+            rc=1
+        else
+            log_ok "[70][nginx] disabled site: $enabled"
+        fi
+    else
+        log_info "[70][nginx] $enabled not present (already disabled)"
+    fi
+
+    # 2. Remove the available vhost file ------------------------------------
+    if [ -f "$available" ]; then
+        if ! sudo rm -f "$available"; then
+            log_file_error "$available" "rm failed while removing WordPress vhost"
+            rc=1
+        else
+            log_ok "[70][nginx] removed vhost: $available"
+        fi
+    else
+        log_info "[70][nginx] $available not present (already removed)"
+    fi
+
+    # 3. Restore the default site if nothing else is enabled ----------------
+    # Avoids leaving nginx with zero enabled sites (which still works but is
+    # surprising). Only re-link if the available file exists and we removed
+    # everything else.
+    if [ ! "$(ls -A /etc/nginx/sites-enabled 2>/dev/null)" ] && \
+       [ -f /etc/nginx/sites-available/default ]; then
+        log_info "[70][nginx] no other sites enabled -- restoring 'default' site"
+        if ! sudo ln -sf /etc/nginx/sites-available/default \
+                          /etc/nginx/sites-enabled/default; then
+            log_file_error "/etc/nginx/sites-enabled/default" "ln -sf failed while restoring default site"
+            rc=1
+        fi
+    fi
+
+    # 4. Validate config BEFORE reloading -- a broken nginx -t means a
+    #    `systemctl reload` would fail and leave nginx serving the old
+    #    in-memory config. Surface the failure loudly.
+    if ! command -v nginx >/dev/null 2>&1; then
+        log_warn "[70][nginx] 'nginx' binary not found -- skipping reload (was the package removed manually?)"
+    else
+        if ! sudo nginx -t 2>/tmp/nginx-uninstall-t.log; then
+            log_err "[70][nginx] 'nginx -t' failed AFTER removing WordPress site -- not reloading. See /tmp/nginx-uninstall-t.log:"
+            sudo cat /tmp/nginx-uninstall-t.log >&2
+            rc=1
+        elif sudo systemctl is-active --quiet nginx; then
+            if ! sudo systemctl reload nginx; then
+                log_err "[70][nginx] 'systemctl reload nginx' failed -- nginx still running with old config; run 'journalctl -u nginx' for the exact reason"
+                rc=1
+            else
+                log_ok "[70][nginx] reloaded nginx (config valid)"
+            fi
+        else
+            log_info "[70][nginx] nginx service not active -- skipping reload"
+        fi
+    fi
+
+    # 5. Drop the install marker ---------------------------------------------
     rm -f "$ROOT/.installed/70-nginx.ok"
-    log_ok "[70][nginx] WordPress vhost removed (nginx package left in place)"
+
+    if [ "$rc" -eq 0 ]; then
+        log_ok "[70][nginx] WordPress site fully removed; nginx + PHP + MySQL packages preserved"
+    else
+        log_warn "[70][nginx] WordPress site removal completed with errors (rc=$rc) -- review the lines above"
+    fi
+    return $rc
 }
