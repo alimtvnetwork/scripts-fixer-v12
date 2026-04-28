@@ -47,6 +47,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Apache CouchDB" \
+    --source "Apache CouchDB apt repo (apache.jfrog.io)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/opt/couchdb/bin/couchdb + /opt/couchdb/data"
   log_info "[23] Starting Apache CouchDB installer"
   if verify_installed; then log_ok "[23] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[23] apt required"; return 1; fi
