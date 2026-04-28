@@ -525,7 +525,11 @@ try {
         if (-not $summaryOk) { $isAllSuccessful = $false }
     }
 
-    # -- Restart Explorer -----------------------------------------------------
+    # -- Registry change ledger (persist JSON + render colored table) --------
+    $changeLogPath = Save-RegistryChangeLog -OutputDir $backupRoot -Tag 'script52'
+    $primaryBackup = if ($backupResult) { $backupResult.FilePath } else { '' }
+    Write-RegistryChangeLog -BackupFilePath $primaryBackup -JsonLogPath ($changeLogPath ? $changeLogPath : '')
+
     $isNoRestartCommand = $Command.ToLower() -eq "no-restart"
     $shouldRestart      = $config.restartExplorer -and -not $isNoRestartCommand
     if ($shouldRestart) {
