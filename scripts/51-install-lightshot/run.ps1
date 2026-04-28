@@ -39,7 +39,7 @@ Write-InstallPaths `
     -Tool   "Lightshot" `
     -Source "https://chocolatey.org/install (pkg: lightshot.install)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Users\$env:USERNAME + "\AppData\Local\Skillbrains\Lightshot")
+    -Target ($env:LOCALAPPDATA + "\Skillbrains\Lightshot")
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 try {
