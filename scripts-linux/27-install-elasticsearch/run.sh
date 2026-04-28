@@ -45,6 +45,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Elasticsearch 8.x" \
+    --source "Elastic apt repo (artifacts.elastic.co)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/share/elasticsearch + /var/lib/elasticsearch"
   log_info "[27] Starting Elasticsearch 8.x installer"
   if verify_installed; then log_ok "[27] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[27] apt required"; return 1; fi
