@@ -1,0 +1,36 @@
+{
+  "$schema": "./check-required-packages.schema.json",
+  "_comment": "List of packages the app expects to be installed. The checker reads package.json + node_modules/<pkg>/package.json to verify each one. Add an entry per critical dep so a missing module shows a clear fix command instead of a runtime stack trace.",
+  "required": [
+    {
+      "name": "@supabase/supabase-js",
+      "reason": "Auto-generated src/integrations/supabase/client.ts imports from this package."
+    },
+    {
+      "name": "@tanstack/react-query",
+      "reason": "QueryClientProvider wraps the app in src/App.tsx."
+    },
+    {
+      "name": "react",
+      "reason": "Core framework."
+    },
+    {
+      "name": "react-dom",
+      "reason": "Required for ReactDOM.createRoot in src/main.tsx."
+    },
+    {
+      "name": "react-router-dom",
+      "reason": "Used by BrowserRouter / Routes in src/App.tsx."
+    },
+    {
+      "name": "zod",
+      "reason": "Schemas in src/lib/configSchema.ts."
+    }
+  ],
+  "optional": [
+    {
+      "name": "lucide-react",
+      "reason": "Icon set used by shadcn components."
+    }
+  ]
+}
