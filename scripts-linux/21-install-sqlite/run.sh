@@ -9,6 +9,11 @@ CONFIG="$SCRIPT_DIR/config.json"
 APT_PKG="sqlite3"; VERIFY_CMD='sqlite3 --version'; INSTALLED_MARK="$ROOT/.installed/21.ok"
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 verb_install() {
+  write_install_paths \
+    --tool   "SQLite 3" \
+    --source "apt (Debian/Ubuntu): $APT_PKG" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/sqlite3"
   log_info "[21] Starting SQLite 3 installer"
   if verify_installed; then log_ok "[21] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[21] apt not available"; return 1; fi
