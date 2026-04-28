@@ -3,6 +3,7 @@
     "method":      "curlOneLiner",
     "scriptName":  "gitmap",
     "installUrl":  "https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh",
+    "repo":        "alimtvnetwork/gitmap-v8",
     "binDir":      "${HOME}/.local/bin"
   },
   "verify": {

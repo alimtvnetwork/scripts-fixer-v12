@@ -7,14 +7,6 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export SCRIPT_ID="109"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
-. "$ROOT/_shared/install-paths.sh"
-
-write_install_paths \
-    --tool   "DNS Install Menu (100-108 dispatcher)" \
-    --source "$SCRIPT_DIR/run.sh" \
-    --temp   "(none -- pure dispatcher)" \
-    --target "scripts-linux/10[0-8]-install-dns-*/run.sh" \
-    --action "Configure" || true
 
 declare -a SERVERS=(
     "100|BIND9 (auth + recursive)   |100-install-dns-bind9"

@@ -217,22 +217,6 @@ pc_run() {
     [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || {
         log_err "[$PC_SERVICE_ID] port out of range: $PORT"; return 2; }
 
-    # Triple-path logging: source helper lazily and emit Source/Temp/Target.
-    if ! command -v write_install_paths >/dev/null 2>&1; then
-        local _ip_root; _ip_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-        . "$_ip_root/_shared/install-paths.sh"
-    fi
-    local _pc_targets=""
-    for spec in "${PC_EDIT_SPECS[@]}"; do
-        path="${spec%%|||*}"
-        _pc_targets="${_pc_targets:+$_pc_targets, }$path"
-    done
-    write_install_paths \
-      --tool   "Change-port: $PC_SERVICE_NAME -> $PORT" \
-      --source "$PC_CONFIG_JSON + CLI args (dry-run=$DRY_RUN restart=$([ $NO_RESTART = 1 ] && echo no || echo yes) fw=$([ $NO_FW = 1 ] && echo no || echo yes))" \
-      --temp   "<edited-files>.bak.<ts> backups + ufw/firewalld staging" \
-      --target "$_pc_targets${PC_SYSTEMD_UNIT:+ + systemctl restart $PC_SYSTEMD_UNIT}"
-
     log_info "[$PC_SERVICE_ID] $PC_SERVICE_NAME -> port $PORT (dry-run=$DRY_RUN restart=$([ $NO_RESTART = 1 ] && echo no || echo yes) fw=$([ $NO_FW = 1 ] && echo no || echo yes))"
 
     # Pre-flight: every targeted file must exist.

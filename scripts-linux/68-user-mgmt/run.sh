@@ -105,12 +105,6 @@ if [ $# -eq 0 ]; then usage; exit 0; fi
 
 SUBVERB="$1"; shift
 
-write_install_paths \
-  --tool   "User-mgmt dispatcher (subverb=$SUBVERB)" \
-  --source "$SCRIPT_DIR/<leaf>.sh + CLI args + optional JSON spec" \
-  --temp   "$ROOT/.logs/68/<TS>" \
-  --target "/etc/passwd + /etc/group + /etc/shadow + /home/<user>/.ssh/authorized_keys (per leaf)"
-
 case "$SUBVERB" in
   -h|--help|help)
     usage; exit 0 ;;

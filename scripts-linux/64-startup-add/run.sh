@@ -11,7 +11,6 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export SCRIPT_ID="64"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
-. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 LOGS_ROOT="$ROOT/.logs/64"
@@ -54,11 +53,6 @@ EOF
 
 main() {
   local sub="${1:-}"; shift || true
-  write_install_paths \
-    --tool   "Startup-add (subverb=${sub:-help})" \
-    --source "$CONFIG + CLI args + auto-detected method (autostart|systemd-user|shell-rc|launchagent|login-item)" \
-    --temp   "$RUN_DIR (per-run logs)" \
-    --target "~/.config/autostart/*.desktop | systemd-user units | shell-rc | LaunchAgents | Login Items"
   case "$sub" in
     app|startup-app)               ensure_run_dir; cmd_app    "$@"; exit $? ;;
     env|startup-env)               ensure_run_dir; cmd_env    "$@"; exit $? ;;

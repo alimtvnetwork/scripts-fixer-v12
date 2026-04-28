@@ -18,7 +18,6 @@ export SCRIPT_ID="63"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
-. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 SAMPLE="$SCRIPT_DIR/config.sample.json"
@@ -186,11 +185,6 @@ init_run_dir() {
   # Export for parallel-mode subshells
   export RUN_DIR RUN_HOSTS_DIR RUN_SESSION_LOG RUN_TS_START RUN_TARGET RUN_CMD
 
-  write_install_paths \
-    --tool   "Remote-runner (target=$RUN_TARGET)" \
-    --source "$CONFIG (host inventory) + cmd: $RUN_CMD" \
-    --temp   "$TMPDIR/scripts-fixer/63-remote-runner" \
-    --target "$RUN_DIR (manifest.json + hosts/*.log + session.log)"
   log_info "[63] Run dir: $RUN_DIR"
 }
 

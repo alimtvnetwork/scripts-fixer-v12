@@ -7,7 +7,6 @@ export SCRIPT_ID="12"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/parallel.sh"
 . "$ROOT/_shared/file-error.sh"
-. "$ROOT/_shared/install-paths.sh"
 . "$ROOT/_shared/registry.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
@@ -55,11 +54,6 @@ else
   IDS=$(jq -r --arg p "$PROFILE" '.profiles[$p].ids[]' "$PROFILES" | tr '\n' ' ')
 fi
 COUNT=$(echo $IDS | wc -w)
-write_install_paths \
-  --tool   "All-dev-tools orchestrator (profile=$PROFILE)" \
-  --source "$PROFILES (resolves to script ids: $(echo $IDS | tr ' ' ','))" \
-  --temp   "$ROOT/.logs/12/<TS>" \
-  --target "Per-script targets (delegated) + summary at $SUMMARY_JSON / $SUMMARY_MD"
 log_info "[12] Orchestrator starting (profile=$PROFILE, parallel=$PARALLEL)"
 log_info "[12] Profile '$PROFILE' -> $COUNT scripts: $(echo $IDS | tr ' ' ',')"
 
