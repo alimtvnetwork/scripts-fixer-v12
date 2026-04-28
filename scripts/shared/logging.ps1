@@ -116,7 +116,7 @@ function Write-FileError {
         [string]$FilePath,
 
         [Parameter(Mandatory)]
-        [ValidateSet("read", "write", "copy", "move", "inject", "load", "extract", "resolve")]
+        [ValidateSet("read", "write", "copy", "move", "inject", "load", "extract", "resolve", "install", "delete", "execute", "download", "parse")]
         [string]$Operation,
 
         [Parameter(Mandatory)]
