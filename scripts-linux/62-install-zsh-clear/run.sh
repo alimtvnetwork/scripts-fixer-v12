@@ -11,6 +11,7 @@ export SCRIPT_ID="62"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 INSTALLED_MARK="$ROOT/.installed/62.ok"
