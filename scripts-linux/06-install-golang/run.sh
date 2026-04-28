@@ -4,11 +4,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export SCRIPT_ID="06"
 . "$ROOT/_shared/logger.sh"; . "$ROOT/_shared/pkg-detect.sh"; . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 06-install-golang"; exit 1; }
 APT_PKG="golang-go"; VERIFY_CMD='go version'; INSTALLED_MARK="$ROOT/.installed/06.ok"
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 verb_install() {
+  write_install_paths \
+    --tool   "Go" \
+    --source "apt | dnf | brew | go.dev tarball" \
+    --temp   "/var/cache/apt/archives | $TMPDIR/scripts-fixer/go" \
+    --target "/usr/local/go (or /usr/bin/go)"
   log_info "[06] Starting Go (golang-go) installer"
   if verify_installed; then log_ok "[06] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[06] apt not available"; return 1; fi

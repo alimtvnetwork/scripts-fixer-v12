@@ -9,6 +9,7 @@ export SCRIPT_ID="07"
 . "$ROOT/_shared/file-error.sh"
 # Single source of truth for global git config defaults (cross-OS).
 . "$ROOT/_shared/git-config-defaults.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 07-install-git"; exit 1; }
@@ -23,6 +24,11 @@ verify_installed() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Git" \
+    --source "apt | dnf | brew" \
+    --temp   "/var/cache/apt/archives | $TMPDIR/scripts-fixer/git" \
+    --target "/usr/bin/git"
   log_info "[07] Starting Git installer"
   if verify_installed; then
     log_ok "[07] Already installed: git"

@@ -7,6 +7,7 @@ export SCRIPT_ID="03"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 03-install-nodejs"; exit 1; }
@@ -21,6 +22,11 @@ verify_installed() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Node.js (LTS)" \
+    --source "apt repo (Debian/Ubuntu) | dnf | brew" \
+    --temp   "/var/cache/apt/archives | $TMPDIR/scripts-fixer/nodejs" \
+    --target "/usr/bin/node + /usr/bin/npm"
   log_info "[03] Starting Node.js LTS installer"
   if verify_installed; then
     log_ok "[03] Already installed: nodejs npm"

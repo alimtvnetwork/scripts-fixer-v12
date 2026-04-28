@@ -7,6 +7,7 @@ export SCRIPT_ID="05"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 05-install-python"; exit 1; }
@@ -21,6 +22,11 @@ verify_installed() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Python 3" \
+    --source "apt | dnf | brew" \
+    --temp   "/var/cache/apt/archives | $TMPDIR/scripts-fixer/python" \
+    --target "/usr/bin/python3"
   log_info "[05] Starting Python 3 + pip + venv installer"
   if verify_installed; then
     log_ok "[05] Already installed: python3 python3-pip python3-venv"
