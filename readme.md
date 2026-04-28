@@ -26,26 +26,27 @@
 
 ## 🚀 Install
 
-Clone the toolkit and run the dispatcher from a fresh shell.
+Install GitMap through this repo's dispatcher. Do **not** use the standalone GitMap repo installer from the root README.
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
 git clone https://github.com/alimtvnetwork/gitmap-v6.git
 cd gitmap-v6
-.\run.ps1 -d
+.\run.ps1 install gitmap
 ```
 
 If PowerShell blocks scripts, use a process-only bypass for the current shell first:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+.\run.ps1 install gitmap
 ```
 
 Or run the dispatcher inside a bypassed PowerShell process:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 install gitmap
 ```
 
 ### Unix / macOS (bash)
@@ -53,10 +54,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
 ```bash
 git clone https://github.com/alimtvnetwork/gitmap-v6.git
 cd gitmap-v6
-bash scripts-linux/run.sh --list
+bash scripts-linux/run.sh install gitmap
 ```
 
-> Looking for the **GitMap CLI** (`gitmap` command)? See [Script 35 — Install GitMap](scripts/35-install-gitmap/) for its dedicated one-liner.
+For the full toolkit menu instead, run `./run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS.
 
 ---
 
