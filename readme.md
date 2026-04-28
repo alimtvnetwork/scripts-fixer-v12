@@ -1191,11 +1191,8 @@ For a single command without changing the current shell policy:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
 ```
 
-For the remote GitMap installer one-liner:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
-```
+
 
 To make local scripts permanent for your user (still no admin):
 
