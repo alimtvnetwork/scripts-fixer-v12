@@ -342,19 +342,14 @@ try {
         return
     }
 
-    # -- Assert admin ---------------------------------------------------------
+    # -- Assert admin (defense-in-depth; primary gate is at top of script) ---
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
-    $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-    $hasAdminRights = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    Write-Log ($logMessages.messages.currentUser -replace '\{name\}', $identity.Name) -Level "info"
-    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $hasAdminRights) -Level $(if ($hasAdminRights) { "success" } else { "error" })
-
-    $isNotAdmin = -not $hasAdminRights
-    if ($isNotAdmin) {
-        Write-Log $logMessages.messages.notAdmin -Level "error"
-        return
-    }
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    Write-Log ($logMessages.messages.currentUser     -replace '\{name\}',  $identity.Name) -Level "info"
+    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', (Test-IsElevated)) -Level "success"
+    Assert-Elevated `
+        -ScriptPath $PSCommandPath `
+        -Reason     'Script 52 writes HKEY_CLASSES_ROOT\Directory\shell\VSCode entries -- requires Administrator.'
 
     # -- Per-edition processing ----------------------------------------------
     # Auto-detect installed editions (Stable vs Insiders) and skip the ones
