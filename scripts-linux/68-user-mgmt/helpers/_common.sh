@@ -33,6 +33,9 @@ fi
 if ! command -v ensure_dir >/dev/null 2>&1; then
   . "$__UM_TOOLKIT_ROOT/_shared/file-error.sh"
 fi
+if ! command -v write_install_paths >/dev/null 2>&1; then
+  . "$__UM_TOOLKIT_ROOT/_shared/install-paths.sh"
+fi
 
 # Load log message catalogue once. Use jq if available; otherwise fall back to
 # a tiny grep-based extractor so the leaves still produce sensible output on
