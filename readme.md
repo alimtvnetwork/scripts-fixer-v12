@@ -26,8 +26,20 @@
 
 ## 🚀 Install
 
-Use this repository's root bootstrap installer. These commands run the root
-`install.ps1` / `install.sh` scripts from this repo.
+Use the installer scripts that live at the root of this repository:
+`install.ps1` for Windows and `install.sh` for Unix / macOS.
+
+If you already cloned the repo, run the root script directly:
+
+```powershell
+.\install.ps1
+```
+
+```bash
+bash ./install.sh
+```
+
+For a fresh machine, use the same root scripts through GitHub raw URLs:
 
 ### Windows (PowerShell 5.1+)
 
