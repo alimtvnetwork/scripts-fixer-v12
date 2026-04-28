@@ -57,6 +57,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "vscode-edition-detect.ps1")
 . (Join-Path $sharedDir "admin-check.ps1")
 . (Join-Path $sharedDir "registry-backup.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers (also brings in script 10's registry helpers) -
 . (Join-Path $scriptDir "helpers\repair.ps1")
@@ -327,6 +328,14 @@ switch ($Command.ToLower()) {
 
 # -- Banner -------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "VS Code folder right-click repair" `
+    -Action "Repair" `
+    -Source "registry HKCR\Directory\shell + Background\shell entries" `
+    -Temp   ($env:TEMP + "\scripts-fixer\vscode-folder-repair") `
+    -Target ("HKCR:\Directory\shell\VSCode  +  HKCR:\Directory\Background\shell\VSCode")
 
 # -- Initialize logging -------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

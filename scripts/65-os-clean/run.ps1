@@ -203,6 +203,18 @@ function Parse-OsCleanRows {
     return $rows
 }
 
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+$installPathsHelper = Join-Path $SharedDir "install-paths.ps1"
+if (Test-Path -LiteralPath $installPathsHelper) {
+    . $installPathsHelper
+    Write-InstallPaths `
+        -Tool   "OS clean (Windows)" `
+        -Action "Clean" `
+        -Source "$OsRunner (delegates to scripts/os/run.ps1 clean)" `
+        -Temp   ($env:TEMP + "\scripts-fixer\os-clean") `
+        -Target ".logs\65\<TS>\ + targeted Windows caches/registry per category"
+}
+
 # ========================== STAGE 1: PLAN ================================
 Write-Step "[STAGE 1/4] PLAN -- building dry-run plan"
 $planRc = Invoke-OsClean -ExtraArgs @('--dry-run') -OutFile $PlanPath

@@ -1,6 +1,6 @@
 # --------------------------------------------------------------------------
 #  fix-legacy-fixer-refs.ps1
-#  One-command auto-fix: rewrites scripts-fixer-v8/v9/v10 -> scripts-fixer-v11
+#  One-command auto-fix: rewrites scripts-fixer-v12/v9/v10 -> scripts-fixer-v12
 #  across every text file in the repo (including lockfiles).
 #
 #  Usage:

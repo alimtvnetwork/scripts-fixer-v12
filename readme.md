@@ -31,7 +31,7 @@ Run **one** of the commands below from a fresh shell. The bootstrapper auto-disc
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v7/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 ```
 
 Useful flags (append after `iex` via `& { ... } -Flag`):
@@ -44,7 +44,7 @@ Useful flags (append after `iex` via `& { ... } -Flag`):
 ### Unix / macOS (bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v7/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
 ```
 
 Useful flags (append with `-s --` when piping through bash):

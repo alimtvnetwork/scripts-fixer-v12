@@ -18,7 +18,7 @@ Made both implementations report **identical** information in the same
 order, with the same label widths:
 
 ```
-[VERSION] Bootstrap repo : scripts-fixer-v11
+[VERSION] Bootstrap repo : scripts-fixer-v12
 [VERSION] Payload semver : 0.148.0
 [SCAN]    Probing v9..vN for newer releases (parallel)...
 [FOUND]   Newer repo     : scripts-fixer-vN
@@ -45,7 +45,7 @@ order, with the same label widths:
 - `bash install.sh --help` -> prints help block, exits 0.
 - `bash install.sh --version` -> fetches semver from GitHub, prints both
   current + latest repo & semver, exits 0. Confirmed against live
-  scripts-fixer-v11 (semver 0.43.2) and scripts-fixer-v11 (semver
+  scripts-fixer-v12 (semver 0.43.2) and scripts-fixer-v12 (semver
   0.95.0).
 - `pwsh install.ps1 -Help` -> identical help block, returns.
 - `pwsh install.ps1 -Version` -> identical output to bash side.

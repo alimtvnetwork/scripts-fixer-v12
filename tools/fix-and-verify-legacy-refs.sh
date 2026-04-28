@@ -3,7 +3,7 @@
 #  fix-and-verify-legacy-refs.sh
 #  One-command pipeline:
 #    1. Dry-run the fixer to PREVIEW what would change
-#    2. APPLY the rewrite (scripts-fixer-v8/v9/v10 -> v11) with timestamped
+#    2. APPLY the rewrite (scripts-fixer-v12/v9/v10 -> v11) with timestamped
 #       backups under .legacy-fix-backups/<UTC-timestamp>/
 #    3. Run the scanner; if it FAILS, AUTO-ROLLBACK from the backup so the
 #       repo is restored to its pre-apply state.
@@ -119,7 +119,7 @@ if [ "$scan_rc" != "1" ]; then
   exit 2
 fi
 
-fail "scanner reports FAIL -- legacy scripts-fixer-v8/v9/v10 references still present"
+fail "scanner reports FAIL -- legacy scripts-fixer-v12/v9/v10 references still present"
 
 # Decide whether to roll back.
 can_rollback=1

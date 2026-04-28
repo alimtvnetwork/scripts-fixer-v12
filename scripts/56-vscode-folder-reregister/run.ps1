@@ -27,6 +27,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "logging.ps1")
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "resolved.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 . (Join-Path $scriptDir "helpers\registry.ps1")
 
 $config      = Import-JsonConfig (Join-Path $scriptDir "config.json")
@@ -38,6 +39,14 @@ if ($Help -or $Verb -eq "--help" -or $Verb -eq "-h") {
 }
 
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "VS Code folder shell verbs" `
+    -Action "Repair" `
+    -Source "VS Code install dir Code.exe" `
+    -Temp   ($env:TEMP + "\scripts-fixer\vscode-reregister") `
+    -Target ("HKCR:\Directory\shell\VSCode\command")
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 # Convenience: pull a message and substitute {placeholders}.
