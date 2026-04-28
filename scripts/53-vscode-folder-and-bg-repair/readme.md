@@ -126,3 +126,67 @@ to reuse `Set-FolderContextMenuEntry`, `Remove-ContextMenuTarget`,
 `Test-TargetState`, `Write-VerificationSummary`, and `Restart-Explorer`.
 The only behavioral difference vs 52 is the config — 53 puts
 `background` in `ensureOnTargets` instead of `removeFromTargets`.
+
+## Required permissions
+
+| Command(s)                                          | Admin? | Why                                                                 |
+| --------------------------------------------------- | :----: | ------------------------------------------------------------------- |
+| `repair`, `repair-vscode`, `rollback`, `no-restart` |   yes  | Writes machine-wide keys under `HKEY_CLASSES_ROOT\Directory\shell`. |
+| `dry-run`, `precheck`, `plan`, `whatif`, `verify`   |   no   | Read-only registry queries + console output.                        |
+| `--Help`                                            |   no   | Prints help and exits.                                              |
+
+Non-elevated runs of write commands fail fast and print a copy-paste
+`Start-Process pwsh -Verb RunAs ...` retry hint -- the script never
+auto-triggers UAC.
+
+## Expected behavior -- empty vs non-empty folders
+
+After a successful run, **Open with Code** (or **Open with Code - Insiders**)
+must appear in **both** right-click scenarios:
+
+| Scenario                                          | Registry target                                  | Click action                                |
+| ------------------------------------------------- | ------------------------------------------------ | ------------------------------------------- |
+| Right-click ON a folder icon (empty or non-empty) | `HKCR\Directory\shell\VSCode`                    | Opens that folder in VS Code (`%V`).        |
+| Right-click on EMPTY space inside a folder window | `HKCR\Directory\Background\shell\VSCode`         | Opens the **current** folder you're in.     |
+| Right-click on a FILE                             | `HKCR\*\shell\VSCode` -- removed by this script  | Entry must NOT appear.                      |
+
+Notes:
+
+- The **background** entry only fires when you click background pixels --
+  if a folder is so packed that no whitespace is visible, scroll or
+  resize the window so empty space is exposed.
+- Both `directory` and `background` work identically whether the target
+  folder is empty or contains files; the entry's visibility is decided
+  by the registry leaf, not by folder contents.
+
+## How to verify the fix
+
+1. **Automated** -- the script prints a colored PASS/FAIL summary table after
+   every run that maps each registry target to its real right-click scenario.
+   Re-run standalone any time:
+
+   ```powershell
+   .\run.ps1 verify
+   ```
+
+2. **Manual smoke test in Windows Explorer:**
+
+   1. Open any folder. Right-click a sub-folder icon  ->  `Open with Code` MUST be visible.
+   2. Open that sub-folder. Right-click on empty whitespace  ->  `Open with Code` MUST be visible.
+   3. Right-click any file in the folder  ->  `Open with Code` MUST NOT be visible.
+
+3. **Direct registry queries** (elevated PowerShell):
+
+   ```powershell
+   reg query "HKCR\Directory\shell\VSCode\command" /ve
+   reg query "HKCR\Directory\Background\shell\VSCode\command" /ve
+   reg query "HKCR\*\shell\VSCode"                # MUST report 'unable to find'
+   ```
+
+   The two `present` commands should each end with `"<path-to-Code.exe>" "%V"`.
+
+4. **Inspect logs / change ledger:**
+
+   - `.logs\registry-backups\script53-*.reg`  --  pre-apply snapshot per edition
+   - `.logs\registry-backups\script53-*.json`  --  per-key change rows (audit trail)
+   - `.logs\vs-code-folder-+-background-context-menu-repair.json`  --  full run log
