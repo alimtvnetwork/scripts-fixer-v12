@@ -23,6 +23,7 @@ import {
   script52OptionsSchema,
 } from "@/lib/configSchema";
 import { diffJson, summarizeDiff, type DiffEntry } from "@/lib/jsonDiff";
+import { DiffRow } from "@/components/DiffRow";
 
 type Edition = "stable" | "insiders";
 type BridgeStatus = "unknown" | "checking" | "online" | "offline";
