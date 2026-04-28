@@ -32,7 +32,33 @@ folder AND when right-clicking inside an open folder window.
 .\run.ps1 dry-run
 .\run.ps1 precheck    # alias
 .\run.ps1 plan        # alias
+
+# Transactional all-in-one: pre-check -> backup -> apply -> verify ->
+# auto-rollback (reg import) if any apply OR verify step fails for an edition.
+.\run.ps1 repair-vscode
+.\run.ps1 repair-vscode -Edition stable
+.\run.ps1 repair-vscode -NoRollback     # apply without auto-rollback safety net
 ```
+
+## Transactional repair (`repair-vscode`)
+
+Runs the full pipeline as an atomic operation per edition:
+
+1. **Pre-check** -- prints the planned changes table.
+2. **Backup** -- snapshots every key it might touch into a `.reg` file.
+3. **Capture pre-state** -- records present/absent for each key.
+4. **Apply** -- removes file-target leaf, ensures directory + background.
+5. **Verify** -- runs the PASS/FAIL summary against the desired state.
+6. **Rollback (on failure)** -- if step 4 or 5 reports any failure for
+   that edition, the script:
+   - deletes any keys it just touched (so `reg import` is clean),
+   - runs `reg import <backup.reg>` to restore the snapshot,
+   - re-checks each key matches its pre-apply state,
+   - prints a colored ROLLBACK ledger (RESTORED / INCOMPLETE).
+
+The rollback is per-edition: a failure on `insiders` will not roll back
+a successful `stable` apply. Pass `-NoRollback` to disable the safety
+net (apply still runs; failures just leave the partial state in place).
 
 ## Pre-check / dry-run
 
