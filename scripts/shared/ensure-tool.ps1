@@ -185,7 +185,7 @@ function Ensure-Tool {
             Save-InstalledError -Name $Name -ErrorMessage $reason
             $result.Action = "failed"
             $result.Error  = $reason
-            return $result
+            return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
         }
         $InstallScript = { Install-ChocoPackage -PackageName $using:ChocoPackage }.GetNewClosure()
     }
@@ -210,7 +210,7 @@ function Ensure-Tool {
             if ($isAlreadyTracked) {
                 Write-Log "$FriendlyName already installed and tracked: $currentVersion -- skipping" -Level "info"
                 $result.Action = "skipped"
-                return $result
+                return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
             }
             Write-Log "$FriendlyName found in PATH: $currentVersion (not tracked or version drift)" -Level "info"
         } else {
@@ -229,14 +229,14 @@ function Ensure-Tool {
                 Write-Log "$FriendlyName upgraded successfully: $newVersion" -Level "success"
                 $result.Action  = "upgraded"
                 $result.Version = $newVersion
-                return $result
+                return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
             } catch {
                 $reason = "upgrade failed: $_"
                 Write-EnsureFileError -Path ".installed/$Name.json" -Reason $reason
                 Save-InstalledError -Name $Name -ErrorMessage "$_"
                 $result.Action = "failed"
                 $result.Error  = "$_"
-                return $result
+                return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
             }
         }
 
@@ -245,7 +245,7 @@ function Ensure-Tool {
             Save-InstalledRecord -Name $Name -Version $currentVersion
             $result.Tracked = $true
         }
-        return $result
+        return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
     }
 
     # ---- Step 4: missing -> install -----------------------------------------
@@ -259,13 +259,13 @@ function Ensure-Tool {
         Write-Log "$FriendlyName installed successfully: $installedVersion" -Level "success"
         $result.Action  = "installed"
         $result.Version = $installedVersion
-        return $result
+        return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
     } catch {
         $reason = "install failed: $_"
         Write-EnsureFileError -Path ".installed/$Name.json" -Reason $reason
         Save-InstalledError -Name $Name -ErrorMessage "$_"
         $result.Action = "failed"
         $result.Error  = "$_"
-        return $result
+        return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
     }
 }
