@@ -162,6 +162,11 @@ EOF
 fi
 
 # ---------- subverb: run --------------------------------------------------
+write_install_paths \
+  --tool   "OS clean ($OS, mode=$MODE_LABEL)" \
+  --source "$SCRIPT_DIR/config.json + helpers/categories.sh (allow-list per category)" \
+  --temp   "$ROOT/.logs/65/<TS>" \
+  --target "Targeted user/system caches per category (apt/snap/journal/thumbnail/temp/etc.)"
 log_info "===== os-clean (script 65) on $OS -- mode=$MODE_LABEL ====="
 if [ "$DRY_RUN" -eq 1 ]; then
   log_info "DRY-RUN mode: no changes will be made."
