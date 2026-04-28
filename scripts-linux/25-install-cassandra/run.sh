@@ -45,6 +45,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Apache Cassandra 4.1" \
+    --source "Apache Cassandra apt repo (debian.cassandra.apache.org)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/sbin/cassandra + /var/lib/cassandra"
   log_info "[25] Starting Apache Cassandra 4.1 installer"
   if verify_installed; then log_ok "[25] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[25] apt required"; return 1; fi
