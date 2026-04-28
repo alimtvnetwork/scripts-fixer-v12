@@ -178,6 +178,14 @@ if (-not $hasProfile) {
 # Initialize logging
 Initialize-Logging -ScriptName "Profile: $resolvedName"
 
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Profile dispatcher: $resolvedName" `
+    -Action "Dispatch" `
+    -Source "$scriptDir\config.json (profile catalog)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\profile") `
+    -Target "varies per profile (forwards to scripts/01..65)"
+
 # Expand recursively (cycle-safe)
 $expanded = Expand-Profile -Config $config -Name $resolvedName -LogMessages $logMessages
 $isExpandFailed = $null -eq $expanded
