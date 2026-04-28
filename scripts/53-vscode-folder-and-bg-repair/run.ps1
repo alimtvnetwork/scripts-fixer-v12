@@ -24,6 +24,13 @@ param(
     # Disable transactional rollback (default ON for `repair-vscode`).
     [switch]$NoRollback,
 
+    # Restore the most recent registry snapshot for each edition (or one
+    # specified via -BackupFile) and exit. Equivalent to `Command = 'rollback'`.
+    [switch]$Rollback,
+
+    # Optional explicit .reg snapshot to restore (overrides auto-pick of latest).
+    [string]$BackupFile = '',
+
     [switch]$Help
 )
 
