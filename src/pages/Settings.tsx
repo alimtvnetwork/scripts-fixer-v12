@@ -437,11 +437,19 @@ const Settings = () => {
           <Button variant="outline" asChild>
             <Link to="/">Cancel</Link>
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleResetToDefaults}
+            disabled={isPreparing || isSaving || bridgeStatus !== "online"}
+            title="Revert option fields to the defaults from the stored model"
+          >
+            Reset to defaults
+          </Button>
           <Button variant="secondary" onClick={handleDownload}>
             Download config.json
           </Button>
           <Button
-            onClick={handlePrepareSave}
+            onClick={() => handlePrepareSave()}
             disabled={isPreparing || isSaving || bridgeStatus !== "online"}
           >
             {isPreparing ? "Loading current…" : "Review & save"}
