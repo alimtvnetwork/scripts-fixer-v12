@@ -46,11 +46,32 @@ const deepMerge = (base: unknown, patch: unknown): unknown => {
   return out;
 };
 
+// Defaults derived from the stored model (config.json shipped in the repo).
+// Booleans fall back to safe values when the baseline omits them.
+const baseRecord = baseConfig as Record<string, unknown>;
+const defaultEditions = Array.isArray(baseRecord.enabledEditions)
+  ? (baseRecord.enabledEditions as Edition[])
+  : (["stable"] as Edition[]);
+const DEFAULTS = {
+  edition: (defaultEditions[0] ?? "stable") as Edition,
+  adminOnly: typeof baseRecord.requireAdmin === "boolean" ? (baseRecord.requireAdmin as boolean) : true,
+  nonInteractive:
+    typeof baseRecord.nonInteractive === "boolean" ? (baseRecord.nonInteractive as boolean) : false,
+  requireSignature:
+    typeof baseRecord.requireSignature === "boolean" ? (baseRecord.requireSignature as boolean) : false,
+};
+const DEFAULT_PATCH = {
+  enabledEditions: [DEFAULTS.edition],
+  requireAdmin: DEFAULTS.adminOnly,
+  nonInteractive: DEFAULTS.nonInteractive,
+  requireSignature: DEFAULTS.requireSignature,
+};
+
 const Settings = () => {
-  const [edition, setEdition] = useState<Edition>("stable");
-  const [adminOnly, setAdminOnly] = useState(true);
-  const [nonInteractive, setNonInteractive] = useState(false);
-  const [requireSignature, setRequireSignature] = useState(false);
+  const [edition, setEdition] = useState<Edition>(DEFAULTS.edition);
+  const [adminOnly, setAdminOnly] = useState(DEFAULTS.adminOnly);
+  const [nonInteractive, setNonInteractive] = useState(DEFAULTS.nonInteractive);
+  const [requireSignature, setRequireSignature] = useState(DEFAULTS.requireSignature);
 
   const [bridgeUrl, setBridgeUrl] = useState(
     () => localStorage.getItem(BRIDGE_KEY) ?? "http://127.0.0.1:7531",
@@ -66,6 +87,7 @@ const Settings = () => {
   const [diff, setDiff] = useState<DiffEntry[]>([]);
   const [storedConfig, setStoredConfig] = useState<unknown>(null);
   const [mergedPreview, setMergedPreview] = useState<unknown>(null);
+  const [pendingPayload, setPendingPayload] = useState<typeof DEFAULT_PATCH | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
 
   // The patch we POST to the bridge — only the fields the user can change.
@@ -129,10 +151,22 @@ const Settings = () => {
     }
   };
 
+  // Reset form to defaults from the stored model and open the review dialog
+  // so the user sees exactly what will change before the PATCH is sent.
+  const handleResetToDefaults = async () => {
+    setEdition(DEFAULTS.edition);
+    setAdminOnly(DEFAULTS.adminOnly);
+    setNonInteractive(DEFAULTS.nonInteractive);
+    setRequireSignature(DEFAULTS.requireSignature);
+    // Use the explicit defaults patch instead of waiting for state to flush.
+    await handlePrepareSave(DEFAULT_PATCH);
+  };
+
   // STEP 1: validate, pull current stored config, compute diff, open dialog
-  const handlePrepareSave = async () => {
+  const handlePrepareSave = async (override?: typeof patch) => {
+    const payload = override ?? patch;
     // Client-side validation (mirrors server Zod surface)
-    const opts = script52OptionsSchema.safeParse(patch);
+    const opts = script52OptionsSchema.safeParse(payload);
     if (!opts.success) {
       const first = opts.error.issues[0];
       toast({
@@ -187,12 +221,13 @@ const Settings = () => {
         throw new Error(`path: ${endpoint} — reason: ${reason}`);
       }
 
-      const next = deepMerge(current, patch);
+      const next = deepMerge(current, payload);
       const entries = diffJson(current, next).filter((e) => e.kind !== "unchanged");
 
       setStoredConfig(current);
       setMergedPreview(next);
       setDiff(entries);
+      setPendingPayload(payload);
       setConfirmOpen(true);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -219,7 +254,7 @@ const Settings = () => {
       const res = await fetch(endpoint, {
         method: "PATCH",
         headers,
-        body: JSON.stringify(patch),
+        body: JSON.stringify(pendingPayload ?? patch),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -402,11 +437,19 @@ const Settings = () => {
           <Button variant="outline" asChild>
             <Link to="/">Cancel</Link>
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleResetToDefaults}
+            disabled={isPreparing || isSaving || bridgeStatus !== "online"}
+            title="Revert option fields to the defaults from the stored model"
+          >
+            Reset to defaults
+          </Button>
           <Button variant="secondary" onClick={handleDownload}>
             Download config.json
           </Button>
           <Button
-            onClick={handlePrepareSave}
+            onClick={() => handlePrepareSave()}
             disabled={isPreparing || isSaving || bridgeStatus !== "online"}
           >
             {isPreparing ? "Loading current…" : "Review & save"}
