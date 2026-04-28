@@ -77,7 +77,7 @@ if ($Help -or $Command -eq "--help" -or $Command.ToLower() -eq 'help') {
 }
 
 # -- Admin elevation gate (write-only commands need elevation) ----------------
-$isReadOnlyCommand = $Command.ToLower() -in @('verify','dry-run','whatif')
+$isReadOnlyCommand = $Command.ToLower() -in @('verify','dry-run','whatif','precheck','pre-check','plan')
 if (-not $isReadOnlyCommand) {
     Assert-Elevated `
         -ScriptPath $PSCommandPath `
