@@ -48,6 +48,14 @@ if (-not (Test-Path -LiteralPath $_script52Helpers)) {
 }
 . $_script52Helpers
 
+# -- Dot-source script 53's own pre-check helper -------------------------------
+$_precheckHelper = Join-Path $scriptDir "helpers\precheck.ps1"
+if (-not (Test-Path -LiteralPath $_precheckHelper)) {
+    Write-Host "FATAL: precheck helper not found at: $_precheckHelper (failure: cannot run script 53 without helpers/precheck.ps1)" -ForegroundColor Red
+    exit 2
+}
+. $_precheckHelper
+
 # -- Load config & log messages -----------------------------------------------
 $configPath = Join-Path $scriptDir "config.json"
 $logPath    = Join-Path $scriptDir "log-messages.json"
@@ -69,7 +77,7 @@ if ($Help -or $Command -eq "--help" -or $Command.ToLower() -eq 'help') {
 }
 
 # -- Admin elevation gate (write-only commands need elevation) ----------------
-$isReadOnlyCommand = $Command.ToLower() -in @('verify','dry-run','whatif')
+$isReadOnlyCommand = $Command.ToLower() -in @('verify','dry-run','whatif','precheck','pre-check','plan')
 if (-not $isReadOnlyCommand) {
     Assert-Elevated `
         -ScriptPath $PSCommandPath `
@@ -123,6 +131,22 @@ try {
     $hasNoneInstalled = ($detectedEditions.Count -eq 0)
     if ($hasNoneInstalled) {
         Write-Log "[edition-detect] no enabled VS Code editions are installed (or filter excluded all) -- nothing to repair." -Level "warn"
+        return
+    }
+
+    # -- PRE-CHECK: report current state + planned actions BEFORE writing -----
+    $isDryRun = $Command.ToLower() -in @('dry-run','whatif','precheck','pre-check','plan')
+    Write-Log "Running pre-check (inspecting current registry state, no writes)..." -Level "info"
+    $planRows = Invoke-FolderRepairPreCheck `
+        -Config           $config `
+        -LogMessages      $logMessages `
+        -DetectedEditions $detectedEditions `
+        -InstallType      $installType `
+        -ScriptDir        $scriptDir `
+        -ApplyMode:(-not $isDryRun)
+
+    if ($isDryRun) {
+        Write-Log "Dry-run mode -- no changes were applied. Re-run without 'dry-run' / 'precheck' to apply." -Level "success"
         return
     }
 
