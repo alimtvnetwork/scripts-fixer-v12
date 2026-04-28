@@ -8,6 +8,12 @@
 #    .\tools\fix-legacy-fixer-refs.ps1 -DryRun          # preview only
 #    .\tools\fix-legacy-fixer-refs.ps1 -Target v11      # custom target
 #    .\tools\fix-legacy-fixer-refs.ps1 -Versions 8,9,10 # custom legacy set
+#    .\tools\fix-legacy-fixer-refs.ps1 -Paths tools,src # restrict to folders
+#
+#  Path filter:
+#    -Paths   : repo-relative folders or files. When omitted/empty the entire
+#               repo is rewritten (current behaviour). Each entry must exist or
+#               the script aborts with a CODE RED file error.
 # --------------------------------------------------------------------------
 [CmdletBinding()]
 param(
@@ -24,7 +30,8 @@ param(
     # report under "backupDir" so orchestrators can restore from it later.
     [switch]   $Backup,
     [string]   $BackupRoot  = '.legacy-fix-backups',
-    [string]   $BackupStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+    [string]   $BackupStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'),
+    [string[]] $Paths       = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -40,6 +47,24 @@ function Write-FileError($path, $reason) {
 if (-not (Test-Path -LiteralPath $RepoRoot)) {
     Write-FileError $RepoRoot 'repo root does not exist'
     exit 2
+}
+$RepoRoot = (Resolve-Path -LiteralPath $RepoRoot).ProviderPath
+
+# ---- Resolve & validate -Paths filter --------------------------------------
+$pathFilters = @()
+if ($Paths -and $Paths.Count -gt 0) {
+    foreach ($p in $Paths) {
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
+        $clean = $p.Trim().TrimStart('.','\','/').TrimEnd('\','/')
+        if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+        $clean = $clean -replace '/', '\'
+        $abs   = Join-Path $RepoRoot $clean
+        if (-not (Test-Path -LiteralPath $abs)) {
+            Write-FileError $abs "path filter target does not exist (from -Paths '$p')"
+            exit 2
+        }
+        $pathFilters += $clean.ToLower()
+    }
 }
 
 $skipDirs = @('.git', 'node_modules', 'dist', 'build', '.next', '.turbo',
@@ -58,6 +83,11 @@ $patterns = $Versions | ForEach-Object { "scripts-fixer-v$_" }
 
 Write-Info "repo:     $RepoRoot"
 Write-Info "rewrite:  $($patterns -join ', ') -> scripts-fixer-$Target"
+if ($pathFilters.Count -gt 0) {
+    Write-Info "paths:    $($pathFilters -join ', ')"
+} else {
+    Write-Info "paths:    (entire repo)"
+}
 Write-Info "mode:     $([string]::Format('{0}', $(if ($DryRun) {'dry-run'} else {'apply'})))"
 
 # Resolve backup directory (only used when -Backup AND not -DryRun)
@@ -85,10 +115,19 @@ $allFiles = Get-ChildItem -LiteralPath $RepoRoot -Recurse -File -Force -ErrorAct
         $rel = $_.FullName.Substring($RepoRoot.Length).TrimStart('\','/')
         $relLower = $rel.ToLower()
         $parts = $rel -split '[\\/]'
-        ($parts | Where-Object { $skipDirs -contains $_ }).Count -eq 0 -and
-        ($skipExts -notcontains $_.Extension.ToLower()) -and
-        ($selfNames -notcontains $_.Name) -and
-        ($skipRelDocs -notcontains $relLower)
+        $passesSkip = (
+            ($parts | Where-Object { $skipDirs -contains $_ }).Count -eq 0 -and
+            ($skipExts -notcontains $_.Extension.ToLower()) -and
+            ($selfNames -notcontains $_.Name) -and
+            ($skipRelDocs -notcontains $relLower)
+        )
+        if (-not $passesSkip) { return $false }
+        if ($pathFilters.Count -eq 0) { return $true }
+        $relNorm = $relLower.Replace('/', '\')
+        foreach ($pf in $pathFilters) {
+            if ($relNorm -eq $pf -or $relNorm.StartsWith("$pf\")) { return $true }
+        }
+        return $false
     }
 
 foreach ($file in $allFiles) {

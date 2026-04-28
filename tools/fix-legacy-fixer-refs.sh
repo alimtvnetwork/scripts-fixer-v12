@@ -8,8 +8,25 @@
 #    ./tools/fix-legacy-fixer-refs.sh                # apply changes
 #    DRY_RUN=1 ./tools/fix-legacy-fixer-refs.sh      # preview only
 #    FIX_TARGET=v11 FIX_VERSIONS="8 9 10" ./tools/fix-legacy-fixer-refs.sh
+#    FIX_PATHS="tools/ src/" ./tools/fix-legacy-fixer-refs.sh
+#    ./tools/fix-legacy-fixer-refs.sh --paths tools/,src/
+#
+#  Path filter:
+#    FIX_PATHS  : space-separated, repo-relative folders or files
+#    --paths    : comma- or space-separated, repo-relative folders or files
+#    Empty/unset = rewrite across the entire repo (default).
 # --------------------------------------------------------------------------
 set -u
+
+# ---- CLI parsing (--paths) -------------------------------------------------
+CLI_PATHS=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --paths)     CLI_PATHS="${2:-}"; shift 2 ;;
+        --paths=*)   CLI_PATHS="${1#--paths=}"; shift ;;
+        *)           shift ;;
+    esac
+done
 
 RED=$'\e[31m'; GRN=$'\e[32m'; YLW=$'\e[33m'; CYN=$'\e[36m'; MAG=$'\e[35m'; RST=$'\e[0m'
 info()  { printf '%s[info ]%s %s\n' "$CYN" "$RST" "$*"; }
@@ -33,14 +50,35 @@ REPORT_FILE="${REPORT_FILE-legacy-fix-report.json}"
 BACKUP="${BACKUP:-0}"
 BACKUP_ROOT="${BACKUP_ROOT:-.legacy-fix-backups}"
 BACKUP_STAMP="${BACKUP_STAMP:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo run)}"
+RAW_PATHS="${CLI_PATHS:-${FIX_PATHS:-}}"
 
 if [ ! -d "$REPO_ROOT" ]; then
   file_error "$REPO_ROOT" "repo root does not exist"
   exit 2
 fi
 
+# ---- Resolve & validate path filter ---------------------------------------
+NORMALISED_PATHS="$(printf '%s' "$RAW_PATHS" | tr ',' ' ')"
+PATH_FILTERS=()
+for p in $NORMALISED_PATHS; do
+  clean="${p#./}"
+  clean="${clean%/}"
+  [ -z "$clean" ] && continue
+  abs="$REPO_ROOT/$clean"
+  if [ ! -e "$abs" ]; then
+    file_error "$abs" "path filter target does not exist (from --paths/FIX_PATHS=\"$p\")"
+    exit 2
+  fi
+  PATH_FILTERS+=("$clean")
+done
+
 info "repo:     $REPO_ROOT"
 info "rewrite:  $(for v in $FIX_VERSIONS; do printf 'scripts-fixer-v%s ' "$v"; done)-> scripts-fixer-$FIX_TARGET"
+if [ "${#PATH_FILTERS[@]}" -gt 0 ]; then
+  info "paths:    ${PATH_FILTERS[*]}"
+else
+  info "paths:    (entire repo)"
+fi
 if [ "$DRY_RUN" = "1" ]; then info "mode:     dry-run"; else info "mode:     apply"; fi
 
 # Resolve backup directory (only used when BACKUP=1 AND not DRY_RUN)
@@ -83,6 +121,18 @@ while IFS= read -r -d '' f; do
   [[ "$rel" =~ $self_re ]] && continue
   rel_lc="$(printf '%s' "$rel" | tr 'A-Z' 'a-z')"
   [[ "$rel_lc" =~ $docs_re ]] && continue
+
+  # Apply path filter (file must live under at least one allowed path)
+  if [ "${#PATH_FILTERS[@]}" -gt 0 ]; then
+    is_allowed=0
+    for pf in "${PATH_FILTERS[@]}"; do
+      if [ "$rel" = "$pf" ] || [[ "$rel" == "$pf"/* ]]; then
+        is_allowed=1
+        break
+      fi
+    done
+    [ "$is_allowed" -eq 0 ] && continue
+  fi
 
   if ! grep -Eq "$match_re" "$f" 2>/dev/null; then
     continue
