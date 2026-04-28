@@ -1103,30 +1103,24 @@ Console:
 
 ## Quick Start
 
-### Install GitMap (Windows / PowerShell)
+### Install this toolkit (Windows / PowerShell)
 
 ```powershell
-# Clone the toolkit
-git clone https://github.com/alimtvnetwork/gitmap-v6.git
-cd gitmap-v6
-
-# Install GitMap through this repo's script 35
-.\run.ps1 install gitmap
+# Run the root bootstrap installer from this repo
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 
 # Run elevated when a script needs HKCR / Program Files access
 Start-Process powershell -Verb RunAs -ArgumentList @(
-    '-NoProfile','-ExecutionPolicy','Bypass','-File','.\run.ps1','install','gitmap'
+    '-NoProfile','-ExecutionPolicy','Bypass','-Command',
+    'irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex'
 )
 ```
 
-### Install GitMap (Unix / macOS / Bash)
+### Install this toolkit (Unix / macOS / Bash)
 
 ```bash
-git clone https://github.com/alimtvnetwork/gitmap-v6.git
-cd gitmap-v6
-
-# Install GitMap through this repo's script 35
-bash scripts-linux/run.sh install gitmap
+# Run the root bootstrap installer from this repo
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
 
 # Run with sudo only when a script needs root access
 sudo bash scripts-linux/run.sh install <keyword>
