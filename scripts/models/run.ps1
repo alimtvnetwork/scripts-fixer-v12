@@ -23,6 +23,7 @@ $scriptsRoot = Split-Path -Parent $scriptDir
 # -- Dot-source shared helpers ------------------------------------------------
 . (Join-Path $sharedDir "logging.ps1")
 . (Join-Path $sharedDir "help.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source orchestrator helpers -----------------------------------------
 . (Join-Path $scriptDir "helpers\picker.ps1")
@@ -40,6 +41,14 @@ if ($Help) {
 }
 
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "AI model dispatcher" `
+    -Action "Dispatch" `
+    -Source "$scriptDir\config.json (model catalog)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\models") `
+    -Target ("varies per backend (Ollama / llama.cpp install dirs)")
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 try {

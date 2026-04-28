@@ -25,6 +25,7 @@ $script:ScriptDir = $scriptDir
 . (Join-Path $sharedDir "git-pull.ps1")
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\tweaks.ps1")
@@ -41,6 +42,14 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Windows tweaks" `
+    -Action "Configure" `
+    -Source "$scriptDir\config.json (registry tweak set)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\win-tweaks") `
+    -Target ("HKCU/HKLM registry hives")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

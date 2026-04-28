@@ -25,6 +25,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "json-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\sync.ps1")
@@ -41,6 +42,14 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "VS Code settings" `
+    -Action "Sync" `
+    -Source "$scriptDir\settings.json (repo-tracked)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\vscode-sync") `
+    -Target ($env:APPDATA + "\Code\User")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

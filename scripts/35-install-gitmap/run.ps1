@@ -27,6 +27,7 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "dev-dir.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "path-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helper -------------------------------------------------
 . (Join-Path $scriptDir "helpers\gitmap.ps1")
@@ -43,6 +44,14 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "GitMap" `
+    -Action "Install" `
+    -Source "https://chocolatey.org/install (pkg: gitextensions or gitmap)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target ("C:\Program Files\GitExtensions")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

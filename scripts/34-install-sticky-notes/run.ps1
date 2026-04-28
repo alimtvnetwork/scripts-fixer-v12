@@ -24,6 +24,7 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helper -------------------------------------------------
 . (Join-Path $scriptDir "helpers\sticky-notes.ps1")
@@ -40,6 +41,14 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Microsoft Sticky Notes" `
+    -Action "Install" `
+    -Source "https://www.microsoft.com/store/productId/9NBLGGH4QGHW" `
+    -Temp   ($env:TEMP + "\scripts-fixer\sticky-notes") `
+    -Target ("WindowsApps\Microsoft.MicrosoftStickyNotes_*")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

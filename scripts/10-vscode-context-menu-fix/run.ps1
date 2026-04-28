@@ -41,6 +41,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "git-pull.ps1")
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\registry.ps1")
@@ -62,6 +63,14 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "VS Code right-click menu" `
+    -Action "Repair" `
+    -Source "HKCU/HKLM Software\Classes\* + Directory shell entries" `
+    -Temp   ($env:TEMP + "\scripts-fixer\vscode-ctx") `
+    -Target ("HKCR:\*\shell\VSCode  +  HKCR:\Directory\shell\VSCode")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

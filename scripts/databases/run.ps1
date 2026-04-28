@@ -30,6 +30,7 @@ $script:ScriptDir = $scriptDir
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "dev-dir.ps1")
 . (Join-Path $sharedDir "symlink-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\menu.ps1")
@@ -46,6 +47,14 @@ if ($Help) {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Database installer dispatcher" `
+    -Action "Dispatch" `
+    -Source "$scriptDir\config.json (db catalog)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\databases") `
+    -Target ("varies per chosen DB (forwards to scripts/18..29)")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

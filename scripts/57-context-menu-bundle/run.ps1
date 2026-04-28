@@ -21,6 +21,7 @@ $sharedDir = Join-Path $rootDir 'shared'
 
 . (Join-Path $sharedDir 'logging.ps1')
 . (Join-Path $sharedDir 'help.ps1')
+. (Join-Path $sharedDir "install-paths.ps1")
 
 $config      = Import-JsonConfig (Join-Path $scriptDir 'config.json')
 $logMessages = Import-JsonConfig (Join-Path $scriptDir 'log-messages.json')
@@ -31,6 +32,14 @@ if ($Help -or $Command -eq '--help') {
 }
 
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Context-menu bundle" `
+    -Action "Configure" `
+    -Source "$scriptDir (dispatches scripts 10/31/52/53/56)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\ctx-bundle") `
+    -Target ("HKCR registry hives (multiple verbs)")
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 if (-not $config.enabled) {
