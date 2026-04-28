@@ -27,7 +27,29 @@ folder AND when right-clicking inside an open folder window.
 
 # Skip explorer restart (changes still apply, may need re-login)
 .\run.ps1 no-restart
+
+# Pre-check / dry-run: report what WOULD change, no writes (no admin needed)
+.\run.ps1 dry-run
+.\run.ps1 precheck    # alias
+.\run.ps1 plan        # alias
 ```
+
+## Pre-check / dry-run
+
+Before any write, the script inspects every (edition, target) pair and
+prints a colored plan table with one of these actions:
+
+| Plan      | Meaning                                                                 |
+| --------- | ----------------------------------------------------------------------- |
+| `ENSURE`  | Key is missing -- will be created.                                       |
+| `REMOVE`  | File-target leaf is present -- will be deleted.                          |
+| `REPAIR`  | Key exists but `(Default)` label or `\command` doesn't match -- will be rewritten. |
+| `NOOP`    | Already in the desired state -- nothing to do.                           |
+| `SKIP`    | Cannot apply (e.g. VS Code exe not found for that edition).             |
+
+Running `dry-run` / `precheck` / `plan` STOPS after this table -- no
+registry writes, no Explorer restart, no admin required. Run without the
+flag to apply.
 
 ## What it does (per edition)
 
