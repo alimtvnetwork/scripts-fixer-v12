@@ -528,7 +528,8 @@ try {
     # -- Registry change ledger (persist JSON + render colored table) --------
     $changeLogPath = Save-RegistryChangeLog -OutputDir $backupRoot -Tag 'script52'
     $primaryBackup = if ($backupResult) { $backupResult.FilePath } else { '' }
-    Write-RegistryChangeLog -BackupFilePath $primaryBackup -JsonLogPath ($changeLogPath ? $changeLogPath : '')
+    $logPathArg    = if ($changeLogPath) { $changeLogPath } else { '' }
+    Write-RegistryChangeLog -BackupFilePath $primaryBackup -JsonLogPath $logPathArg
 
     $isNoRestartCommand = $Command.ToLower() -eq "no-restart"
     $shouldRestart      = $config.restartExplorer -and -not $isNoRestartCommand
