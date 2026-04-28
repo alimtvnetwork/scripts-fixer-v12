@@ -20,6 +20,11 @@ INSTALLED_MARK="$ROOT/.installed/42.ok"
 verify_installed() { command -v ollama >/dev/null 2>&1 && ollama --version >/dev/null 2>&1; }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Ollama" \
+    --source "https://ollama.com/install.sh (official installer)" \
+    --temp   "$TMPDIR/scripts-fixer/ollama" \
+    --target "/usr/local/bin/ollama + /usr/share/ollama"
   log_info "[42] Starting Ollama installer"
   if verify_installed; then
     log_ok "[42] Already installed"
