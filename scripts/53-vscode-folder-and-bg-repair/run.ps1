@@ -161,6 +161,42 @@ try {
         return
     }
 
+    # -- MANUAL ROLLBACK: --rollback flag or `rollback` command --------------
+    if ($isManualRollback) {
+        Write-Log ("Manual rollback requested -- restoring from snapshots in {0}" -f $backupRoot) -Level "warn"
+        $rb = Invoke-ManualRollback `
+            -Config             $config `
+            -BackupRoot         $backupRoot `
+            -Editions           $detectedEditions `
+            -ExplicitBackupFile $BackupFile
+
+        # Persist a ledger row per edition for auditability.
+        foreach ($row in $rb.Summary) {
+            Add-RegistryChange -Operation 'ROLLBACK' -Edition $row.Edition -Target '-' `
+                -Path $row.Backup `
+                -Detail $(if ($row.Success) { 'manual rollback restored from snapshot' } else { 'manual rollback FAILED -- see log above' }) `
+                -Success ([bool]$row.Success)
+        }
+
+        $changeLogPath = Save-RegistryChangeLog -OutputDir $backupRoot -Tag 'script53-rollback'
+        Write-RegistryChangeLog -BackupFilePath '' -JsonLogPath $(if ($changeLogPath) { $changeLogPath } else { '' })
+
+        # Restart explorer so restored entries appear immediately.
+        $isNoRestartCommand = $cmdLower -eq "no-restart"
+        $shouldRestart      = $config.restartExplorer -and -not $isNoRestartCommand
+        if ($shouldRestart) {
+            $waitMs = if ($config.PSObject.Properties.Match('restartExplorerWaitMs').Count) { [int]$config.restartExplorerWaitMs } else { 800 }
+            $null = Restart-Explorer -WaitMs $waitMs -LogMsgs $logMessages
+        }
+
+        if ($rb.Success) {
+            Write-Log "Manual rollback completed successfully." -Level "success"
+        } else {
+            Write-Log "Manual rollback completed with errors -- review log above." -Level "error"
+        }
+        return
+    }
+
     # -- PRE-CHECK: report current state + planned actions BEFORE writing -----
     $isDryRun = $Command.ToLower() -in @('dry-run','whatif','precheck','pre-check','plan')
     Write-Log "Running pre-check (inspecting current registry state, no writes)..." -Level "info"
