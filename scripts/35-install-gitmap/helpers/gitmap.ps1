@@ -92,9 +92,23 @@ function Get-GitmapVersion {
         Returns the installed gitmap version string, or $null if not found.
     #>
     try {
-        $raw = & gitmap --version 2>&1
-        $isValid = -not [string]::IsNullOrWhiteSpace($raw)
-        if ($isValid) { return ($raw -replace '^\s*gitmap\s*', '').Trim() }
+        $candidates = @("gitmap")
+        $commonPaths = @(
+            "$env:LOCALAPPDATA\gitmap\gitmap.exe",
+            "C:\dev-tool\GitMap\gitmap.exe"
+        )
+        if (-not [string]::IsNullOrWhiteSpace($env:DEV_DIR)) {
+            $commonPaths += (Join-Path $env:DEV_DIR "GitMap\gitmap.exe")
+        }
+        $candidates += @($commonPaths | Where-Object { Test-Path $_ })
+
+        foreach ($candidate in $candidates) {
+            foreach ($arg in @("version", "--version")) {
+                $raw = & $candidate $arg 2>&1
+                $isValid = -not [string]::IsNullOrWhiteSpace($raw)
+                if ($isValid) { return (($raw | Out-String) -replace '^\s*gitmap\s*', '').Trim() }
+            }
+        }
     } catch { }
     return $null
 }
