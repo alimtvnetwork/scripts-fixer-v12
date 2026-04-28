@@ -1,31 +1,37 @@
 ---
 name: README install placement
-description: Exact layout of the Install section in root readme.md — local commands first, then fresh-machine one-liners
+description: Exact layout of the Install section in root readme.md — 4 labeled remote one-liner blocks, no local commands
 type: preference
 ---
-The root `readme.md` Install section MUST follow this exact order and structure, immediately after the intro block (before "At a Glance"):
+The root `readme.md` Install section MUST follow this exact 4-block structure, immediately after the intro block (before "At a Glance"). Each block is its own `###` heading with an emoji + OS label, followed by a single fenced code block.
 
-1. One sentence: "Use the installer scripts at the root of this repository: `install.ps1` and `install.sh`."
-2. Lead-in line: "If you already have this repo, these are the first commands to run:"
-3. **### Windows (PowerShell 5.1+)** heading + fenced powershell block containing ONLY:
-   ```
-   .\install.ps1
-   ```
-4. **### Unix / macOS (bash)** heading + fenced bash block containing ONLY:
-   ```
-   bash ./install.sh
-   ```
-5. Lead-in line: "Fresh-machine one-liners that fetch those same root scripts:"
-6. Fenced powershell block:
-   ```
+**Order and exact headings:**
+
+1. `### 🪟 Windows · PowerShell`
+   ```powershell
    irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
    ```
-7. Fenced bash block:
+
+2. `### 🪟 Windows · PowerShell · skip latest-version probe`
+   ```powershell
+   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1)))
    ```
+
+3. `### 🐧 macOS · Linux · Bash`
+   ```bash
    curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
    ```
-8. Then the PowerShell ExecutionPolicy bypass note follows.
 
-**Why:** Local clone usage is the primary path; remote one-liners are secondary. Order must be: local Windows → local Unix → remote Windows → remote Unix.
+4. `### 🐧 macOS · Linux · Bash · skip latest-version probe`
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash -s -- --skip-latest-probe
+   ```
 
-**How to apply:** Never reorder. Never put GitMap CLI or external repo one-liners here. Never collapse local + remote into one block. Never swap Windows/Unix order.
+**Hard rules:**
+- NEVER include local `.\install.ps1` or `bash ./install.sh` commands in this section. Removed entirely per user direction.
+- NEVER reorder the 4 blocks. Windows always before macOS/Linux. Plain always before skip-probe variant.
+- NEVER collapse two blocks into one. Each gets its own heading + fenced code block.
+- NEVER use external repo URLs (e.g. coding-guidelines, GitMap). Always `alimtvnetwork/scripts-fixer-v12`.
+- The PowerShell ExecutionPolicy bypass note may follow AFTER all 4 blocks.
+
+**Why:** User wants the screenshot-style 4-block layout (matching coding-guidelines-v17 readme) but pointing at THIS repo. Local commands are not wanted in the Install section at all.
