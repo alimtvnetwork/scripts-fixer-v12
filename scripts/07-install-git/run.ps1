@@ -27,6 +27,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "tool-version.ps1")
 . (Join-Path $sharedDir "ensure-tool.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\git.ps1")
@@ -43,6 +44,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Git + Git LFS + GitHub CLI" `
+    -Source "https://chocolatey.org/install (pkg: git, git-lfs, gh)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target (C:\Program Files\Git)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

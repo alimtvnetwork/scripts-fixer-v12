@@ -25,6 +25,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "path-utils.ps1")
 . (Join-Path $sharedDir "dev-dir.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\nodejs.ps1")
@@ -41,6 +42,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Node.js (LTS)" `
+    -Source "https://chocolatey.org/install (pkg: nodejs-lts)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target (C:\Program Files\nodejs)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

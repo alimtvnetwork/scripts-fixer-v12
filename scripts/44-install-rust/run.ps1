@@ -25,6 +25,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "path-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "download-retry.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\rust.ps1")
@@ -41,6 +42,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Rust toolchain" `
+    -Source "https://win.rustup.rs/x86_64 (rustup-init.exe)" `
+    -Temp   ($env:USERPROFILE + "\.rustup\tmp") `
+    -Target ($env:USERPROFILE + "\.cargo")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
