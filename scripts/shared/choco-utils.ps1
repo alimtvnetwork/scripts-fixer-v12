@@ -32,7 +32,11 @@ function Get-ChocoTimeoutSeconds {
 }
 
 function Get-ChocoDiagnosticsDirectory {
-    $logsRoot = $script:_LogsDir
+    $logsRoot = $null
+    $logsRootVariable = Get-Variable -Name _LogsDir -Scope Script -ErrorAction SilentlyContinue
+    if ($logsRootVariable) {
+        $logsRoot = $logsRootVariable.Value
+    }
     $hasLogsRoot = -not [string]::IsNullOrWhiteSpace($logsRoot)
     if (-not $hasLogsRoot) {
         $scriptsRoot = Split-Path -Parent $PSScriptRoot
