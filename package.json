@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:deps": "node tools/check-required-packages.mjs",
+    "check:deps:fix": "node tools/check-required-packages.mjs --fix"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

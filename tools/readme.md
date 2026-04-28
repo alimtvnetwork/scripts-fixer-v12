@@ -165,3 +165,56 @@ Exit codes:
 | `2`  | dry-run, apply, rollback, or required-script error (exact file + reason logged)        |
 
 
+
+---
+
+## check-required-packages
+
+Verifies every package listed in `tools/check-required-packages.config.json`
+is actually installed under `node_modules/`. Designed to be the first thing
+you run when you see an error like:
+
+```
+error TS2307: Cannot find module '@supabase/supabase-js'
+```
+
+### Usage
+
+```bash
+# Quick check (auto-detects bun / npm / pnpm / yarn from your lockfile)
+node tools/check-required-packages.mjs
+bun run check:deps              # convenience alias
+
+# Only print failures (CI-friendly)
+node tools/check-required-packages.mjs --quiet
+
+# Machine-readable output
+node tools/check-required-packages.mjs --json
+
+# Actually run the install command for any missing packages
+node tools/check-required-packages.mjs --fix
+bun run check:deps:fix
+```
+
+### What it does
+
+1. Reads `tools/check-required-packages.config.json` (`required`, `optional`).
+2. For each entry, checks `package.json` declared range + the installed
+   version under `node_modules/<name>/package.json`.
+3. Prints a colored table per package, then a copy-pasteable fix command
+   for the package manager it auto-detected from your lockfile.
+4. CODE RED rule: every file/path failure logs the exact path + reason.
+
+### Exit codes
+
+| Exit | Meaning |
+|---|---|
+| `0` | every required package is installed |
+| `1` | one or more required packages are missing or version-mismatched |
+| `2` | config / IO error (bad path, unreadable file -- exact reason logged) |
+
+### Adding a new required package
+
+Edit `tools/check-required-packages.config.json` and append to `required`
+(or `optional`). Each entry takes `name` and an optional `reason` string
+that's printed as "why" hint when the package is missing.
