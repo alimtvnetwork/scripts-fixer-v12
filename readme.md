@@ -26,35 +26,31 @@
 
 ## 🚀 Install
 
-Run **one** of the commands below from a fresh shell. The bootstrapper auto-discovers the latest published `scripts-fixer-vN` repo, clones it into a sensible folder, and hands off to `run.ps1`.
+Run **one** of the commands below from a fresh shell. These are the canonical GitMap v8 installers.
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex
 ```
 
-Useful flags (append after `iex` via `& { ... } -Flag`):
+If PowerShell blocks scripts, use a process-only bypass for the current shell first:
 
-- `-NoUpgrade` — skip the auto-discovery probe and use this exact version
-- `-Version`   — print current + latest version, then exit (no install)
-- `-DryRun`    — show every step without mutating the system
-- `-Help`      — list all flags
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+```
+
+Or run the one-liner inside a bypassed PowerShell process:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
+```
 
 ### Unix / macOS (bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh
 ```
-
-Useful flags (append with `-s --` when piping through bash):
-
-- `--no-upgrade` — skip the auto-discovery probe
-- `--version`    — print current + latest version, then exit
-- `--dry-run`    — print every step but mutate nothing
-- `--help`       — list all flags
-
-> **Tip:** Both installers honour `SCRIPTS_FIXER_NO_UPGRADE=1` if you'd rather pin the version via environment variable. Full spec lives in [`spec/install-bootstrap/readme.md`](spec/install-bootstrap/readme.md).
 
 ---
 
@@ -1105,61 +1101,31 @@ Console:
 
 ### One-liner install (Windows / PowerShell)
 
-> **Placeholders** — replace before running:
-> `<OWNER>` GitHub owner (default `alimtvnetwork`) · `<REPO>` repo slug
-> (default `gitmap-v6`) · `<BRANCH>` branch or tag (default `main`) ·
-> `<INSTALL_DIR>` where to clone (default `$HOME\gitmap`) ·
-> `<KEYWORD>` install keyword such as `nodejs`, `python`, `profile-base`.
-
 ```powershell
-# 1) Bare one-liner (uses all defaults)
-irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.ps1 | iex
+# Bare one-liner
+irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex
 
-# 2) Pin to a specific owner / repo / branch
-$Owner='<OWNER>'; $Repo='<REPO>'; $Branch='<BRANCH>'
-irm "https://raw.githubusercontent.com/$Owner/$Repo/$Branch/install.ps1" | iex
+# Pin to a specific GitMap release
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1))) -Version v2.48.0
 
-# 3) Install into a chosen folder, then run a keyword install
-$Owner='alimtvnetwork'; $Repo='gitmap-v6'; $Branch='main'
-$InstallDir='<INSTALL_DIR>'; $Keyword='<KEYWORD>'
-New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-git clone "https://github.com/$Owner/$Repo.git" $InstallDir
-Set-Location $InstallDir
-.\run.ps1 install $Keyword
-
-# 4) Run elevated (admin) for scripts that touch HKCR / Program Files
+# Run elevated when a script needs HKCR / Program Files access
 Start-Process powershell -Verb RunAs -ArgumentList @(
     '-NoProfile','-ExecutionPolicy','Bypass','-Command',
-    "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.ps1 | iex"
+    "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
 )
 ```
 
 ### One-liner install (Unix / macOS / Bash)
 
-> **Placeholders** — replace before running:
-> `<OWNER>` GitHub owner (default `alimtvnetwork`) · `<REPO>` repo slug
-> (default `gitmap-v6`) · `<BRANCH>` branch or tag (default `main`) ·
-> `<INSTALL_DIR>` where to clone (default `$HOME/gitmap`) ·
-> `<KEYWORD>` install keyword such as `nodejs`, `python`, `profile-base`.
-
 ```bash
-# 1) Bare one-liner (uses all defaults)
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.sh | bash
+# Bare one-liner
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh
 
-# 2) Pin to a specific owner / repo / branch
-OWNER="<OWNER>"; REPO="<REPO>"; BRANCH="<BRANCH>"
-curl -fsSL "https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/install.sh" | bash
+# Pin to a specific GitMap release
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh -s -- --version v2.48.0
 
-# 3) Install into a chosen folder, then run a keyword install
-OWNER="alimtvnetwork"; REPO="gitmap-v6"; BRANCH="main"
-INSTALL_DIR="<INSTALL_DIR>"; KEYWORD="<KEYWORD>"
-mkdir -p "$INSTALL_DIR"
-git clone "https://github.com/${OWNER}/${REPO}.git" "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-bash scripts-linux/run.sh install "$KEYWORD"
-
-# 4) Run with sudo for scripts that need root (users, groups, system files)
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v6/main/install.sh | sudo bash
+# Run with sudo only when a script needs root access
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sudo sh
 ```
 
 
@@ -1203,23 +1169,36 @@ cd gitmap-v6
 
 ## PowerShell execution policy
 
-If Windows blocks the scripts with a red "running scripts is disabled on this system" error,
-unblock the current session (no admin, scope = process only):
+If Windows blocks the scripts with a red "running scripts is disabled on this system" error, use one of these options.
+
+For the current shell only (no admin, resets when the shell closes):
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 ```
 
-Or run a single script under bypass without changing the policy at all:
+For a single command without changing the current shell policy:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
 ```
 
-To make it permanent for your user (still no admin):
+For the remote GitMap installer one-liner:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
+```
+
+To make local scripts permanent for your user (still no admin):
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+```
+
+If the file came from a browser download or ZIP, unblock it before running:
+
+```powershell
+Unblock-File .\run.ps1
 ```
 
 ---
