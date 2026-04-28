@@ -1,0 +1,7 @@
+{
+  "_comment": "Registry of profile names that exist in newer releases. When a user requests a profile name that's not in their local config.json but IS listed here, the dispatcher prints an 'update your local copy' hint pointing at the version it was added in. Keep this list in sync as new profiles are added to scripts/profile/config.json.",
+  "profiles": {
+    "dev":         { "addedIn": "0.150.0", "summary": "small-dev + Python + Node + pnpm + Rust + PHP" },
+    "dev-advance": { "addedIn": "0.150.0", "summary": "dev + .NET SDK + cpp-dx" }
+  }
+}

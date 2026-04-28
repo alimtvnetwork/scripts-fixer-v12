@@ -10,6 +10,12 @@
   },
   "messages": {
     "profileNotFound":   "Profile '{name}' is not defined in config.json. Run '.\\run.ps1 profile list' to see available profiles.",
+    "profileNotFoundLocalVersion": "Local script version: v{version}  (config: {configPath})",
+    "profileNotFoundDidYouMean":   "Did you mean: {suggestions}",
+    "profileNotFoundKnownNewer":   "'{name}' is a known profile, but it was added in a newer release ({addedIn}). Your local copy may be out of date.",
+    "profileNotFoundUpdateHint":   "Update your local copy:",
+    "profileNotFoundGitHint":      "    cd {root}; git pull",
+    "profileNotFoundReinstallHint": "    irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex",
     "configMissing":     "Profile config not found at: {path}",
     "configParseFailed": "Failed to parse profile config at {path}: {error}",
     "cycleDetected":     "Cycle detected in profile expansion: {chain}. Aborting (CODE RED).",

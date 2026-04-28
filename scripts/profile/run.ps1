@@ -167,10 +167,105 @@ if ($profileAliases.ContainsKey($resolvedName)) { $resolvedName = $profileAliase
 
 $hasProfile = $null -ne $config.profiles.$resolvedName
 if (-not $hasProfile) {
+    # ---- Build a richer "profile not found" block ------------------------
+    # Includes: local script version, did-you-mean suggestions (from local
+    # profiles + alias keys), and -- when the requested name is known to
+    # exist in a newer release -- a copy-paste 'git pull' / re-install hint.
+    $rootDir   = Split-Path -Parent (Split-Path -Parent $scriptDir)
+    $verFile   = Join-Path (Join-Path $rootDir "scripts") "version.json"
+    $localVer  = "unknown"
+    if (Test-Path -LiteralPath $verFile) {
+        try {
+            $vobj = Get-Content -LiteralPath $verFile -Raw | ConvertFrom-Json
+            if ($vobj -and $vobj.PSObject.Properties.Name -contains 'version') { $localVer = "$($vobj.version)" }
+        } catch { } # version is best-effort; never fail the error path itself
+    }
+
+    # Did-you-mean: case-insensitive match by substring + simple Levenshtein
+    $allLocalNames = @()
+    foreach ($prop in $config.profiles.PSObject.Properties) { $allLocalNames += $prop.Name }
+    foreach ($k in $profileAliases.Keys) { $allLocalNames += $k }
+    $allLocalNames = @($allLocalNames | Sort-Object -Unique)
+
+    function _Get-Levenshtein {
+        param([string]$a, [string]$b)
+        $la = $a.Length; $lb = $b.Length
+        if ($la -eq 0) { return $lb }
+        if ($lb -eq 0) { return $la }
+        $d = New-Object 'int[,]' ($la + 1), ($lb + 1)
+        for ($i = 0; $i -le $la; $i++) { $d[$i, 0] = $i }
+        for ($j = 0; $j -le $lb; $j++) { $d[0, $j] = $j }
+        for ($i = 1; $i -le $la; $i++) {
+            for ($j = 1; $j -le $lb; $j++) {
+                $cost = if ($a[$i - 1] -eq $b[$j - 1]) { 0 } else { 1 }
+                $del = $d[($i - 1), $j] + 1
+                $ins = $d[$i, ($j - 1)] + 1
+                $sub = $d[($i - 1), ($j - 1)] + $cost
+                $d[$i, $j] = [Math]::Min([Math]::Min($del, $ins), $sub)
+            }
+        }
+        return $d[$la, $lb]
+    }
+
+    $needle = $resolvedName.ToLower()
+    $scored = @()
+    foreach ($cand in $allLocalNames) {
+        $lc = $cand.ToLower()
+        $dist = _Get-Levenshtein $needle $lc
+        $isContains = ($lc.Contains($needle) -or $needle.Contains($lc))
+        # Boost contains matches by treating them as distance 1 if shorter
+        $score = if ($isContains) { [Math]::Min($dist, 2) } else { $dist }
+        $scored += [pscustomobject]@{ Name = $cand; Score = $score }
+    }
+    $maxDist = [Math]::Max(2, [int]([Math]::Ceiling($needle.Length / 2)))
+    $suggestions = @($scored | Where-Object { $_.Score -le $maxDist } | Sort-Object Score, Name | Select-Object -First 3 | ForEach-Object { $_.Name })
+
+    # Known-newer registry lookup (data-driven, off-disk so it's easy to extend)
+    $knownPath = Join-Path $scriptDir "known-newer-profiles.json"
+    $knownInfo = $null
+    if (Test-Path -LiteralPath $knownPath) {
+        try {
+            $kobj = Get-Content -LiteralPath $knownPath -Raw | ConvertFrom-Json
+            $hasEntry = $kobj -and $kobj.profiles -and ($kobj.profiles.PSObject.Properties.Name -contains $resolvedName)
+            if ($hasEntry) { $knownInfo = $kobj.profiles.$resolvedName }
+        } catch { }
+    }
+
+    # ---- Render ----------------------------------------------------------
     $msg = $logMessages.messages.profileNotFound -replace '\{name\}', $Action
     Write-Host ""
     Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
     Write-Host $msg
+
+    $verLine = $logMessages.messages.profileNotFoundLocalVersion `
+        -replace '\{version\}', $localVer `
+        -replace '\{configPath\}', $configPath
+    Write-Host ("  " + $verLine) -ForegroundColor DarkGray
+
+    if ($suggestions.Count -gt 0) {
+        $sugLine = $logMessages.messages.profileNotFoundDidYouMean `
+            -replace '\{suggestions\}', ($suggestions -join ', ')
+        Write-Host ""
+        Write-Host ("  " + $sugLine) -ForegroundColor Yellow
+    }
+
+    if ($knownInfo) {
+        $addedIn = if ($knownInfo.PSObject.Properties.Name -contains 'addedIn') { "v$($knownInfo.addedIn)" } else { "a newer release" }
+        $newerLine = $logMessages.messages.profileNotFoundKnownNewer `
+            -replace '\{name\}', $resolvedName `
+            -replace '\{addedIn\}', $addedIn
+        Write-Host ""
+        Write-Host ("  " + $newerLine) -ForegroundColor Magenta
+        if ($knownInfo.PSObject.Properties.Name -contains 'summary' -and $knownInfo.summary) {
+            Write-Host ("    summary: " + $knownInfo.summary) -ForegroundColor DarkGray
+        }
+        Write-Host ""
+        Write-Host ("  " + $logMessages.messages.profileNotFoundUpdateHint) -ForegroundColor Yellow
+        $gitHint = $logMessages.messages.profileNotFoundGitHint -replace '\{root\}', $rootDir
+        Write-Host ("  " + $gitHint) -ForegroundColor White
+        Write-Host ("  " + $logMessages.messages.profileNotFoundReinstallHint) -ForegroundColor White
+    }
+
     Show-ProfileList -Config $config
     exit 2
 }
