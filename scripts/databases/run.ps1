@@ -127,7 +127,7 @@ function Invoke-DbScript {
         [switch]$DryRun
     )
 
-    $scriptPath = Join-Path $scriptsRoot $Folder "run.ps1"
+    $scriptPath = Join-Path (Join-Path $scriptsRoot $Folder) "run.ps1"
     $hasScript = Test-Path $scriptPath
     if (-not $hasScript) {
         Write-Log "Script not found: $scriptPath" -Level "error"
@@ -159,7 +159,7 @@ function Invoke-DbUninstall {
         [switch]$DryRun
     )
 
-    $scriptPath = Join-Path $scriptsRoot $Folder "run.ps1"
+    $scriptPath = Join-Path (Join-Path $scriptsRoot $Folder) "run.ps1"
     $hasScript = Test-Path $scriptPath
     if (-not $hasScript) {
         Write-Log "Script not found: $scriptPath" -Level "error"
