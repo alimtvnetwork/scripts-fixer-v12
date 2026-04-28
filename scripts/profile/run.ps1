@@ -266,7 +266,7 @@ if (-not $hasProfile) {
     # Did-you-mean: case-insensitive match by substring + simple Levenshtein
     $allLocalNames = @()
     foreach ($prop in $config.profiles.PSObject.Properties) { $allLocalNames += $prop.Name }
-    foreach ($k in $profileAliases.Keys) { $allLocalNames += $k }
+    foreach ($k in $aliasMap.Keys) { $allLocalNames += $k }
     $allLocalNames = @($allLocalNames | Sort-Object -Unique)
 
     function _Get-Levenshtein {
