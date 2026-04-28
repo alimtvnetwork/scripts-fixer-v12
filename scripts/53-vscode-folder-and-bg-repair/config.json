@@ -1,0 +1,36 @@
+{
+  "_comment": "Re-registers VS Code folder + empty-space (background) right-click entries. Removes only the file-target leaf so right-click on a FILE does NOT show the entry. Restarts explorer.exe so changes take effect immediately.",
+  "enabled": true,
+  "editions": {
+    "stable": {
+      "vscodePath": {
+        "user":   "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
+        "system": "C:\\Program Files\\Microsoft VS Code\\Code.exe"
+      },
+      "registryPaths": {
+        "file":       "Registry::HKEY_CLASSES_ROOT\\*\\shell\\VSCode",
+        "directory":  "Registry::HKEY_CLASSES_ROOT\\Directory\\shell\\VSCode",
+        "background": "Registry::HKEY_CLASSES_ROOT\\Directory\\Background\\shell\\VSCode"
+      },
+      "contextMenuLabel": "Open with Code"
+    },
+    "insiders": {
+      "vscodePath": {
+        "user":   "%LOCALAPPDATA%\\Programs\\Microsoft VS Code Insiders\\Code - Insiders.exe",
+        "system": "C:\\Program Files\\Microsoft VS Code Insiders\\Code - Insiders.exe"
+      },
+      "registryPaths": {
+        "file":       "Registry::HKEY_CLASSES_ROOT\\*\\shell\\VSCodeInsiders",
+        "directory":  "Registry::HKEY_CLASSES_ROOT\\Directory\\shell\\VSCodeInsiders",
+        "background": "Registry::HKEY_CLASSES_ROOT\\Directory\\Background\\shell\\VSCodeInsiders"
+      },
+      "contextMenuLabel": "Open with Code - Insiders"
+    }
+  },
+  "installationType": "user",
+  "enabledEditions": ["stable", "insiders"],
+  "removeFromTargets":   ["file"],
+  "ensureOnTargets":     ["directory", "background"],
+  "restartExplorer":     true,
+  "restartExplorerWaitMs": 800
+}
