@@ -152,7 +152,7 @@ function Invoke-BackendInstall {
         $backend = $group.Name
         $ids     = ($group.Group | ForEach-Object { $_.id }) -join ","
         $folder  = $Config.backends.$backend.scriptFolder
-        $script  = Join-Path $ScriptsRoot $folder "run.ps1"
+        $script  = Join-Path (Join-Path $ScriptsRoot $folder) "run.ps1"
 
         $line = $LogMessages.messages.dispatching -replace '\{backend\}', $backend
         Write-Log $line -Level "info"

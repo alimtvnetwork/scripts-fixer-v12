@@ -111,7 +111,7 @@ try {
         Write-Log $line -Level "info"
 
         $folder = $config.backends.ollama.scriptFolder
-        $target = Join-Path $scriptsRoot $folder "run.ps1"
+        $target = Join-Path (Join-Path $scriptsRoot $folder) "run.ps1"
         $env:OLLAMA_PULL_MODELS = $csvSlugs
         try {
             & $target pull
@@ -223,7 +223,7 @@ try {
 
     # Dispatch to the backend's own interactive picker (script 42 or 43)
     $folder = $config.backends.$chosen.scriptFolder
-    $target = Join-Path $scriptsRoot $folder "run.ps1"
+    $target = Join-Path (Join-Path $scriptsRoot $folder) "run.ps1"
     $line = $logMessages.messages.dispatching -replace '\{backend\}', $chosen
     Write-Log $line -Level "info"
     & $target

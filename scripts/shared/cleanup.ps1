@@ -49,7 +49,7 @@ function Clear-ResolvedData {
     if ($EditionName) {
         # Clear only a specific edition key from this script's resolved.json
         $scriptName   = Split-Path -Leaf $ScriptDir
-        $resolvedFile = Join-Path $resolvedDir $scriptName "resolved.json"
+        $resolvedFile = Join-Path (Join-Path $resolvedDir $scriptName) "resolved.json"
 
         $hasNoResolvedFile = -not (Test-Path $resolvedFile)
         if ($hasNoResolvedFile) {
