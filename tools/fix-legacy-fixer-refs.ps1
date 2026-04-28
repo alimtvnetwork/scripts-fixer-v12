@@ -8,6 +8,12 @@
 #    .\tools\fix-legacy-fixer-refs.ps1 -DryRun          # preview only
 #    .\tools\fix-legacy-fixer-refs.ps1 -Target v11      # custom target
 #    .\tools\fix-legacy-fixer-refs.ps1 -Versions 8,9,10 # custom legacy set
+#    .\tools\fix-legacy-fixer-refs.ps1 -Paths tools,src # restrict to folders
+#
+#  Path filter:
+#    -Paths   : repo-relative folders or files. When omitted/empty the entire
+#               repo is rewritten (current behaviour). Each entry must exist or
+#               the script aborts with a CODE RED file error.
 # --------------------------------------------------------------------------
 [CmdletBinding()]
 param(
@@ -24,7 +30,8 @@ param(
     # report under "backupDir" so orchestrators can restore from it later.
     [switch]   $Backup,
     [string]   $BackupRoot  = '.legacy-fix-backups',
-    [string]   $BackupStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+    [string]   $BackupStamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ'),
+    [string[]] $Paths       = @()
 )
 
 $ErrorActionPreference = 'Stop'
