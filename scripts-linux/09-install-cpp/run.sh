@@ -7,6 +7,7 @@ export SCRIPT_ID="09"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 09-install-cpp"; exit 1; }
@@ -21,6 +22,11 @@ verify_installed() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "C++ toolchain (gcc/g++/make)" \
+    --source "apt build-essential | dnf @development-tools | brew" \
+    --temp   "/var/cache/apt/archives | $TMPDIR/scripts-fixer/cpp" \
+    --target "/usr/bin/g++ + /usr/bin/gcc + /usr/bin/make"
   log_info "[09] Starting C++ toolchain (build-essential, gdb, cmake) installer"
   if verify_installed; then
     log_ok "[09] Already installed: build-essential gdb cmake"
