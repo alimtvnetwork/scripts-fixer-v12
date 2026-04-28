@@ -258,8 +258,15 @@ function Restart-ExplorerShell {
 Assert-Elevated
 $targets = Get-RegistryTargets -EditionName $Edition -TargetName $Target
 
-if (-not [string]::IsNullOrWhiteSpace($RestoreFromFile)) {
-    Restore-ContextMenuBackup -BackupPath $RestoreFromFile
+if ($RestoreLatest -and -not [string]::IsNullOrWhiteSpace($RestoreFromFile)) {
+    Write-FileError -FilePath $RestoreFromFile -Reason 'Use either -RestoreLatest or -RestoreFromFile, not both.'
+    exit 4
+}
+
+if ($RestoreLatest -or -not [string]::IsNullOrWhiteSpace($RestoreFromFile)) {
+    $restorePath = $RestoreFromFile
+    if ($RestoreLatest) { $restorePath = Resolve-LatestContextMenuBackup -OutputDir $BackupDir }
+    Restore-ContextMenuBackup -BackupPath $restorePath -TargetsToRestore $targets
     Restart-ExplorerShell
     return
 }
