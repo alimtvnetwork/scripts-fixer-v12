@@ -22,6 +22,11 @@ add_ms_repo() {
   sudo apt-get update -y >/dev/null 2>&1 || true
 }
 verb_install() {
+  write_install_paths \
+    --tool   ".NET SDK 8.0" \
+    --source "Microsoft apt repo (packages.microsoft.com)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/dotnet"
   log_info "[39] Starting .NET SDK installer"
   if verify_installed; then log_ok "[39] .NET already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[39] apt required"; return 1; fi
