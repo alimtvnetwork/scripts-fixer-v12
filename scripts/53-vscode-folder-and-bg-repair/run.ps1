@@ -101,6 +101,9 @@ $isReadOnlyCommand    = $cmdLower -in @('verify','dry-run','whatif','precheck','
 #   pre-check -> backup -> apply -> verify -> auto-rollback on failure.
 $isTransactionalCmd   = $cmdLower -in @('repair-vscode','repair-all','transactional','tx')
 $isRollbackEnabled    = $isTransactionalCmd -and -not $NoRollback
+# Manual rollback (--rollback flag OR `rollback` command): restore latest
+# snapshot per edition (or the one passed via -BackupFile) and exit.
+$isManualRollback     = $Rollback.IsPresent -or ($cmdLower -in @('rollback','restore','undo'))
 
 if (-not $isReadOnlyCommand) {
     Assert-Elevated `
