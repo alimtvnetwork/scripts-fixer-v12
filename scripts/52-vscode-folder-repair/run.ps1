@@ -56,6 +56,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "vscode-edition-detect.ps1")
 . (Join-Path $sharedDir "admin-check.ps1")
+. (Join-Path $sharedDir "registry-backup.ps1")
 
 # -- Dot-source script helpers (also brings in script 10's registry helpers) -
 . (Join-Path $scriptDir "helpers\repair.ps1")
@@ -363,6 +364,14 @@ try {
     $isAllSuccessful     = $true
     $verificationResults = @()
 
+    # -- Backup + change ledger setup ----------------------------------------
+    # Snapshot every key we might touch BEFORE any write so the user can
+    # roll back with `reg import`. The change ledger collects one row per
+    # write/delete/skip/fail, persisted to JSON and printed at the end.
+    $backupRoot   = Join-Path $scriptDir ".logs\registry-backups"
+    $backupResult = $null
+    Start-RegistryChangeLog
+
     Write-Log ($logMessages.messages.installTypePref -replace '\{type\}', $installType) -Level "info"
     Write-Log ($logMessages.messages.enabledEditions -replace '\{editions\}', ($configEditions -join ', ')) -Level "info"
 
@@ -405,6 +414,38 @@ try {
             Write-Log ($logMessages.messages.usingExe -replace '\{path\}', $vsCodeExe) -Level "success"
         }
 
+        # 0. BEFORE backup -- snapshot every key we might touch for this
+        #    edition into one timestamped .reg file. This is the user's
+        #    rollback artifact: `reg import <file>` restores the previous
+        #    state for ALL keys, even ones we ended up not changing.
+        $editionKeys = @()
+        foreach ($t in ($removeTargets + $ensureTargets)) {
+            $rp = $edition.registryPaths.$t
+            if (-not [string]::IsNullOrWhiteSpace($rp)) { $editionKeys += $rp }
+        }
+        $hasKeysToBackup = $editionKeys.Count -gt 0
+        if ($hasKeysToBackup) {
+            Write-Log ("Creating registry backup for edition '$editionName' ({0} key(s))..." -f $editionKeys.Count) -Level "info"
+            $editionBackup = New-RegistryBackup -Keys $editionKeys -OutputDir $backupRoot -Tag "script52-$editionName"
+            if ($editionBackup -and $editionBackup.FilePath) {
+                Write-Log ("Backup written: {0}" -f $editionBackup.FilePath) -Level "success"
+                # Keep the most recent successful backup as the primary
+                # rollback artifact for the end-of-run summary.
+                $backupResult = $editionBackup
+                foreach ($kr in $editionBackup.Keys) {
+                    $detail = if ($kr.Present) { if ($kr.Exported) { 'exported' } else { 'export FAILED' } } else { 'absent at backup time' }
+                    Add-RegistryChange -Operation 'BACKUP' -Edition $editionName -Target '-' `
+                        -Path $kr.Path -Detail $detail -Success ([bool]$kr.Exported -or -not $kr.Present)
+                }
+            } else {
+                Write-Log "Backup step failed -- aborting writes for this edition to avoid an unrecoverable state." -Level "error"
+                Add-RegistryChange -Operation 'FAIL' -Edition $editionName -Target '-' `
+                    -Path $backupRoot -Detail 'backup failed; writes skipped' -Success $false
+                $isAllSuccessful = $false
+                continue
+            }
+        }
+
         # 1. Remove unwanted targets
         foreach ($target in $removeTargets) {
             $regPath = $edition.registryPaths.$target
@@ -412,6 +453,10 @@ try {
             if (-not $hasPath) { continue }
             $ok = Remove-ContextMenuTarget -TargetName $target -RegistryPath $regPath -LogMsgs $logMessages
             if (-not $ok) { $isAllSuccessful = $false }
+            $op     = if ($ok) { 'DELETE' } else { 'FAIL' }
+            $detail = if ($ok) { 'context menu entry removed (or already absent)' } else { 'reg.exe delete failed -- see log above' }
+            Add-RegistryChange -Operation $op -Edition $editionName -Target $target `
+                -Path $regPath -Detail $detail -Success ([bool]$ok)
         }
 
         # 2. Ensure desired targets (folder)
@@ -421,6 +466,8 @@ try {
             if (-not $hasPath) { continue }
             if ($isExeMissing) {
                 Write-Log ("Cannot ensure target '$target' -- VS Code executable missing for edition '$editionName' (path: $regPath)") -Level "error"
+                Add-RegistryChange -Operation 'SKIP' -Edition $editionName -Target $target `
+                    -Path $regPath -Detail 'VS Code executable not found' -Success $false
                 $isAllSuccessful = $false
                 continue
             }
@@ -431,6 +478,10 @@ try {
                 -VsCodeExe    $vsCodeExe `
                 -LogMsgs      $logMessages
             if (-not $ok) { $isAllSuccessful = $false }
+            $op     = if ($ok) { 'WRITE' } else { 'FAIL' }
+            $detail = if ($ok) { ("ensured '{0}' -> {1}" -f $edition.contextMenuLabel, $vsCodeExe) } else { 'CreateSubKey/SetValue failed -- see log above' }
+            Add-RegistryChange -Operation $op -Edition $editionName -Target $target `
+                -Path $regPath -Detail $detail -Success ([bool]$ok)
         }
 
         # 3. Verify (per-target log + structured collection for the summary)
@@ -474,7 +525,12 @@ try {
         if (-not $summaryOk) { $isAllSuccessful = $false }
     }
 
-    # -- Restart Explorer -----------------------------------------------------
+    # -- Registry change ledger (persist JSON + render colored table) --------
+    $changeLogPath = Save-RegistryChangeLog -OutputDir $backupRoot -Tag 'script52'
+    $primaryBackup = if ($backupResult) { $backupResult.FilePath } else { '' }
+    $logPathArg    = if ($changeLogPath) { $changeLogPath } else { '' }
+    Write-RegistryChangeLog -BackupFilePath $primaryBackup -JsonLogPath $logPathArg
+
     $isNoRestartCommand = $Command.ToLower() -eq "no-restart"
     $shouldRestart      = $config.restartExplorer -and -not $isNoRestartCommand
     if ($shouldRestart) {
