@@ -1,10 +1,9 @@
 {
   "install": {
-    "method":      "deployBinary",
+    "method":      "curlOneLiner",
     "scriptName":  "gitmap",
-    "scriptSrc":   "payload/gitmap.sh",
-    "binDir":      "${HOME}/.local/bin",
-    "deps":        ["git", "tree"]
+    "installUrl":  "https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/install-quick.sh",
+    "binDir":      "${HOME}/.local/bin"
   },
   "verify": {
     "binary": "${HOME}/.local/bin/gitmap --version"

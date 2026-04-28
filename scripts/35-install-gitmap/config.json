@@ -9,9 +9,9 @@
     "verifyCommand": "gitmap",
     "name": "gitmap",
     "desc": "Git repository navigator CLI tool",
-    "installUrl": "https://raw.githubusercontent.com/alimtvnetwork/gitmap-v3/main/gitmap/scripts/install.ps1",
-    "repo": "alimtvnetwork/gitmap-v3",
-    "releaseZipUrl": "https://github.com/alimtvnetwork/gitmap-v3/releases/download/{tag}/gitmap-windows-amd64.zip",
+    "installUrl": "https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/install-quick.ps1",
+    "repo": "alimtvnetwork/gitmap-v8",
+    "releaseZipUrl": "https://github.com/alimtvnetwork/gitmap-v8/releases/download/{tag}/gitmap-windows-amd64.zip",
     "fallbackTag": "latest",
     "installDir": ""
   }

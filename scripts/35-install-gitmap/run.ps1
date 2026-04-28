@@ -49,7 +49,7 @@ Write-Banner -Title $logMessages.scriptName
 Write-InstallPaths `
     -Tool   "GitMap" `
     -Action "Install" `
-    -Source "https://chocolatey.org/install (pkg: gitextensions or gitmap)" `
+    -Source "https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/install-quick.ps1 (irm | iex)" `
     -Temp   ($env:TEMP + "\chocolatey") `
     -Target ("C:\Program Files\GitExtensions")
 
