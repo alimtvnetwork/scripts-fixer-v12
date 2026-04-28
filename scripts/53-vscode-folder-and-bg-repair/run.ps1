@@ -345,8 +345,21 @@ try {
         Write-Log $logMessages.messages.explorerSkipped -Level "info"
     }
 
+    if ($rollbackSummary.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  Rollback summary (transactional repair-vscode):" -ForegroundColor Cyan
+        foreach ($r in $rollbackSummary) {
+            $color = if ($r.Success) { 'Green' } else { 'Red' }
+            $tag   = if ($r.Success) { 'RESTORED' } else { 'INCOMPLETE' }
+            Write-Host ("    [{0}] {1,-10}  backup: {2}" -f $tag, $r.Edition, $r.Backup) -ForegroundColor $color
+        }
+        Write-Host ""
+    }
+
     if ($isAllSuccessful) {
         Write-Log $logMessages.messages.done -Level "success"
+    } elseif ($isRollbackEnabled -and $rollbackSummary.Count -gt 0 -and ($rollbackSummary | Where-Object { -not $_.Success }).Count -eq 0) {
+        Write-Log "Apply failed but transactional rollback restored prior state for all affected editions." -Level "warn"
     } else {
         Write-Log $logMessages.messages.completedWithWarnings -Level "warn"
     }
