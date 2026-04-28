@@ -35,6 +35,9 @@
     "enabledEditions": "Enabled editions (config): {editions}",
     "unknownEdition": "Edition '{name}' not found in config.editions -- skipping",
     "done": "Folder + background repair completed successfully.",
-    "completedWithWarnings": "Folder + background repair completed with warnings -- review log above."
+    "completedWithWarnings": "Folder + background repair completed with warnings -- review log above.",
+    "preCheckHeader": "Pre-check: inspecting current registry state (no writes).",
+    "preCheckDryRunDone": "Dry-run complete -- no changes applied. Re-run without 'dry-run' / 'precheck' to apply.",
+    "preCheckPlanIntro": "Planned changes (about to apply):"
   }
 }
