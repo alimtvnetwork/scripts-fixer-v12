@@ -16,6 +16,7 @@ export SCRIPT_ID="16"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
 . "$ROOT/_shared/interactive.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 16-install-php"; exit 1; }
