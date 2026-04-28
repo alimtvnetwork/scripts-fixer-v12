@@ -359,9 +359,19 @@ function Install-GoTools {
                 Save-InstalledRecord -Name "golangci-lint" -Version "$lintVersion".Trim() -Method "go-install"
             }
         } catch {
-            Write-FileError -FilePath $installPkg -Operation "install" -Reason "$_" -Module "Install-GoTools"
-            Write-Log ($msgs.golangciLintFailed -replace '\{error\}', $_) -Level "error"
-            Save-InstalledError -Name "golangci-lint" -ErrorMessage "$_"
+            # Capture original error FIRST so a downstream logging failure
+            # (e.g. older Write-FileError without "install" in its ValidateSet)
+            # cannot mask the real reason `go install` failed.
+            $originalError = $_
+            try {
+                Write-FileError -FilePath $installPkg -Operation "install" -Reason "$originalError" -Module "Install-GoTools"
+            } catch {
+                # Fallback: older logging.ps1 may reject -Operation 'install'.
+                Write-Log ("[CODE RED] go install failed for: {0} -- Reason: {1} [Module: Install-GoTools]" -f $installPkg, $originalError) -Level "error"
+                Write-Log ("Write-FileError unavailable for Operation='install' -- update scripts/shared/logging.ps1 (run: git pull). Inner: {0}" -f $_) -Level "warn"
+            }
+            Write-Log ($msgs.golangciLintFailed -replace '\{error\}', $originalError) -Level "error"
+            Save-InstalledError -Name "golangci-lint" -ErrorMessage "$originalError"
             $isAllOk = $false
         }
     } else {

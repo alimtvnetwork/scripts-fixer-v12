@@ -91,6 +91,20 @@ $logMessages = Import-JsonConfig $logPath
 # -- Help ---------------------------------------------------------------------
 if ($Help -or $Command -eq "--help" -or $Command.ToLower() -eq 'help') {
     Show-ScriptHelp -LogMessages $logMessages
+
+    # -- Extra prose sections (permissions / behavior / how-to-verify) ---------
+    function _Write-HelpSection {
+        param([Parameter(Mandatory)] $Node, [Parameter(Mandatory)] [ConsoleColor]$TitleColor)
+        $hasNode = $null -ne $Node
+        if (-not $hasNode) { return }
+        Write-Host $Node.title -ForegroundColor $TitleColor
+        Write-Host (("-" * [Math]::Min($Node.title.Length, 60))) -ForegroundColor DarkGray
+        foreach ($line in @($Node.lines)) { Write-Host "  $line" -ForegroundColor Gray }
+        Write-Host ""
+    }
+    _Write-HelpSection -Node $logMessages.permissions   -TitleColor Yellow
+    _Write-HelpSection -Node $logMessages.behavior      -TitleColor Cyan
+    _Write-HelpSection -Node $logMessages.verifySection -TitleColor Green
     return
 }
 
