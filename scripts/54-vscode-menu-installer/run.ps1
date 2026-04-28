@@ -58,6 +58,16 @@ if ($Help -or $Command -ieq "help" -or $Command -ieq "--help" -or $Command -ieq 
     return
 }
 
+# -- Triple-path trio (Source / Temp / Target) -----------------------
+$sharedDir54 = Join-Path (Split-Path -Parent $scriptDir) "shared"
+. (Join-Path $sharedDir54 "install-paths.ps1")
+Write-InstallPaths `
+    -Tool   "VS Code menu installer" `
+    -Action "Dispatch" `
+    -Source "$scriptDir (install/uninstall/repair/sync/rollback/check sub-scripts)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\vscode-menu") `
+    -Target "HKCR:\* + HKCR:\Directory shell verbs (per -Scope)"
+
 switch ($Command.ToLower()) {
     "uninstall" {
         & (Join-Path $scriptDir "uninstall.ps1") -Edition $Edition -Scope $Scope -Verbosity $Verbosity
