@@ -43,6 +43,26 @@ if (-not (Test-Path -LiteralPath $Root)) {
 }
 $Root = (Resolve-Path -LiteralPath $Root).ProviderPath
 
+# ---- Resolve & validate -Paths filter --------------------------------------
+# When -Paths is empty we scan the entire repo (default). Otherwise each entry
+# is normalised to backslashes, validated for existence, and used to gate the
+# file walk via path-prefix matching.
+$pathFilters = @()
+if ($Paths -and $Paths.Count -gt 0) {
+    foreach ($p in $Paths) {
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
+        $clean = $p.Trim().TrimStart('.','\','/').TrimEnd('\','/')
+        if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+        $clean = $clean -replace '/', '\'
+        $abs   = Join-Path $Root $clean
+        if (-not (Test-Path -LiteralPath $abs)) {
+            Write-FileError -Path $abs -Reason "path filter target does not exist (from -Paths '$p')"
+            exit 2
+        }
+        $pathFilters += $clean.ToLower()
+    }
+}
+
 # ---- Build pattern (e.g. scripts-fixer-v(8|9|10)) ---------------------------
 $verAlt  = ($Versions | ForEach-Object { [string]$_ }) -join '|'
 $pattern = "scripts-fixer-v($verAlt)\b"
@@ -54,6 +74,11 @@ if (-not $Quiet) {
     Write-Host ("  Root     : {0}" -f $Root)        -ForegroundColor DarkGray
     Write-Host ("  Pattern  : {0}" -f $pattern)     -ForegroundColor DarkGray
     Write-Host ("  Skipping : {0}" -f ($ExcludeDirs -join ', ')) -ForegroundColor DarkGray
+    if ($pathFilters.Count -gt 0) {
+        Write-Host ("  Paths    : {0}" -f ($pathFilters -join ', ')) -ForegroundColor DarkGray
+    } else {
+        Write-Host  "  Paths    : (entire repo)" -ForegroundColor DarkGray
+    }
     Write-Host ""
 }
 
@@ -85,6 +110,16 @@ foreach ($file in $files) {
         if ($rel -ilike "$needle\*" -or $rel -ieq $needle) { $isExcluded = $true; break }
     }
     if ($isExcluded) { continue }
+
+    # Apply -Paths filter (file must live under at least one allowed path)
+    if ($pathFilters.Count -gt 0) {
+        $relNorm = $rel.Replace('/', '\').ToLower()
+        $isAllowed = $false
+        foreach ($pf in $pathFilters) {
+            if ($relNorm -eq $pf -or $relNorm.StartsWith("$pf\")) { $isAllowed = $true; break }
+        }
+        if (-not $isAllowed) { continue }
+    }
 
     # Skip obvious binary by extension
     if ($file.Extension -imatch '^\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|7z|exe|dll|woff2?|ttf|otf|mp4|mp3)$') { continue }
