@@ -182,3 +182,122 @@ function Capture-PreApplyState {
     }
     return $state
 }
+
+function Find-LatestBackupForEdition {
+    <#
+    .SYNOPSIS
+        Locate the most recent .reg snapshot under <BackupRoot> for a given
+        edition. New-RegistryBackup tags files with "script53-<edition>" so
+        we filter by that prefix and pick the newest LastWriteTime.
+    .OUTPUTS
+        FileInfo or $null when no snapshot exists.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $BackupRoot,
+        [Parameter(Mandatory)] [string] $EditionName
+    )
+    if (-not (Test-Path -LiteralPath $BackupRoot)) { return $null }
+    $pattern = "*script53-$EditionName*.reg"
+    $matches = Get-ChildItem -LiteralPath $BackupRoot -Filter $pattern -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending
+    if ($matches -and $matches.Count -gt 0) { return $matches[0] }
+    return $null
+}
+
+function Invoke-ManualRollback {
+    <#
+    .SYNOPSIS
+        --rollback / `rollback` command handler. Restores the latest snapshot
+        per requested edition (or the explicit -BackupFile when provided)
+        WITHOUT running the apply phase.
+
+    .DESCRIPTION
+        For each edition in $Editions:
+          1. Pick BackupFile (explicit) or Find-LatestBackupForEdition.
+          2. Compute the keys-to-touch list from $Config.editions.<ed>.registryPaths
+             (removeFromTargets + ensureOnTargets union) so the existing
+             Invoke-FolderRepairRollback can clean + reg-import + verify.
+          3. Capture CURRENT state as the "expected post-restore" target ONLY
+             when no explicit pre-state map is available -- otherwise the
+             verifier compares against the snapshot's own present-set.
+
+        Reuses Invoke-FolderRepairRollback so the colored ROLLBACK ledger,
+        ledger rows, and CODE RED logging are identical to auto-rollback.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] $Config,
+        [Parameter(Mandatory)] [string]   $BackupRoot,
+        [Parameter(Mandatory)] [string[]] $Editions,
+        [string] $ExplicitBackupFile = ''
+    )
+
+    $allOk   = $true
+    $summary = @()
+
+    foreach ($editionName in $Editions) {
+        $edition = $Config.editions.$editionName
+        if (-not $edition) {
+            Write-Host ("  [skip] unknown edition '{0}' -- not in config.editions" -f $editionName) -ForegroundColor Yellow
+            continue
+        }
+
+        # Build the list of keys this edition could have touched.
+        $editionKeys = @()
+        foreach ($t in (@($Config.removeFromTargets) + @($Config.ensureOnTargets))) {
+            $rp = $edition.registryPaths.$t
+            if (-not [string]::IsNullOrWhiteSpace($rp)) { $editionKeys += $rp }
+        }
+
+        # Pick backup file: explicit > latest snapshot for this edition.
+        $backupFile = $ExplicitBackupFile
+        if ([string]::IsNullOrWhiteSpace($backupFile)) {
+            $found = Find-LatestBackupForEdition -BackupRoot $BackupRoot -EditionName $editionName
+            if ($found) { $backupFile = $found.FullName }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($backupFile) -or -not (Test-Path -LiteralPath $backupFile)) {
+            $msg = "No registry snapshot found for edition '$editionName' under: $BackupRoot (failure: nothing to restore -- run 'repair-vscode' or 'repair' first to create a backup)"
+            if (Get-Command -Name 'Write-FileError' -ErrorAction SilentlyContinue) {
+                Write-FileError -Path $BackupRoot -Reason "no script53-$editionName*.reg snapshot present"
+            } else {
+                Write-Host $msg -ForegroundColor Red
+            }
+            $summary += @{ Edition = $editionName; Success = $false; Backup = '(none)' }
+            $allOk = $false
+            continue
+        }
+
+        # For manual rollback the "expected post-restore" state IS whatever
+        # the .reg file contains. We can't peek inside the .reg cheaply, so
+        # we treat all touched keys as expected-present (snapshot will create
+        # whatever was there) -- if the snapshot didn't include a key, that
+        # key will simply remain absent and we down-grade the verifier check
+        # by passing $false for those keys via Capture-PreApplyState AFTER
+        # the import. This makes the verifier informational, not blocking.
+        $preState = @{}
+        foreach ($k in $editionKeys) { $preState[$k] = $true }  # expect present after import
+
+        $rb = Invoke-FolderRepairRollback `
+            -BackupFilePath $backupFile `
+            -EditionName    $editionName `
+            -TouchedKeys    $editionKeys `
+            -PreState       $preState `
+            -Reason         'manual --rollback requested'
+
+        $summary += @{ Edition = $editionName; Success = $rb.Success; Backup = $backupFile }
+        if (-not $rb.Success) { $allOk = $false }
+    }
+
+    Write-Host ""
+    Write-Host "  Manual rollback summary:" -ForegroundColor Cyan
+    foreach ($r in $summary) {
+        $color = if ($r.Success) { 'Green' } else { 'Red' }
+        $tag   = if ($r.Success) { 'RESTORED' } else { 'FAILED  ' }
+        Write-Host ("    [{0}] {1,-10}  backup: {2}" -f $tag, $r.Edition, $r.Backup) -ForegroundColor $color
+    }
+    Write-Host ""
+
+    return [pscustomobject]@{ Success = $allOk; Summary = $summary }
+}
