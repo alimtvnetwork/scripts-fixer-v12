@@ -46,11 +46,32 @@ const deepMerge = (base: unknown, patch: unknown): unknown => {
   return out;
 };
 
+// Defaults derived from the stored model (config.json shipped in the repo).
+// Booleans fall back to safe values when the baseline omits them.
+const baseRecord = baseConfig as Record<string, unknown>;
+const defaultEditions = Array.isArray(baseRecord.enabledEditions)
+  ? (baseRecord.enabledEditions as Edition[])
+  : (["stable"] as Edition[]);
+const DEFAULTS = {
+  edition: (defaultEditions[0] ?? "stable") as Edition,
+  adminOnly: typeof baseRecord.requireAdmin === "boolean" ? (baseRecord.requireAdmin as boolean) : true,
+  nonInteractive:
+    typeof baseRecord.nonInteractive === "boolean" ? (baseRecord.nonInteractive as boolean) : false,
+  requireSignature:
+    typeof baseRecord.requireSignature === "boolean" ? (baseRecord.requireSignature as boolean) : false,
+};
+const DEFAULT_PATCH = {
+  enabledEditions: [DEFAULTS.edition],
+  requireAdmin: DEFAULTS.adminOnly,
+  nonInteractive: DEFAULTS.nonInteractive,
+  requireSignature: DEFAULTS.requireSignature,
+};
+
 const Settings = () => {
-  const [edition, setEdition] = useState<Edition>("stable");
-  const [adminOnly, setAdminOnly] = useState(true);
-  const [nonInteractive, setNonInteractive] = useState(false);
-  const [requireSignature, setRequireSignature] = useState(false);
+  const [edition, setEdition] = useState<Edition>(DEFAULTS.edition);
+  const [adminOnly, setAdminOnly] = useState(DEFAULTS.adminOnly);
+  const [nonInteractive, setNonInteractive] = useState(DEFAULTS.nonInteractive);
+  const [requireSignature, setRequireSignature] = useState(DEFAULTS.requireSignature);
 
   const [bridgeUrl, setBridgeUrl] = useState(
     () => localStorage.getItem(BRIDGE_KEY) ?? "http://127.0.0.1:7531",
