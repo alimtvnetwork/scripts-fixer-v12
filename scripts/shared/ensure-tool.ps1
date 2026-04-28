@@ -47,6 +47,15 @@ if ((Test-Path $_etParsers) -and -not (Get-Command Get-ToolVersionParser -ErrorA
     Write-Log "  [WARN] path: $_etParsers -- reason: parser registry missing, falling back to raw version output" -Level "warn"
 }
 
+# End-of-run summary collector. Auto-records every Ensure-Tool result so the
+# caller can finish with a single Write-EnsureSummary at the end of the run.
+$_etSummary = Join-Path $PSScriptRoot "ensure-summary.ps1"
+if ((Test-Path $_etSummary) -and -not (Get-Command Add-EnsureSummary -ErrorAction SilentlyContinue)) {
+    . $_etSummary
+} elseif (-not (Test-Path $_etSummary)) {
+    Write-Log "  [WARN] path: $_etSummary -- reason: summary collector missing, end-of-run table will be unavailable" -Level "warn"
+}
+
 function Write-EnsureFileError {
     # CODE RED: every file/path error must include exact path + reason.
     param([string]$Path, [string]$Reason)
@@ -80,6 +89,22 @@ function Get-EnsuredVersion {
     }
 
     return "$raw".Trim()
+}
+
+function Complete-EnsureToolResult {
+    # Internal: feed every Ensure-Tool return value into the end-of-run summary
+    # collector (when available) and pass the result back unchanged. Keeps the
+    # main function readable -- one helper instead of seven Add-EnsureSummary
+    # calls before each return.
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [string]$FriendlyName,
+        $Result
+    )
+    if (Get-Command Add-EnsureSummary -ErrorAction SilentlyContinue) {
+        try { Add-EnsureSummary -Name $Name -FriendlyName $FriendlyName -Result $Result } catch { }
+    }
+    return $Result
 }
 
 function Ensure-Tool {
@@ -176,7 +201,7 @@ function Ensure-Tool {
             Save-InstalledError -Name $Name -ErrorMessage $reason
             $result.Action = "failed"
             $result.Error  = $reason
-            return $result
+            return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
         }
         $InstallScript = { Install-ChocoPackage -PackageName $using:ChocoPackage }.GetNewClosure()
     }
@@ -201,7 +226,7 @@ function Ensure-Tool {
             if ($isAlreadyTracked) {
                 Write-Log "$FriendlyName already installed and tracked: $currentVersion -- skipping" -Level "info"
                 $result.Action = "skipped"
-                return $result
+                return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
             }
             Write-Log "$FriendlyName found in PATH: $currentVersion (not tracked or version drift)" -Level "info"
         } else {
@@ -220,14 +245,14 @@ function Ensure-Tool {
                 Write-Log "$FriendlyName upgraded successfully: $newVersion" -Level "success"
                 $result.Action  = "upgraded"
                 $result.Version = $newVersion
-                return $result
+                return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
             } catch {
                 $reason = "upgrade failed: $_"
                 Write-EnsureFileError -Path ".installed/$Name.json" -Reason $reason
                 Save-InstalledError -Name $Name -ErrorMessage "$_"
                 $result.Action = "failed"
                 $result.Error  = "$_"
-                return $result
+                return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
             }
         }
 
@@ -236,7 +261,7 @@ function Ensure-Tool {
             Save-InstalledRecord -Name $Name -Version $currentVersion
             $result.Tracked = $true
         }
-        return $result
+        return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
     }
 
     # ---- Step 4: missing -> install -----------------------------------------
@@ -250,13 +275,13 @@ function Ensure-Tool {
         Write-Log "$FriendlyName installed successfully: $installedVersion" -Level "success"
         $result.Action  = "installed"
         $result.Version = $installedVersion
-        return $result
+        return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
     } catch {
         $reason = "install failed: $_"
         Write-EnsureFileError -Path ".installed/$Name.json" -Reason $reason
         Save-InstalledError -Name $Name -ErrorMessage "$_"
         $result.Action = "failed"
         $result.Error  = "$_"
-        return $result
+        return (Complete-EnsureToolResult -Name $Name -FriendlyName $FriendlyName -Result $result)
     }
 }
