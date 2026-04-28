@@ -26,6 +26,7 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "dev-dir.ps1")
 . (Join-Path $sharedDir "symlink-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helper -------------------------------------------------
 . (Join-Path $scriptDir "helpers\postgresql.ps1")
@@ -42,6 +43,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "PostgreSQL" `
+    -Source "https://chocolatey.org/install (pkg: postgresql)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target (C:\Program Files\PostgreSQL)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
