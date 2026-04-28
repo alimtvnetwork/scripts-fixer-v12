@@ -32,6 +32,58 @@ const BRIDGE_KEY = "config-bridge-url";
 const TOKEN_KEY = "config-bridge-token";
 const SCRIPT_ID = "52";
 const CONFIG_PATH = "scripts/52-vscode-folder-repair/config.json";
+const PREVIEW_CACHE_KEY = `config-bridge-last-preview-${SCRIPT_ID}`;
+const PREVIEW_CACHE_VERSION = 1;
+
+interface CachedPreview {
+  v: number;
+  savedAt: number;       // epoch ms
+  storedConfig: unknown; // bridge's copy at the time of preparation
+  mergedPreview: unknown;
+  diff: DiffEntry[];
+  pendingPayload: typeof DEFAULT_PATCH;
+}
+
+const loadCachedPreview = (): CachedPreview | null => {
+  try {
+    const raw = localStorage.getItem(PREVIEW_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedPreview;
+    if (parsed?.v !== PREVIEW_CACHE_VERSION || !Array.isArray(parsed.diff)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const saveCachedPreview = (snapshot: Omit<CachedPreview, "v" | "savedAt">) => {
+  try {
+    const payload: CachedPreview = {
+      v: PREVIEW_CACHE_VERSION,
+      savedAt: Date.now(),
+      ...snapshot,
+    };
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // localStorage can throw on quota/private mode — preview cache is best-effort
+  }
+};
+
+const clearCachedPreview = () => {
+  try {
+    localStorage.removeItem(PREVIEW_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+};
+
+const formatRelativeTime = (epochMs: number): string => {
+  const diff = Date.now() - epochMs;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+};
 
 // Deep-merge mirrors the bridge's Merge-Config so the preview matches what
 // will actually land on disk.
