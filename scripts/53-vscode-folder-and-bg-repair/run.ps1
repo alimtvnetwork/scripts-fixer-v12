@@ -214,7 +214,10 @@ try {
             $editionBackup = New-RegistryBackup -Keys $editionKeys -OutputDir $backupRoot -Tag "script53-$editionName"
             if ($editionBackup -and $editionBackup.FilePath) {
                 Write-Log ("Backup written: {0}" -f $editionBackup.FilePath) -Level "success"
-                $backupResult = $editionBackup
+                $backupResult      = $editionBackup
+                $editionBackupFile = $editionBackup.FilePath
+                # Capture pre-apply present/absent state per key, used by rollback verifier.
+                $editionPreState = Capture-PreApplyState -Keys $editionKeys
                 foreach ($kr in $editionBackup.Keys) {
                     $detail = if ($kr.Present) { if ($kr.Exported) { 'exported' } else { 'export FAILED' } } else { 'absent at backup time' }
                     Add-RegistryChange -Operation 'BACKUP' -Edition $editionName -Target '-' `
