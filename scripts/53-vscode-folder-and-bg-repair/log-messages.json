@@ -39,5 +39,94 @@
     "preCheckHeader": "Pre-check: inspecting current registry state (no writes).",
     "preCheckDryRunDone": "Dry-run complete -- no changes applied. Re-run without 'dry-run' / 'precheck' to apply.",
     "preCheckPlanIntro": "Planned changes (about to apply):"
+  },
+  "help": {
+    "commands": [
+      { "Name": "repair",         "Description": "Default. Apply fix for both editions and restart Explorer." },
+      { "Name": "repair-vscode",  "Description": "Transactional: precheck -> backup -> apply -> verify -> auto-rollback on failure." },
+      { "Name": "dry-run",        "Description": "Preview planned changes (also: precheck, plan, whatif). NO admin, NO writes." },
+      { "Name": "verify",         "Description": "Re-run the PASS/FAIL verification table only. NO writes." },
+      { "Name": "rollback",       "Description": "Restore the most recent .reg snapshot per edition (also: --Rollback flag)." },
+      { "Name": "no-restart",     "Description": "Apply the fix but skip the explorer.exe restart." }
+    ],
+    "parameters": [
+      { "Name": "-Edition",     "Description": "Limit to one edition: 'stable' or 'insiders'. Default: both, auto-detected." },
+      { "Name": "-Rollback",    "Description": "Restore latest snapshot for each detected edition (or use -BackupFile)." },
+      { "Name": "-BackupFile",  "Description": "Explicit .reg snapshot path to restore (overrides 'pick latest')." },
+      { "Name": "-NoRollback",  "Description": "Disable auto-rollback during 'repair-vscode' (apply still runs)." },
+      { "Name": "-Help",        "Description": "Show this help and exit." }
+    ],
+    "examples": [
+      ".\\run.ps1                                 # repair both editions, restart Explorer",
+      ".\\run.ps1 dry-run                         # preview only, no admin needed",
+      ".\\run.ps1 repair-vscode -Edition stable   # transactional repair for VS Code Stable only",
+      ".\\run.ps1 verify                          # re-run PASS/FAIL verification table only",
+      ".\\run.ps1 -Rollback                       # restore latest snapshot per edition",
+      ".\\run.ps1 -Rollback -BackupFile .logs\\registry-backups\\script53-stable-2026-04-28T12-00-00Z.reg"
+    ]
+  },
+  "permissions": {
+    "title": "Required permissions",
+    "lines": [
+      "Administrator (elevated PowerShell) is required for any WRITE command:",
+      "  repair, repair-vscode, rollback, no-restart.",
+      "  Reason: writes target HKEY_CLASSES_ROOT\\Directory\\shell\\VSCode and",
+      "  HKEY_CLASSES_ROOT\\Directory\\Background\\shell\\VSCode (machine-wide).",
+      "",
+      "NO admin required for read-only commands:",
+      "  dry-run, precheck, plan, whatif, verify, --Help.",
+      "",
+      "On non-elevated runs of write commands the script fails fast and prints a",
+      "copy-paste 'Start-Process pwsh -Verb RunAs ...' retry hint (no auto-UAC)."
+    ]
+  },
+  "behavior": {
+    "title": "Expected behavior -- empty vs non-empty folders",
+    "lines": [
+      "After a successful run, 'Open with Code' / 'Open with Code - Insiders' MUST",
+      "appear in BOTH right-click scenarios:",
+      "",
+      "  1. Right-click ON a folder icon (folder may be empty OR contain files).",
+      "     Backed by: HKCR\\Directory\\shell\\VSCode  (target = 'directory').",
+      "     Action: opens that folder in VS Code (passes %V = clicked path).",
+      "",
+      "  2. Right-click on EMPTY space INSIDE an open folder window.",
+      "     Backed by: HKCR\\Directory\\Background\\shell\\VSCode  (target = 'background').",
+      "     Action: opens the CURRENT folder (the one you are looking at).",
+      "     Works whether the folder is empty or full -- the 'background' target",
+      "     is the part of the window NOT covered by any file/folder icon.",
+      "",
+      "After a successful run, the entry MUST NOT appear when right-clicking a FILE.",
+      "  Backed by removal of: HKCR\\*\\shell\\VSCode  (target = 'file').",
+      "",
+      "If a folder is so densely packed that no empty space is visible, scroll or",
+      "resize the window -- the 'background' entry only shows when you click",
+      "actual background pixels, not file rows."
+    ]
+  },
+  "verifySection": {
+    "title": "How to verify the fix",
+    "lines": [
+      "1. Automated (built-in): the script prints a colored PASS/FAIL summary",
+      "   table after every run that maps each registry target to its real",
+      "   right-click scenario. Re-run standalone any time:",
+      "     .\\run.ps1 verify",
+      "",
+      "2. Manual smoke test in Windows Explorer:",
+      "   a. Open any folder. Right-click a sub-folder icon  ->  'Open with Code' MUST be visible.",
+      "   b. Open that sub-folder. Right-click on empty whitespace  ->  'Open with Code' MUST be visible.",
+      "   c. Right-click any FILE in the folder  ->  'Open with Code' MUST NOT be visible.",
+      "",
+      "3. From an elevated PowerShell, query the registry directly:",
+      "     reg query 'HKCR\\Directory\\shell\\VSCode\\command' /ve",
+      "     reg query 'HKCR\\Directory\\Background\\shell\\VSCode\\command' /ve",
+      "     reg query 'HKCR\\*\\shell\\VSCode'                # MUST report 'unable to find'",
+      "   The two 'present' commands should each end with: \"<path-to-Code.exe>\" \"%V\"",
+      "",
+      "4. Inspect the per-run change ledger + JSON log:",
+      "     .logs\\registry-backups\\script53-*.reg          (BEFORE snapshot)",
+      "     .logs\\registry-backups\\script53-*.json         (per-key change rows)",
+      "     .logs\\vs-code-folder-+-background-context-menu-repair.json"
+    ]
   }
 }
