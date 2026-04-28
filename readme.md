@@ -26,10 +26,21 @@
 
 ## 🚀 Install
 
-Use the installer scripts that live at the root of this repository:
-`install.ps1` for Windows and `install.sh` for Unix / macOS.
+Use the installer scripts at the root of this repository: `install.ps1` and `install.sh`.
 
-If you already cloned the repo, run the root script directly:
+### Windows (PowerShell 5.1+)
+
+```powershell
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
+```
+
+### Unix / macOS (bash)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
+```
+
+If you already cloned the repo, run the same root scripts directly:
 
 ```powershell
 .\install.ps1
@@ -37,14 +48,6 @@ If you already cloned the repo, run the root script directly:
 
 ```bash
 bash ./install.sh
-```
-
-For a fresh machine, use the same root scripts through GitHub raw URLs:
-
-### Windows (PowerShell 5.1+)
-
-```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 ```
 
 If PowerShell blocks scripts, use a process-only bypass for the current shell first:
@@ -58,12 +61,6 @@ Or run the root installer inside a bypassed PowerShell process:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex"
-```
-
-### Unix / macOS (bash)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
 ```
 
 After installation, use `.\run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS for the toolkit menu.
