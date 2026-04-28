@@ -16,7 +16,7 @@
 [![AI Models](https://img.shields.io/badge/AI%20Models-90-ef4444?logo=huggingface&logoColor=white)](scripts/43-install-llama-cpp/models-list.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Latest-ec4899)](changelog.md)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows)
-[![Maintained](https://img.shields.io/badge/Maintained-Yes-22c55e)](https://github.com/alimtvnetwork/gitmap-v6)
+[![Maintained](https://img.shields.io/badge/Maintained-Yes-22c55e)](https://github.com/alimtvnetwork/scripts-fixer-v12)
 
 *One command to set up your entire dev environment. No manual installs. No guesswork.*
 
@@ -1132,8 +1132,8 @@ To open the full toolkit menu instead, use `.\run.ps1 -d` on Windows or `bash sc
 ### Manual clone
 
 ```powershell
-git clone https://github.com/alimtvnetwork/gitmap-v6.git gitmap-v6
-cd gitmap-v6
+git clone https://github.com/alimtvnetwork/scripts-fixer-v12.git scripts-fixer
+cd scripts-fixer
 ```
 
 ```powershell
