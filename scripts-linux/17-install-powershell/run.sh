@@ -39,6 +39,11 @@ install_via_snap() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "PowerShell 7" \
+    --source "Microsoft apt repo (packages.microsoft.com)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/pwsh"
   log_info "[17] Starting PowerShell installer"
   if verify_installed; then
     log_ok "[17] PowerShell already installed"
