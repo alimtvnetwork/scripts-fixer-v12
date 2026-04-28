@@ -109,8 +109,15 @@ function Invoke-RegQuery {
     else                   { $argList += @('/v', $ValueName) }
     $cmdLine = 'reg.exe ' + ($argList -join ' ')
 
-    $raw = & reg.exe @argList 2>&1 | Out-String
-    $exitCode = $LASTEXITCODE
+    $raw = ''
+    $exitCode = 1
+    try {
+        $raw = & reg.exe @argList 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    } catch {
+        $raw = "reg.exe not available on this host: " + $_.Exception.Message
+        $exitCode = 1
+    }
     $exists = ($exitCode -eq 0)
 
     $value = ''
