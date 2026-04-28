@@ -31,6 +31,104 @@ function Get-ChocoTimeoutSeconds {
     return $defaultTimeout
 }
 
+function Get-ChocoDiagnosticsDirectory {
+    $logsRoot = $null
+    $logsRootVariable = Get-Variable -Name _LogsDir -Scope Script -ErrorAction SilentlyContinue
+    if ($logsRootVariable) {
+        $logsRoot = $logsRootVariable.Value
+    }
+    $hasLogsRoot = -not [string]::IsNullOrWhiteSpace($logsRoot)
+    if (-not $hasLogsRoot) {
+        $scriptsRoot = Split-Path -Parent $PSScriptRoot
+        $projectRoot = Split-Path -Parent $scriptsRoot
+        $logsRoot = Join-Path $projectRoot ".logs"
+    }
+
+    $diagnosticsDir = Join-Path $logsRoot "installers"
+    if (-not (Test-Path -LiteralPath $diagnosticsDir)) {
+        try {
+            New-Item -Path $diagnosticsDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
+        } catch {
+            Write-FileError -FilePath $diagnosticsDir -Operation "write" -Reason "Could not create installer diagnostics directory: $_" -Module "Get-ChocoDiagnosticsDirectory"
+        }
+    }
+
+    return $diagnosticsDir
+}
+
+function Save-ChocoDiagnosticLog {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Label,
+
+        [Parameter(Mandatory)]
+        [string[]]$ArgumentList,
+
+        [int]$ExitCode,
+
+        [bool]$TimedOut,
+
+        [int]$TimeoutSeconds,
+
+        [string]$Stdout,
+
+        [string]$Stderr
+    )
+
+    $diagnosticsDir = Get-ChocoDiagnosticsDirectory
+    $safeLabel = ($Label.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $diagnosticPath = Join-Path $diagnosticsDir "${stamp}-${safeLabel}.log"
+    $commandLine = "choco.exe " + (($ArgumentList | ForEach-Object { if ($_ -match '\s') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' ')
+    $packageHint = ($ArgumentList | Where-Object { $_ -and $_ -notmatch '^-' } | Select-Object -Skip 1 -First 1)
+    if ([string]::IsNullOrWhiteSpace($packageHint)) { $packageHint = "<package>" }
+    $failureKind = if ($TimedOut) { "Timed out" } else { "Failed" }
+
+    $content = @"
+Chocolatey installer diagnostic log
+===================================
+
+Status: $failureKind
+Label: $Label
+Command: $commandLine
+Exit code: $ExitCode
+Timed out: $TimedOut
+Timeout seconds: $TimeoutSeconds
+Timestamp: $(Get-Date -Format "o")
+
+Actionable troubleshooting steps
+--------------------------------
+1. Re-run the command manually in an elevated PowerShell window:
+   $commandLine
+2. If it pauses for input, re-run with a longer timeout:
+   `$env:CHOCO_TIMEOUT_SECONDS=3600
+3. Check whether another installer is open or Windows Installer is locked:
+   Get-Process msiexec,choco -ErrorAction SilentlyContinue
+4. Clear a stale Chocolatey lock if no Chocolatey process is running:
+   Remove-Item "$env:ProgramData\chocolatey\lib-bad" -Recurse -Force -ErrorAction SilentlyContinue
+5. Check Chocolatey's own logs:
+   "$env:ProgramData\chocolatey\logs\chocolatey.log"
+6. Verify network/package access:
+   choco search $packageHint --exact --verbose
+
+STDOUT
+------
+$Stdout
+
+STDERR
+------
+$Stderr
+"@
+
+    try {
+        Set-Content -Path $diagnosticPath -Value $content -Encoding UTF8 -Force -ErrorAction Stop
+        return $diagnosticPath
+    } catch {
+        Write-FileError -FilePath $diagnosticPath -Operation "write" -Reason "Could not write Chocolatey diagnostic log: $_" -Module "Save-ChocoDiagnosticLog"
+        return $null
+    }
+}
+
 function Invoke-ChocoProcess {
     param(
         [Parameter(Mandatory)]
@@ -59,22 +157,36 @@ function Invoke-ChocoProcess {
                 try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch { }
             }
 
+            $stdout = if (Test-Path $stdoutPath) { Get-Content -Path $stdoutPath -Raw -ErrorAction SilentlyContinue } else { "" }
+            $stderr = if (Test-Path $stderrPath) { Get-Content -Path $stderrPath -Raw -ErrorAction SilentlyContinue } else { "" }
+            $diagnosticPath = Save-ChocoDiagnosticLog -Label $Label -ArgumentList $ArgumentList -ExitCode -1 -TimedOut $true -TimeoutSeconds $TimeoutSeconds -Stdout $stdout -Stderr $stderr
+
             Write-Log "[$Label] TIMED OUT after ${TimeoutSeconds}s -- Chocolatey process tree killed" -Level "error"
-            return @{ Success = $false; TimedOut = $true; ExitCode = -1; Output = "Timed out after ${TimeoutSeconds}s" }
+            if (-not [string]::IsNullOrWhiteSpace($diagnosticPath)) {
+                Write-Log "[$Label] Detailed installer log: $diagnosticPath" -Level "error"
+                Write-Log "[$Label] Next: open that log, then retry the printed command in elevated PowerShell or raise CHOCO_TIMEOUT_SECONDS" -Level "info"
+            }
+            return @{ Success = $false; TimedOut = $true; ExitCode = -1; Output = "Timed out after ${TimeoutSeconds}s. Detailed installer log: $diagnosticPath"; DiagnosticPath = $diagnosticPath }
         }
 
-        $outputParts = @()
-        foreach ($path in @($stdoutPath, $stderrPath)) {
-            if (Test-Path $path) {
-                $outputParts += (Get-Content -Path $path -Raw -ErrorAction SilentlyContinue)
+        $stdout = if (Test-Path $stdoutPath) { Get-Content -Path $stdoutPath -Raw -ErrorAction SilentlyContinue } else { "" }
+        $stderr = if (Test-Path $stderrPath) { Get-Content -Path $stderrPath -Raw -ErrorAction SilentlyContinue } else { "" }
+        $outputParts = @($stdout, $stderr)
+        $output = (($outputParts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine).Trim()
+        $isSuccess = $process.ExitCode -eq 0
+        $diagnosticPath = $null
+        if (-not $isSuccess) {
+            $diagnosticPath = Save-ChocoDiagnosticLog -Label $Label -ArgumentList $ArgumentList -ExitCode $process.ExitCode -TimedOut $false -TimeoutSeconds $TimeoutSeconds -Stdout $stdout -Stderr $stderr
+            if (-not [string]::IsNullOrWhiteSpace($diagnosticPath)) {
+                Write-Log "[$Label] Detailed installer log: $diagnosticPath" -Level "error"
+                Write-Log "[$Label] Next: open that log, then retry the printed command in elevated PowerShell" -Level "info"
             }
         }
 
-        $output = (($outputParts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine).Trim()
-        return @{ Success = ($process.ExitCode -eq 0); TimedOut = $false; ExitCode = $process.ExitCode; Output = $output }
+        return @{ Success = $isSuccess; TimedOut = $false; ExitCode = $process.ExitCode; Output = $output; Stdout = $stdout; Stderr = $stderr; DiagnosticPath = $diagnosticPath }
     } catch {
         Write-FileError -FilePath "choco.exe" -Operation "resolve" -Reason "Failed to start Chocolatey command '$Label': $_" -Module "Invoke-ChocoProcess"
-        return @{ Success = $false; TimedOut = $false; ExitCode = -1; Output = $_.Exception.Message }
+        return @{ Success = $false; TimedOut = $false; ExitCode = -1; Output = $_.Exception.Message; DiagnosticPath = $null }
     } finally {
         foreach ($path in @($stdoutPath, $stderrPath)) {
             if (Test-Path $path) {
