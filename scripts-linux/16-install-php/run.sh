@@ -72,6 +72,11 @@ fi
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 
 verb_install() {
+    write_install_paths \
+      --tool   "PHP CLI + FPM ($PHP_VERSION)" \
+      --source "apt (Debian/Ubuntu) | ondrej/php PPA for pinned versions" \
+      --temp   "/var/cache/apt/archives" \
+      --target "/usr/bin/php + /usr/sbin/php-fpm*"
     log_info "[16] Starting PHP CLI + FPM installer (version=$PHP_VERSION, pkgs=$APT_PKG)"
     if verify_installed; then
         log_ok "[16] Already installed"
