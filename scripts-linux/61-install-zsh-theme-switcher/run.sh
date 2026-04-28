@@ -87,6 +87,11 @@ set_zsh_theme_line() {
 
 # ---------- verbs ----------
 verb_install() {
+  write_install_paths \
+    --tool   "ZSH theme switcher" \
+    --source "$SCRIPT_DIR/payload (zsh-theme command + helper functions)" \
+    --temp   "$TMPDIR/scripts-fixer/zsh-theme-switcher" \
+    --target "$HOME/.zshrc (marker block) + $HOME/.local/bin/zsh-theme"
   log_info "[61] Starting ZSH theme switcher installer"
 
   if [ ! -f "$ZSHRC" ]; then
