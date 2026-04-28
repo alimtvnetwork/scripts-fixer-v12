@@ -31,6 +31,98 @@ function Get-ChocoTimeoutSeconds {
     return $defaultTimeout
 }
 
+function Get-ChocoDiagnosticsDirectory {
+    $logsRoot = $script:_LogsDir
+    $hasLogsRoot = -not [string]::IsNullOrWhiteSpace($logsRoot)
+    if (-not $hasLogsRoot) {
+        $scriptsRoot = Split-Path -Parent $PSScriptRoot
+        $projectRoot = Split-Path -Parent $scriptsRoot
+        $logsRoot = Join-Path $projectRoot ".logs"
+    }
+
+    $diagnosticsDir = Join-Path $logsRoot "installers"
+    if (-not (Test-Path -LiteralPath $diagnosticsDir)) {
+        try {
+            New-Item -Path $diagnosticsDir -ItemType Directory -Force -ErrorAction Stop | Out-Null
+        } catch {
+            Write-FileError -FilePath $diagnosticsDir -Operation "write" -Reason "Could not create installer diagnostics directory: $_" -Module "Get-ChocoDiagnosticsDirectory"
+        }
+    }
+
+    return $diagnosticsDir
+}
+
+function Save-ChocoDiagnosticLog {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Label,
+
+        [Parameter(Mandatory)]
+        [string[]]$ArgumentList,
+
+        [int]$ExitCode,
+
+        [bool]$TimedOut,
+
+        [int]$TimeoutSeconds,
+
+        [string]$Stdout,
+
+        [string]$Stderr
+    )
+
+    $diagnosticsDir = Get-ChocoDiagnosticsDirectory
+    $safeLabel = ($Label.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $diagnosticPath = Join-Path $diagnosticsDir "${stamp}-${safeLabel}.log"
+    $commandLine = "choco.exe " + (($ArgumentList | ForEach-Object { if ($_ -match '\s') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' ')
+    $failureKind = if ($TimedOut) { "Timed out" } else { "Failed" }
+
+    $content = @"
+Chocolatey installer diagnostic log
+===================================
+
+Status: $failureKind
+Label: $Label
+Command: $commandLine
+Exit code: $ExitCode
+Timed out: $TimedOut
+Timeout seconds: $TimeoutSeconds
+Timestamp: $(Get-Date -Format "o")
+
+Actionable troubleshooting steps
+--------------------------------
+1. Re-run the command manually in an elevated PowerShell window:
+   $commandLine
+2. If it pauses for input, re-run with a longer timeout:
+   `$env:CHOCO_TIMEOUT_SECONDS=3600
+3. Check whether another installer is open or Windows Installer is locked:
+   Get-Process msiexec,choco -ErrorAction SilentlyContinue
+4. Clear a stale Chocolatey lock if no Chocolatey process is running:
+   Remove-Item "$env:ProgramData\chocolatey\lib-bad" -Recurse -Force -ErrorAction SilentlyContinue
+5. Check Chocolatey's own logs:
+   "$env:ProgramData\chocolatey\logs\chocolatey.log"
+6. Verify network/package access:
+   choco search $($ArgumentList[1]) --exact --verbose
+
+STDOUT
+------
+$Stdout
+
+STDERR
+------
+$Stderr
+"@
+
+    try {
+        Set-Content -Path $diagnosticPath -Value $content -Encoding UTF8 -Force -ErrorAction Stop
+        return $diagnosticPath
+    } catch {
+        Write-FileError -FilePath $diagnosticPath -Operation "write" -Reason "Could not write Chocolatey diagnostic log: $_" -Module "Save-ChocoDiagnosticLog"
+        return $null
+    }
+}
+
 function Invoke-ChocoProcess {
     param(
         [Parameter(Mandatory)]
