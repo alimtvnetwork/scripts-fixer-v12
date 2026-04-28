@@ -150,8 +150,9 @@ function Install-ChocoPackage {
 
     Write-Log ($slm.messages.chocoCheckingPackage -replace '\{package\}', $PackageName) -Level "info"
 
-    $installed = choco list --local-only --exact $PackageName 2>&1
-    $isAlreadyInstalled = $LASTEXITCODE -eq 0 -and $installed -match $PackageName
+    $installedResult = Invoke-ChocoProcess -ArgumentList @("list", "--local-only", "--exact", $PackageName) -Label "choco list $PackageName" -TimeoutSeconds 120
+    $installed = $installedResult.Output
+    $isAlreadyInstalled = $installedResult.Success -and $installed -match $PackageName
     if ($isAlreadyInstalled) {
         Write-Log ($slm.messages.chocoPackageInstalled -replace '\{package\}', $PackageName) -Level "success"
         return $true
@@ -170,8 +171,9 @@ function Install-ChocoPackage {
             $args += $ExtraArgs
         }
 
-        $output = & choco.exe @args 2>&1
-        $hasInstallFailed = $LASTEXITCODE -ne 0
+        $result = Invoke-ChocoProcess -ArgumentList $args -Label "choco install $PackageName"
+        $output = $result.Output
+        $hasInstallFailed = -not $result.Success
         if ($hasInstallFailed) {
             Write-Log ($slm.messages.chocoPackageInstallFailed -replace '\{package\}', $PackageName -replace '\{output\}', $output) -Level "error"
             return $false
@@ -205,8 +207,9 @@ function Upgrade-ChocoPackage {
 
     Write-Log ($slm.messages.chocoUpgradingPackage -replace '\{package\}', $PackageName) -Level "info"
     try {
-        $output = & choco.exe upgrade $PackageName -y 2>&1
-        $hasUpgradeFailed = $LASTEXITCODE -ne 0
+        $result = Invoke-ChocoProcess -ArgumentList @("upgrade", $PackageName, "-y") -Label "choco upgrade $PackageName"
+        $output = $result.Output
+        $hasUpgradeFailed = -not $result.Success
         if ($hasUpgradeFailed) {
             Write-Log ($slm.messages.chocoUpgradeFailed -replace '\{package\}', $PackageName -replace '\{output\}', $output) -Level "warn"
             return $false
@@ -240,8 +243,9 @@ function Uninstall-ChocoPackage {
 
     Write-Log "Uninstalling Chocolatey package: $PackageName" -Level "info"
     try {
-        $output = & choco.exe uninstall $PackageName -y --remove-dependencies 2>&1
-        $hasUninstallFailed = $LASTEXITCODE -ne 0
+        $result = Invoke-ChocoProcess -ArgumentList @("uninstall", $PackageName, "-y", "--remove-dependencies") -Label "choco uninstall $PackageName"
+        $output = $result.Output
+        $hasUninstallFailed = -not $result.Success
         if ($hasUninstallFailed) {
             Write-Log "Chocolatey uninstall failed for $PackageName : $output" -Level "error"
             return $false
