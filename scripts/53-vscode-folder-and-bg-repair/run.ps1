@@ -48,6 +48,14 @@ if (-not (Test-Path -LiteralPath $_script52Helpers)) {
 }
 . $_script52Helpers
 
+# -- Dot-source script 53's own pre-check helper -------------------------------
+$_precheckHelper = Join-Path $scriptDir "helpers\precheck.ps1"
+if (-not (Test-Path -LiteralPath $_precheckHelper)) {
+    Write-Host "FATAL: precheck helper not found at: $_precheckHelper (failure: cannot run script 53 without helpers/precheck.ps1)" -ForegroundColor Red
+    exit 2
+}
+. $_precheckHelper
+
 # -- Load config & log messages -----------------------------------------------
 $configPath = Join-Path $scriptDir "config.json"
 $logPath    = Join-Path $scriptDir "log-messages.json"
