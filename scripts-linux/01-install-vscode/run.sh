@@ -693,6 +693,11 @@ install_via_snap() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Visual Studio Code" \
+    --source "Microsoft apt repo (packages.microsoft.com) | snap | rpm" \
+    --temp   "/var/cache/apt/archives | $TMPDIR/scripts-fixer/vscode" \
+    --target "/usr/bin/code"
   log_info "[01] Starting VS Code installer"
   if verify_installed; then
     log_ok "[01] VS Code already installed"
