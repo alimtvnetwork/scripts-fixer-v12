@@ -254,7 +254,7 @@ const Settings = () => {
       const res = await fetch(endpoint, {
         method: "PATCH",
         headers,
-        body: JSON.stringify(patch),
+        body: JSON.stringify(pendingPayload ?? patch),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
