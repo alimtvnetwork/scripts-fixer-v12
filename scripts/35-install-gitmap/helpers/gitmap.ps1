@@ -250,10 +250,14 @@ function Install-Gitmap {
     try {
         Write-Log $LogMessages.messages.runningInstaller -Level "info"
 
-        # Download and execute the remote installer with -InstallDir
+        # Canonical one-liner: irm <install-quick.ps1> | iex
+        # We invoke the same way the README documents it so behaviour matches
+        # what users see when they run the bare one-liner. install-quick.ps1
+        # honours $env:GITMAP_INSTALL_DIR for non-default targets.
+        Write-Log "Invoking: irm $($GitmapConfig.installUrl) | iex" -Level "info"
+        $env:GITMAP_INSTALL_DIR = $installDir
         $installerScript = Invoke-RestMethod -Uri $GitmapConfig.installUrl -UseBasicParsing
-        $scriptBlock = [ScriptBlock]::Create($installerScript)
-        & $scriptBlock -InstallDir $installDir
+        Invoke-Expression $installerScript
 
     } catch {
         $errMsg   = $_.Exception.Message
