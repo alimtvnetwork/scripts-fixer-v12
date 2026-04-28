@@ -100,6 +100,11 @@ EOF
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 
 verb_install() {
+    write_install_paths \
+      --tool   "MySQL Server" \
+      --source "apt (Debian/Ubuntu): mysql-server" \
+      --temp   "/var/cache/apt/archives" \
+      --target "/usr/sbin/mysqld + datadir=$MYSQL_DATADIR (port=$MYSQL_PORT)"
     log_info "[18] Starting MySQL Server installer (port=$MYSQL_PORT, datadir=$MYSQL_DATADIR)"
     if verify_installed; then
         log_ok "[18] Already installed"
