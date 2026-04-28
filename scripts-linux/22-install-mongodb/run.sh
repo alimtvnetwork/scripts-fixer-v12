@@ -47,6 +47,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "MongoDB Community 7.0" \
+    --source "MongoDB apt repo (repo.mongodb.org)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/mongod + /var/lib/mongodb"
   log_info "[22] Starting MongoDB Community 7.0 installer"
   if verify_installed; then log_ok "[22] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[22] apt required"; return 1; fi
