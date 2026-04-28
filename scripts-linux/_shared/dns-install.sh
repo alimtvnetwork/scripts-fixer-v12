@@ -153,6 +153,28 @@ _dns_write_config() {
 dns_verb_install() {
     local interactive="$1" no_config="$2" cli_port="$3" cli_listen="$4" cli_fwd="$5"
     log_info "[$DNS_ID] starting $DNS_NAME installer"
+
+    # Triple-path logging (CODE RED: surface Source/Temp/Target).
+    local _dns_root; _dns_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    if [ -f "$_dns_root/_shared/install-paths.sh" ]; then
+        # shellcheck disable=SC1091
+        . "$_dns_root/_shared/install-paths.sh"
+        local _src _tgt _tmp
+        _src=$(_dns_get '.install.binary.url')
+        [ -z "$_src" ] && _src=$(_dns_get '.install.snap')
+        [ -z "$_src" ] && _src="apt repo (Debian/Ubuntu): $(_dns_get_array '.install.apt' | tr '\n' ' ')"
+        _tgt=$(_dns_get '.install.binary.dest')
+        [ -z "$_tgt" ] && _tgt=$(_dns_get '.configDropPath')
+        [ -z "$_tgt" ] && _tgt="/usr/sbin (apt-managed)"
+        _tmp="/var/cache/apt/archives"
+        write_install_paths \
+            --tool   "$DNS_NAME (DNS server)" \
+            --source "$_src" \
+            --temp   "$_tmp" \
+            --target "$_tgt" \
+            --action "Install" || true
+    fi
+
     if _dns_verify; then
         log_ok "[$DNS_ID] $DNS_NAME already installed"
     else
