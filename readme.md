@@ -28,26 +28,28 @@
 
 Use the installer scripts at the root of this repository: `install.ps1` and `install.sh`.
 
+If you already have this repo, these are the first commands to run:
+
 ### Windows (PowerShell 5.1+)
-
-```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
-```
-
-### Unix / macOS (bash)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
-```
-
-If you already cloned the repo, run the same root scripts directly:
 
 ```powershell
 .\install.ps1
 ```
 
+### Unix / macOS (bash)
+
 ```bash
 bash ./install.sh
+```
+
+Fresh-machine one-liners that fetch those same root scripts:
+
+```powershell
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
 ```
 
 If PowerShell blocks scripts, use a process-only bypass for the current shell first:
