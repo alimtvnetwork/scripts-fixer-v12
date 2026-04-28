@@ -8,6 +8,13 @@
 #    bash tools/scan-legacy-fixer-refs.sh
 #    SCAN_VERSIONS="8|9|10|11" bash tools/scan-legacy-fixer-refs.sh
 #    SCAN_ROOT="/path/to/repo" bash tools/scan-legacy-fixer-refs.sh
+#    SCAN_PATHS="tools/ src/" bash tools/scan-legacy-fixer-refs.sh
+#    bash tools/scan-legacy-fixer-refs.sh --paths tools/,src/
+#
+#  Path filter:
+#    SCAN_PATHS  : space-separated, repo-relative folders or files
+#    --paths     : comma- or space-separated, repo-relative folders or files
+#    Empty/unset = scan the entire repo (default).
 #
 #  Exit codes:
 #    0 = PASS (no matches)
@@ -16,10 +23,24 @@
 # --------------------------------------------------------------------------
 set -u
 
+# ---- CLI parsing (--paths) -------------------------------------------------
+CLI_PATHS=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --paths)
+            CLI_PATHS="${2:-}"; shift 2 ;;
+        --paths=*)
+            CLI_PATHS="${1#--paths=}"; shift ;;
+        *)
+            shift ;;
+    esac
+done
+
 SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || echo "$0")"
 DEFAULT_ROOT="$(cd "$(dirname "$SCRIPT_PATH")/.." 2>/dev/null && pwd)"
 ROOT="${SCAN_ROOT:-$DEFAULT_ROOT}"
 VERSIONS="${SCAN_VERSIONS:-8|9|10}"
+RAW_PATHS="${CLI_PATHS:-${SCAN_PATHS:-}}"
 
 # ANSI colors
 C_RED="\033[31m"; C_GRN="\033[32m"; C_YEL="\033[33m"; C_CYN="\033[36m"; C_DIM="\033[2m"; C_RST="\033[0m"
