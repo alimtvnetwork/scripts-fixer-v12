@@ -60,9 +60,29 @@ verb_install() {
     --target "$DEST"
 
   log_info "[35] Starting gitmap installer"
+  remote_ver="$(remote_version)"
   if verify_installed; then
-    log_ok "[35] Already installed"
-    mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0
+    local_ver="$(installed_version | head -1)"
+    log_ok "[35] Already installed${local_ver:+ ($local_ver)}"
+    if [ -n "$remote_ver" ]; then
+      log_info "[35] Latest remote GitMap version: $remote_ver"
+      if is_remote_newer "$local_ver" "$remote_ver"; then
+        log_info "[35] Update available (installed: $local_ver, remote: $remote_ver) -- running installer"
+      else
+        cmp_status=$?
+        if [ "$cmp_status" -eq 2 ]; then
+          log_warn "[35] Could not compare versions (installed: $local_ver, remote: $remote_ver) -- running installer to be safe"
+        else
+          log_ok "[35] GitMap is up to date -- installer skipped"
+          mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0
+        fi
+      fi
+    else
+      log_warn "[35] Could not resolve remote GitMap version -- installed GitMap kept, installer skipped"
+      mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0
+    fi
+  elif [ -n "$remote_ver" ]; then
+    log_info "[35] Latest remote GitMap version: $remote_ver"
   fi
 
   if ! command -v curl >/dev/null 2>&1; then
