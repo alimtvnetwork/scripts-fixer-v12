@@ -25,6 +25,11 @@ verify_installed() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Python AI base libraries" \
+    --source "PyPI via pip3 (numpy, pandas, torch, transformers, ...)" \
+    --temp   "$HOME/.cache/pip" \
+    --target "site-packages of active python3 (or venv if PIP_TARGET set)"
   log_info "[41] Starting Python AI base libraries installer"
   if verify_installed; then
     log_ok "[41] Already installed (venv + import OK)"
