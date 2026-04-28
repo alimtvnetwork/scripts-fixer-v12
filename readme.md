@@ -26,12 +26,14 @@
 
 ## 🚀 Install
 
-Run **one** of the commands below from a fresh shell. These are the canonical GitMap v8 installers.
+Clone the toolkit and run the dispatcher from a fresh shell.
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex
+git clone https://github.com/alimtvnetwork/gitmap-v6.git
+cd gitmap-v6
+.\run.ps1 -d
 ```
 
 If PowerShell blocks scripts, use a process-only bypass for the current shell first:
@@ -40,17 +42,21 @@ If PowerShell blocks scripts, use a process-only bypass for the current shell fi
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 ```
 
-Or run the one-liner inside a bypassed PowerShell process:
+Or run the dispatcher inside a bypassed PowerShell process:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
 ```
 
 ### Unix / macOS (bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh
+git clone https://github.com/alimtvnetwork/gitmap-v6.git
+cd gitmap-v6
+bash scripts-linux/run.sh --list
 ```
+
+> Looking for the **GitMap CLI** (`gitmap` command)? See [Script 35 — Install GitMap](scripts/35-install-gitmap/) for its dedicated one-liner.
 
 ---
 
@@ -1099,34 +1105,36 @@ Console:
 
 ## Quick Start
 
-### One-liner install (Windows / PowerShell)
+### Clone + run (Windows / PowerShell)
 
 ```powershell
-# Bare one-liner
-irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex
+# Clone the toolkit
+git clone https://github.com/alimtvnetwork/gitmap-v6.git
+cd gitmap-v6
 
-# Pin to a specific GitMap release
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1))) -Version v2.48.0
+# Interactive menu
+.\run.ps1 -d
 
 # Run elevated when a script needs HKCR / Program Files access
 Start-Process powershell -Verb RunAs -ArgumentList @(
-    '-NoProfile','-ExecutionPolicy','Bypass','-Command',
-    "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
+    '-NoProfile','-ExecutionPolicy','Bypass','-File','.\run.ps1','-d'
 )
 ```
 
-### One-liner install (Unix / macOS / Bash)
+### Clone + run (Unix / macOS / Bash)
 
 ```bash
-# Bare one-liner
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh
+git clone https://github.com/alimtvnetwork/gitmap-v6.git
+cd gitmap-v6
 
-# Pin to a specific GitMap release
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh -s -- --version v2.48.0
+# List available Linux scripts
+bash scripts-linux/run.sh --list
 
 # Run with sudo only when a script needs root access
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sudo sh
+sudo bash scripts-linux/run.sh install <keyword>
 ```
+
+> The GitMap CLI installer (`irm .../gitmap-v8/.../install.ps1 | iex`) is **not** the toolkit bootstrap. It only installs the standalone `gitmap` command — see [Script 35](scripts/35-install-gitmap/).
 
 
 ### Manual clone
@@ -1183,11 +1191,8 @@ For a single command without changing the current shell policy:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
 ```
 
-For the remote GitMap installer one-liner:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
-```
+
 
 To make local scripts permanent for your user (still no admin):
 
