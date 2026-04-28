@@ -167,6 +167,7 @@ try {
         return
     }
 
+    $rollbackSummary = @()
     foreach ($editionName in $detectedEditions) {
         $edition = $config.editions.$editionName
 
@@ -176,6 +177,11 @@ try {
             $isAllSuccessful = $false
             continue
         }
+
+        # Per-edition transactional state
+        $editionApplyOk     = $true
+        $editionPreState    = @{}
+        $editionBackupFile  = $null
 
         Write-Host ""
         Write-Host $logMessages.messages.editionBorderLine -ForegroundColor DarkCyan
