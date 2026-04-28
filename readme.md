@@ -1106,36 +1106,36 @@ Console:
 
 ## Quick Start
 
-### Clone + run (Windows / PowerShell)
+### Install GitMap (Windows / PowerShell)
 
 ```powershell
 # Clone the toolkit
 git clone https://github.com/alimtvnetwork/gitmap-v6.git
 cd gitmap-v6
 
-# Interactive menu
-.\run.ps1 -d
+# Install GitMap through this repo's script 35
+.\run.ps1 install gitmap
 
 # Run elevated when a script needs HKCR / Program Files access
 Start-Process powershell -Verb RunAs -ArgumentList @(
-    '-NoProfile','-ExecutionPolicy','Bypass','-File','.\run.ps1','-d'
+    '-NoProfile','-ExecutionPolicy','Bypass','-File','.\run.ps1','install','gitmap'
 )
 ```
 
-### Clone + run (Unix / macOS / Bash)
+### Install GitMap (Unix / macOS / Bash)
 
 ```bash
 git clone https://github.com/alimtvnetwork/gitmap-v6.git
 cd gitmap-v6
 
-# List available Linux scripts
-bash scripts-linux/run.sh --list
+# Install GitMap through this repo's script 35
+bash scripts-linux/run.sh install gitmap
 
 # Run with sudo only when a script needs root access
 sudo bash scripts-linux/run.sh install <keyword>
 ```
 
-> The GitMap CLI installer (`irm .../gitmap-v8/.../install.ps1 | iex`) is **not** the toolkit bootstrap. It only installs the standalone `gitmap` command — see [Script 35](scripts/35-install-gitmap/).
+To open the full toolkit menu instead, use `.un.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS.
 
 
 ### Manual clone
@@ -1189,7 +1189,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 For a single command without changing the current shell policy:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 install gitmap
 ```
 
 
