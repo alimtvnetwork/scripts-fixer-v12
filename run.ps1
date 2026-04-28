@@ -2186,6 +2186,48 @@ if ($hasCommand) {
     $isBareGsaCommand     = $normalizedCommand -eq "gsa" -or $normalizedCommand -eq "git-safe-all" -or $normalizedCommand -eq "gitsafeall"
     $isBareScriptId = $normalizedCommand -match '^\d+$'
 
+    # ── Pull-before-subcommand-dispatch ──────────────────────────────────
+    # CODE RED fix for stale config.json on long-running clones: any "bare"
+    # subcommand (profile, os, models, vscode-folder, git-tools, gsa) used to
+    # bypass the pull at line ~2450, leaving users with stale profile recipes
+    # (the "dev profile not found" + "small-dev shows 27 steps" symptom).
+    # Skip when:
+    #   - SCRIPTS_FIXER_NO_PULL=1 env var is set
+    #   - any of $Install contains --no-pull / -no-pull / --offline
+    #   - command is read-only (status/path/scan/export/doctor)
+    $isReadOnlyBare = $isBarePathCommand -or $isBareScanCommand -or $isBareExportCommand -or $isBareStatusCommand -or $isBareDoctorCommand
+    $isDispatchingBareSubcommand = $isBareOsCommand -or $isBareVscodeFolderCommand -or $isBareProfileCommand -or $isBareGitToolsCommand -or $isBareGsaCommand -or $isBareModelsCommand
+    $isNoPullEnv = $env:SCRIPTS_FIXER_NO_PULL -eq "1"
+    $isNoPullFlag = $false
+    if ($null -ne $Install) {
+        foreach ($arg in $Install) {
+            $low = "$arg".Trim().ToLower()
+            if ($low -in @("--no-pull", "-no-pull", "--nopull", "-nopull", "--offline", "-offline")) {
+                $isNoPullFlag = $true
+                break
+            }
+        }
+    }
+    $shouldPullBeforeSubcommand = $isDispatchingBareSubcommand -and -not $isReadOnlyBare -and -not $isNoPullEnv -and -not $isNoPullFlag
+    if ($shouldPullBeforeSubcommand) {
+        Show-VersionHeader
+        Remove-Item Env:\SCRIPTS_ROOT_RUN -ErrorAction SilentlyContinue
+        $sharedGitPullEarly = Join-Path $RootDir "scripts\shared\git-pull.ps1"
+        $isEarlyPullHelperPresent = Test-Path $sharedGitPullEarly
+        if ($isEarlyPullHelperPresent) {
+            . $sharedGitPullEarly
+            Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+            Write-Host "Refreshing repo before '$normalizedCommand' subcommand: " -NoNewline
+            Write-Host $RootDir -ForegroundColor White
+            Invoke-GitPull -RepoRoot $RootDir
+            $env:SCRIPTS_ROOT_RUN = "1"
+        } else {
+            Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+            Write-Host "Skipping pre-subcommand pull -- helper missing: $sharedGitPullEarly"
+        }
+    }
+
+
     if ($isBareOsCommand) {
         Show-VersionHeader
         $osScript = Join-Path $RootDir "scripts\os\run.ps1"

@@ -49,6 +49,37 @@ $config      = Import-JsonConfig $configPath
 $logMessages = Import-JsonConfig $logMsgPath
 $script:LogMessages = $logMessages
 
+# ── Stale-config detector ────────────────────────────────────────────
+# Warn loudly if scripts/profile/config.json is behind upstream so users see
+# why a profile (e.g. 'dev') seems missing. Best-effort, never fatal.
+try {
+    $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
+    Push-Location $repoRoot
+    $localSha   = (& git rev-parse "HEAD:scripts/profile/config.json" 2>$null) | Out-String
+    $remoteSha  = (& git rev-parse "@{u}:scripts/profile/config.json" 2>$null) | Out-String
+    Pop-Location
+    $localSha  = $localSha.Trim()
+    $remoteSha = $remoteSha.Trim()
+    $hasLocal   = -not [string]::IsNullOrWhiteSpace($localSha)
+    $hasRemote  = -not [string]::IsNullOrWhiteSpace($remoteSha)
+    $isDrifted  = $hasLocal -and $hasRemote -and ($localSha -ne $remoteSha)
+    if ($isDrifted) {
+        Write-Host ""
+        Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+        Write-Host "Profile config is BEHIND upstream:" -ForegroundColor Yellow
+        Write-Host "          File   : " -NoNewline -ForegroundColor DarkGray
+        Write-Host $configPath -ForegroundColor White
+        Write-Host "          Local  : $localSha" -ForegroundColor DarkGray
+        Write-Host "          Remote : $remoteSha" -ForegroundColor DarkGray
+        Write-Host "          Fix    : " -NoNewline -ForegroundColor DarkGray
+        Write-Host "git -C `"$repoRoot`" pull --ff-only" -ForegroundColor Cyan
+        Write-Host ""
+    }
+} catch {
+    # Silent: detector must never break the dispatcher
+}
+
+
 function Show-ProfileHelp {
     param([PSObject]$Config)
     Write-Host ""
