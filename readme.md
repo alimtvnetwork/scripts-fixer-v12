@@ -24,6 +24,40 @@
 
 ---
 
+## 🚀 Install
+
+Run **one** of the commands below from a fresh shell. The bootstrapper auto-discovers the latest published `scripts-fixer-vN` repo, clones it into a sensible folder, and hands off to `run.ps1`.
+
+### Windows (PowerShell 5.1+)
+
+```powershell
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v7/main/install.ps1 | iex
+```
+
+Useful flags (append after `iex` via `& { ... } -Flag`):
+
+- `-NoUpgrade` — skip the auto-discovery probe and use this exact version
+- `-Version`   — print current + latest version, then exit (no install)
+- `-DryRun`    — show every step without mutating the system
+- `-Help`      — list all flags
+
+### Unix / macOS (bash)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v7/main/install.sh | bash
+```
+
+Useful flags (append with `-s --` when piping through bash):
+
+- `--no-upgrade` — skip the auto-discovery probe
+- `--version`    — print current + latest version, then exit
+- `--dry-run`    — print every step but mutate nothing
+- `--help`       — list all flags
+
+> **Tip:** Both installers honour `SCRIPTS_FIXER_NO_UPGRADE=1` if you'd rather pin the version via environment variable. Full spec lives in [`spec/install-bootstrap/readme.md`](spec/install-bootstrap/readme.md).
+
+---
+
 ## At a Glance
 
 <table>
