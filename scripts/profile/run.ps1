@@ -155,15 +155,97 @@ if ($normalizedAction -eq "list") {
     exit 0
 }
 
-# Resolve profile by name (allow alias 'git' -> 'git-compact')
-$profileAliases = @{
-    "git"        = "git-compact"
-    "gitcompact" = "git-compact"
-    "cppdx"      = "cpp-dx"
-    "smalldev"   = "small-dev"
+# ── Profile alias resolution ────────────────────────────────────────
+# Two kinds of aliases (see scripts/profile/profile-aliases.json):
+#   exact    -> hard rename, silent (e.g. 'git' -> 'git-compact')
+#   fallback -> closest-match for a profile not present locally;
+#               emits a [ WARN ] before running (e.g. 'dev' -> 'base')
+#
+# Built-in defaults are merged with the JSON file so the dispatcher still
+# works even if the alias file is deleted.
+$builtinAliases = @{
+    "git"         = @{ kind = "exact";    target = "git-compact" }
+    "gitcompact"  = @{ kind = "exact";    target = "git-compact" }
+    "cppdx"       = @{ kind = "exact";    target = "cpp-dx" }
+    "smalldev"    = @{ kind = "exact";    target = "small-dev" }
+    "dev"         = @{ kind = "fallback"; target = "base";    reason = "'dev' profile not present locally; closest match is 'base'." }
+    "dev-advance" = @{ kind = "fallback"; target = "advance"; reason = "'dev-advance' profile not present locally; closest match is 'advance'." }
 }
-$resolvedName = $normalizedAction
-if ($profileAliases.ContainsKey($resolvedName)) { $resolvedName = $profileAliases[$resolvedName] }
+
+$aliasMap   = @{}
+foreach ($k in $builtinAliases.Keys) { $aliasMap[$k.ToLower()] = $builtinAliases[$k] }
+
+$aliasPath = Join-Path $scriptDir "profile-aliases.json"
+if (Test-Path -LiteralPath $aliasPath) {
+    try {
+        $aliasObj = Get-Content -LiteralPath $aliasPath -Raw | ConvertFrom-Json
+        if ($aliasObj -and $aliasObj.aliases) {
+            foreach ($prop in $aliasObj.aliases.PSObject.Properties) {
+                $entry = @{
+                    kind   = "$($prop.Value.kind)".ToLower()
+                    target = "$($prop.Value.target)"
+                }
+                if ($prop.Value.PSObject.Properties.Name -contains 'reason') {
+                    $entry.reason = "$($prop.Value.reason)"
+                }
+                $aliasMap[$prop.Name.ToLower()] = $entry
+            }
+        }
+    } catch {
+        $msg = $logMessages.messages.aliasFileParseFailed `
+            -replace '\{path\}', $aliasPath `
+            -replace '\{error\}', $_.Exception.Message
+        Write-Host ""
+        Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+        Write-Host $msg -ForegroundColor Yellow
+    }
+} else {
+    $msg = $logMessages.messages.aliasFileMissing -replace '\{path\}', $aliasPath
+    Write-Host "  [ INFO ] " -ForegroundColor DarkGray -NoNewline
+    Write-Host $msg -ForegroundColor DarkGray
+}
+
+$resolvedName     = $normalizedAction
+$aliasFallbackHit = $null  # populated when a fallback alias is used
+
+if ($aliasMap.ContainsKey($resolvedName)) {
+    $entry  = $aliasMap[$resolvedName]
+    $target = $entry.target
+    if ($entry.kind -eq "fallback") {
+        # Only fall back if the requested name itself is NOT already a real profile,
+        # AND the target IS a real profile. Otherwise let the normal not-found path handle it.
+        $isRequestedReal = $null -ne $config.profiles.$resolvedName
+        $isTargetReal    = $null -ne $config.profiles.$target
+        if (-not $isRequestedReal -and $isTargetReal) {
+            $aliasFallbackHit = @{ requested = $resolvedName; target = $target; reason = $entry.reason }
+            $resolvedName = $target
+        }
+    } else {
+        # exact: silent rename (still print a small INFO line for transparency)
+        $resolvedName = $target
+        $line = $logMessages.messages.aliasExact `
+            -replace '\{requested\}', $normalizedAction `
+            -replace '\{target\}',    $target
+        Write-Host "  [ INFO ] " -ForegroundColor DarkGray -NoNewline
+        Write-Host $line -ForegroundColor DarkGray
+    }
+}
+
+# Emit the warning for fallback aliases AFTER resolution so it's visually grouped
+# with the upcoming "Profile: <name>" header.
+if ($aliasFallbackHit) {
+    $warn = $logMessages.messages.aliasFallback `
+        -replace '\{requested\}', $aliasFallbackHit.requested `
+        -replace '\{target\}',    $aliasFallbackHit.target
+    Write-Host ""
+    Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+    Write-Host $warn -ForegroundColor Yellow
+    if ($aliasFallbackHit.reason) {
+        $reasonLine = $logMessages.messages.aliasFallbackReason -replace '\{reason\}', $aliasFallbackHit.reason
+        Write-Host ("          " + $reasonLine) -ForegroundColor DarkGray
+    }
+    Write-Host ("          " + $logMessages.messages.aliasFallbackHint) -ForegroundColor DarkGray
+}
 
 $hasProfile = $null -ne $config.profiles.$resolvedName
 if (-not $hasProfile) {
