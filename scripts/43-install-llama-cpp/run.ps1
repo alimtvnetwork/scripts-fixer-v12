@@ -37,6 +37,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "url-freshness.ps1")
 . (Join-Path $sharedDir "aria2c-download.ps1")
 . (Join-Path $sharedDir "aria2c-batch.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\llama-cpp.ps1")
@@ -61,6 +62,13 @@ if ($Help -or $Command -eq "--help") {
 $isCheckUpdatesMode = $CheckUpdates -or ($Command -ieq "check-updates") -or ($Command -ieq "--check-updates")
 if ($isCheckUpdatesMode) {
     Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "llama.cpp" `
+    -Source "https://github.com/ggerganov/llama.cpp/releases (prebuilt zip)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\llama-cpp") `
+    -Target ($env:LOCALAPPDATA + "\llama-cpp")
     Initialize-Logging -ScriptName $logMessages.scriptName
     try {
         Invoke-CatalogUpdateCheck -CatalogPath $catalogPath -ScriptDir $scriptDir `

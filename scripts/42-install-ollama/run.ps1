@@ -27,6 +27,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "download-retry.ps1")
 . (Join-Path $sharedDir "disk-space.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\ollama.ps1")
@@ -43,6 +44,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Ollama" `
+    -Source "https://ollama.com/download/OllamaSetup.exe" `
+    -Temp   ($env:TEMP + "\scripts-fixer\ollama") `
+    -Target ($env:LOCALAPPDATA + "\Programs\Ollama")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
