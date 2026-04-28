@@ -26,6 +26,7 @@ $script:ScriptDir = $scriptDir
 . (Join-Path $sharedDir "git-pull.ps1")
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\winget.ps1")
@@ -42,6 +43,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "winget (App Installer)" `
+    -Source "https://aka.ms/getwinget (Microsoft Store / GitHub release)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\winget") `
+    -Target (C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
