@@ -250,9 +250,9 @@ function Install-Gitmap {
     try {
         Write-Log $LogMessages.messages.runningInstaller -Level "info"
 
-        # Canonical one-liner: irm <install-quick.ps1> | iex
+        # Canonical one-liner: irm <gitmap/scripts/install.ps1> | iex
         # We invoke the same way the README documents it so behaviour matches
-        # what users see when they run the bare one-liner. install-quick.ps1
+        # what users see when they run the bare one-liner. install.ps1
         # honours $env:GITMAP_INSTALL_DIR for non-default targets.
         Write-Log "Invoking: irm $($GitmapConfig.installUrl) | iex" -Level "info"
         $env:GITMAP_INSTALL_DIR = $installDir
