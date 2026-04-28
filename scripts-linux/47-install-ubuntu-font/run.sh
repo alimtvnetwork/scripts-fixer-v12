@@ -21,6 +21,11 @@ INSTALLED_MARK="$ROOT/.installed/47.ok"
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Ubuntu font family" \
+    --source "apt (Debian/Ubuntu): fonts-ubuntu" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/share/fonts/truetype/ubuntu"
   log_info "[47] Starting Ubuntu font family installer"
   if verify_installed; then
     log_ok "[47] Already installed"
