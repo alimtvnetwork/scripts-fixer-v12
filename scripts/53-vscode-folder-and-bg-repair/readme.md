@@ -38,7 +38,37 @@ folder AND when right-clicking inside an open folder window.
 .\run.ps1 repair-vscode
 .\run.ps1 repair-vscode -Edition stable
 .\run.ps1 repair-vscode -NoRollback     # apply without auto-rollback safety net
+
+# Manual rollback: restore the most recent snapshot per edition (or one
+# explicit .reg file). Snapshots are created automatically before every
+# apply under .logs\registry-backups\.
+.\run.ps1 -Rollback
+.\run.ps1 rollback                                 # alias command
+.\run.ps1 -Rollback -Edition stable
+.\run.ps1 -Rollback -BackupFile ".logs\registry-backups\script53-stable-2026-04-28T12-00-00Z.reg"
 ```
+
+## Automatic backups + manual rollback
+
+Every write-mode run (`repair`, `repair-vscode`) snapshots the affected
+registry keys to a single timestamped `.reg` file under
+`.logs\registry-backups\` BEFORE any write. Files are named
+`script53-<edition>-<timestamp>.reg` so they can be picked per edition.
+
+`-Rollback` (or the `rollback` command) restores the prior state without
+running an apply:
+
+1. Picks `-BackupFile` if provided, otherwise the newest
+   `script53-<edition>*.reg` under `.logs\registry-backups\`.
+2. Deletes any keys the apply phase might have created so `reg import`
+   merges cleanly.
+3. Runs `reg import <snapshot>` to restore the exact prior state.
+4. Verifies each key and prints a colored RESTORED / FAILED summary.
+5. Restarts Explorer (unless `restartExplorer=false` in config) so the
+   restored entries appear immediately.
+
+Per edition: `-Edition stable` rolls back only that edition. With no
+filter, every detected edition is restored from its own latest snapshot.
 
 ## Transactional repair (`repair-vscode`)
 
