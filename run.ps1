@@ -2356,6 +2356,116 @@ if ($hasCommand) {
         $modelsScript = Join-Path $RootDir "scripts\models\run.ps1"
         & $modelsScript @Install
         exit 0
+    } elseif ($isBareSelfUpdateCommand) {
+        # ── Self-update: refresh the local scripts-fixer checkout ────────
+        # Pulls latest commits from the tracked branch via the shared
+        # Invoke-GitPull helper. Optional flags:
+        #   --reinstall     after pull, re-run install.ps1 from the repo
+        #                   to refresh shims, PATH entries, etc.
+        #   --check         show 'git fetch' status only, do not pull
+        Show-VersionHeader
+
+        $isCheckOnly  = $false
+        $isReinstall  = $false
+        if ($null -ne $Install) {
+            foreach ($arg in $Install) {
+                $low = "$arg".Trim().ToLower()
+                if ($low -in @("--check", "-check"))                  { $isCheckOnly = $true }
+                if ($low -in @("--reinstall", "-reinstall", "--re"))  { $isReinstall = $true }
+            }
+        }
+
+        # Force the helper to run even though we're inside the root dispatcher
+        Remove-Item Env:\SCRIPTS_ROOT_RUN -ErrorAction SilentlyContinue
+
+        $sharedGitPull = Join-Path $RootDir "scripts\shared\git-pull.ps1"
+        $isHelperAvailable = Test-Path -LiteralPath $sharedGitPull
+        if (-not $isHelperAvailable) {
+            Write-Host ""
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "Self-update helper not found." -ForegroundColor Red
+            Write-Host "          File   : " -NoNewline -ForegroundColor DarkGray
+            Write-Host $sharedGitPull -ForegroundColor White
+            Write-Host "          Reason : Missing scripts/shared/git-pull.ps1 -- repo may be incomplete." -ForegroundColor DarkGray
+            exit 1
+        }
+        . $sharedGitPull
+
+        if ($isCheckOnly) {
+            Write-Host ""
+            Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+            Write-Host "Checking for upstream changes (no pull)..."
+            try {
+                Push-Location $RootDir
+                & git fetch --quiet 2>&1 | Out-Null
+                $local  = (& git rev-parse HEAD 2>$null).Trim()
+                $remote = (& git rev-parse "@{u}" 2>$null).Trim()
+                $base   = (& git merge-base HEAD "@{u}" 2>$null).Trim()
+                Pop-Location
+
+                $hasLocal  = -not [string]::IsNullOrWhiteSpace($local)
+                $hasRemote = -not [string]::IsNullOrWhiteSpace($remote)
+                if (-not ($hasLocal -and $hasRemote)) {
+                    Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+                    Write-Host "Could not determine upstream tracking branch." -ForegroundColor Yellow
+                    exit 2
+                }
+                $isUpToDate = $local -eq $remote
+                $isBehind   = (-not $isUpToDate) -and ($local -eq $base)
+                $isAhead    = (-not $isUpToDate) -and ($remote -eq $base)
+                Write-Host ""
+                Write-Host "  Local  : $local" -ForegroundColor DarkGray
+                Write-Host "  Remote : $remote" -ForegroundColor DarkGray
+                if ($isUpToDate) {
+                    Write-Host "  [  OK  ] " -ForegroundColor Green -NoNewline
+                    Write-Host "Already up to date." -ForegroundColor Green
+                } elseif ($isBehind) {
+                    Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+                    Write-Host "Behind upstream -- run '.\run.ps1 self-update' to pull." -ForegroundColor Cyan
+                } elseif ($isAhead) {
+                    Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+                    Write-Host "Ahead of upstream (local commits not pushed)." -ForegroundColor Cyan
+                } else {
+                    Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+                    Write-Host "Diverged from upstream." -ForegroundColor Yellow
+                }
+            } catch {
+                Pop-Location -ErrorAction SilentlyContinue
+                Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                Write-Host "git check failed: $($_.Exception.Message)" -ForegroundColor Red
+                exit 1
+            }
+            exit 0
+        }
+
+        Write-Host ""
+        Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+        Write-Host "Self-updating local scripts-fixer copy..."
+        Write-Host "          Repo   : " -NoNewline -ForegroundColor DarkGray
+        Write-Host $RootDir -ForegroundColor White
+
+        Invoke-GitPull -RepoRoot $RootDir
+
+        if ($isReinstall) {
+            $installScript = Join-Path $RootDir "install.ps1"
+            $hasInstaller  = Test-Path -LiteralPath $installScript
+            if (-not $hasInstaller) {
+                Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+                Write-Host "Cannot --reinstall: install.ps1 not found." -ForegroundColor Yellow
+                Write-Host "          File   : " -NoNewline -ForegroundColor DarkGray
+                Write-Host $installScript -ForegroundColor White
+            } else {
+                Write-Host ""
+                Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+                Write-Host "Re-running install.ps1 to refresh shims/PATH..."
+                & $installScript
+            }
+        }
+
+        Write-Host ""
+        Write-Host "  [  OK  ] " -ForegroundColor Green -NoNewline
+        Write-Host "Self-update complete." -ForegroundColor Green
+        exit 0
     } elseif ($isBareUpdateCommand) {
         Show-VersionHeader
 
