@@ -49,6 +49,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Kubernetes (kubectl, kubeadm, kubelet) v1.30" \
+    --source "Kubernetes apt repo (pkgs.k8s.io/core:/stable:/v1.30)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/kubectl + /usr/bin/kubeadm + /usr/bin/kubelet"
   log_info "[46] Starting Kubernetes (kubectl, kubeadm, kubelet) v1.30 installer"
   if verify_installed; then log_ok "[46] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[46] apt required"; return 1; fi
