@@ -26,35 +26,31 @@
 
 ## 🚀 Install
 
-Run **one** of the commands below from a fresh shell. The bootstrapper auto-discovers the latest published `scripts-fixer-vN` repo, clones it into a sensible folder, and hands off to `run.ps1`.
+Run **one** of the commands below from a fresh shell. These are the canonical GitMap v8 installers.
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex
 ```
 
-Useful flags (append after `iex` via `& { ... } -Flag`):
+If PowerShell blocks scripts, use a process-only bypass for the current shell first:
 
-- `-NoUpgrade` — skip the auto-discovery probe and use this exact version
-- `-Version`   — print current + latest version, then exit (no install)
-- `-DryRun`    — show every step without mutating the system
-- `-Help`      — list all flags
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+```
+
+Or run the one-liner inside a bypassed PowerShell process:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
+```
 
 ### Unix / macOS (bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh
 ```
-
-Useful flags (append with `-s --` when piping through bash):
-
-- `--no-upgrade` — skip the auto-discovery probe
-- `--version`    — print current + latest version, then exit
-- `--dry-run`    — print every step but mutate nothing
-- `--help`       — list all flags
-
-> **Tip:** Both installers honour `SCRIPTS_FIXER_NO_UPGRADE=1` if you'd rather pin the version via environment variable. Full spec lives in [`spec/install-bootstrap/readme.md`](spec/install-bootstrap/readme.md).
 
 ---
 
