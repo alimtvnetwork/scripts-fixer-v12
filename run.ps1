@@ -252,6 +252,9 @@ function Show-RootHelp {
     Write-Host "    $(".\run.ps1 update --check".PadRight($col))" -NoNewline; Write-Host "List outdated packages (no upgrade)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 update -y".PadRight($col))" -NoNewline; Write-Host "Upgrade all, skip confirmation" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 update --exclude=pkg1,pkg2".PadRight($col))" -NoNewline; Write-Host "Upgrade all except listed" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 self-update".PadRight($col))" -NoNewline; Write-Host "Refresh local scripts-fixer copy (git pull)" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 self-update --check".PadRight($col))" -NoNewline; Write-Host "Show if local copy is behind upstream (no pull)" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 self-update --reinstall".PadRight($col))" -NoNewline; Write-Host "Pull, then re-run install.ps1 (refresh shims/PATH)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 export".PadRight($col))" -NoNewline; Write-Host "Export all app settings to repo" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 export npp,obs".PadRight($col))" -NoNewline; Write-Host "Export specific app settings" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 status".PadRight($col))" -NoNewline; Write-Host "Show dashboard of all installed tools" -ForegroundColor DarkGray
