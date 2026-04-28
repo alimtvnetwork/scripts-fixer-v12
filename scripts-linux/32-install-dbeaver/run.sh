@@ -21,6 +21,11 @@ INSTALLED_MARK="$ROOT/.installed/32.ok"
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 
 verb_install() {
+  write_install_paths \
+    --tool   "DBeaver Community" \
+    --source "DBeaver apt repo (dbeaver.io/debs/dbeaver-ce)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/dbeaver"
   log_info "[32] Starting DBeaver Community installer"
   if verify_installed; then
     log_ok "[32] Already installed"
