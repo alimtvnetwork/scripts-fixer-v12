@@ -283,7 +283,7 @@ try {
                 Pass     = [bool]$ok
                 Path     = $regPath
             }
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
         }
         foreach ($target in $ensureTargets) {
             $regPath = $edition.registryPaths.$target
