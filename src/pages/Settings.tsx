@@ -165,6 +165,18 @@ const Settings = () => {
   useEffect(() => { localStorage.setItem(BRIDGE_KEY, bridgeUrl); }, [bridgeUrl]);
   useEffect(() => { localStorage.setItem(TOKEN_KEY, bridgeToken); }, [bridgeToken]);
 
+  // Restore the last successful preview snapshot from localStorage so the user
+  // can re-open the diff dialog immediately without round-tripping the bridge.
+  useEffect(() => {
+    const cached = loadCachedPreview();
+    if (!cached) return;
+    setStoredConfig(cached.storedConfig);
+    setMergedPreview(cached.mergedPreview);
+    setDiff(cached.diff);
+    setPendingPayload(cached.pendingPayload);
+    setCachedSavedAt(cached.savedAt);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const probe = async () => {
