@@ -8,8 +8,25 @@
 #    ./tools/fix-legacy-fixer-refs.sh                # apply changes
 #    DRY_RUN=1 ./tools/fix-legacy-fixer-refs.sh      # preview only
 #    FIX_TARGET=v11 FIX_VERSIONS="8 9 10" ./tools/fix-legacy-fixer-refs.sh
+#    FIX_PATHS="tools/ src/" ./tools/fix-legacy-fixer-refs.sh
+#    ./tools/fix-legacy-fixer-refs.sh --paths tools/,src/
+#
+#  Path filter:
+#    FIX_PATHS  : space-separated, repo-relative folders or files
+#    --paths    : comma- or space-separated, repo-relative folders or files
+#    Empty/unset = rewrite across the entire repo (default).
 # --------------------------------------------------------------------------
 set -u
+
+# ---- CLI parsing (--paths) -------------------------------------------------
+CLI_PATHS=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --paths)     CLI_PATHS="${2:-}"; shift 2 ;;
+        --paths=*)   CLI_PATHS="${1#--paths=}"; shift ;;
+        *)           shift ;;
+    esac
+done
 
 RED=$'\e[31m'; GRN=$'\e[32m'; YLW=$'\e[33m'; CYN=$'\e[36m'; MAG=$'\e[35m'; RST=$'\e[0m'
 info()  { printf '%s[info ]%s %s\n' "$CYN" "$RST" "$*"; }
