@@ -334,6 +334,11 @@ agg_chsh_restore() {
 
 # ---------- verbs ----------
 verb_install() {
+  write_install_paths \
+    --tool   "zsh-clear (safer ZSH uninstall)" \
+    --source "$HOME/.zshrc.backup-* + marker-bounded blocks deployed by 60/61" \
+    --temp   "$TMPDIR/scripts-fixer/zsh-clear" \
+    --target "$HOME/.zshrc (restored or stripped) + optional $HOME/.oh-my-zsh removal"
   log_info "[62] Starting safer ZSH uninstall (restore + surgical strip)"
 
   # Per-run aggressive flag overrides (always opt-in)
