@@ -173,6 +173,11 @@ esac
 
 ensure_run_dir
 
+write_install_paths \
+  --tool   "VS Code menu cleanup (macOS, scope=$RESOLVED_SCOPE)" \
+  --source "$SCRIPT_DIR/config.json (path allow-list of Quick Actions/LaunchAgents/Login Items/URL handlers)" \
+  --temp   "$ROOT/.logs/66/<TS>" \
+  --target "Removed: Services workflows + LaunchAgents/Daemons + Login Items + 'code'/'code-insiders' shims + vscode:// URL handlers"
 log_info "===== vscode-menu-cleanup-mac (script 66) ====="
 log_info "Resolved scope: requested='$REQUESTED_SCOPE', resolved='$RESOLVED_SCOPE' (root=$IS_ROOT)."
 if [ "$DRY_RUN" -eq 1 ]; then
