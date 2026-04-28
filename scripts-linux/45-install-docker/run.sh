@@ -49,6 +49,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Docker CE + CLI + Compose plugin" \
+    --source "Docker apt repo (download.docker.com)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/docker + /var/lib/docker"
   log_info "[45] Starting Docker CE + CLI + Compose plugin installer"
   if verify_installed; then log_ok "[45] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[45] apt required"; return 1; fi
