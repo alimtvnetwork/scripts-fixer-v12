@@ -50,14 +50,35 @@ REPORT_FILE="${REPORT_FILE-legacy-fix-report.json}"
 BACKUP="${BACKUP:-0}"
 BACKUP_ROOT="${BACKUP_ROOT:-.legacy-fix-backups}"
 BACKUP_STAMP="${BACKUP_STAMP:-$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || echo run)}"
+RAW_PATHS="${CLI_PATHS:-${FIX_PATHS:-}}"
 
 if [ ! -d "$REPO_ROOT" ]; then
   file_error "$REPO_ROOT" "repo root does not exist"
   exit 2
 fi
 
+# ---- Resolve & validate path filter ---------------------------------------
+NORMALISED_PATHS="$(printf '%s' "$RAW_PATHS" | tr ',' ' ')"
+PATH_FILTERS=()
+for p in $NORMALISED_PATHS; do
+  clean="${p#./}"
+  clean="${clean%/}"
+  [ -z "$clean" ] && continue
+  abs="$REPO_ROOT/$clean"
+  if [ ! -e "$abs" ]; then
+    file_error "$abs" "path filter target does not exist (from --paths/FIX_PATHS=\"$p\")"
+    exit 2
+  fi
+  PATH_FILTERS+=("$clean")
+done
+
 info "repo:     $REPO_ROOT"
 info "rewrite:  $(for v in $FIX_VERSIONS; do printf 'scripts-fixer-v%s ' "$v"; done)-> scripts-fixer-$FIX_TARGET"
+if [ "${#PATH_FILTERS[@]}" -gt 0 ]; then
+  info "paths:    ${PATH_FILTERS[*]}"
+else
+  info "paths:    (entire repo)"
+fi
 if [ "$DRY_RUN" = "1" ]; then info "mode:     dry-run"; else info "mode:     apply"; fi
 
 # Resolve backup directory (only used when BACKUP=1 AND not DRY_RUN)
