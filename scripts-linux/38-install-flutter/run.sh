@@ -73,6 +73,11 @@ install_via_tarball() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Flutter SDK" \
+    --source "https://storage.googleapis.com/flutter_infra_release (official tar.xz)" \
+    --temp   "$TMPDIR/scripts-fixer/flutter" \
+    --target "$HOME/development/flutter (bin added to PATH)"
   log_info "[38] Starting Flutter installer"
   if verify_installed; then
     log_ok "[38] Already installed"
