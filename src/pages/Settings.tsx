@@ -281,6 +281,13 @@ const Settings = () => {
       setMergedPreview(next);
       setDiff(entries);
       setPendingPayload(payload);
+      setCachedSavedAt(Date.now());
+      saveCachedPreview({
+        storedConfig: current,
+        mergedPreview: next,
+        diff: entries,
+        pendingPayload: payload,
+      });
       setConfirmOpen(true);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
