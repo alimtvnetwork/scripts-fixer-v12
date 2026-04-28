@@ -47,6 +47,15 @@ if ((Test-Path $_etParsers) -and -not (Get-Command Get-ToolVersionParser -ErrorA
     Write-Log "  [WARN] path: $_etParsers -- reason: parser registry missing, falling back to raw version output" -Level "warn"
 }
 
+# End-of-run summary collector. Auto-records every Ensure-Tool result so the
+# caller can finish with a single Write-EnsureSummary at the end of the run.
+$_etSummary = Join-Path $PSScriptRoot "ensure-summary.ps1"
+if ((Test-Path $_etSummary) -and -not (Get-Command Add-EnsureSummary -ErrorAction SilentlyContinue)) {
+    . $_etSummary
+} elseif (-not (Test-Path $_etSummary)) {
+    Write-Log "  [WARN] path: $_etSummary -- reason: summary collector missing, end-of-run table will be unavailable" -Level "warn"
+}
+
 function Write-EnsureFileError {
     # CODE RED: every file/path error must include exact path + reason.
     param([string]$Path, [string]$Reason)
