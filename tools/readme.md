@@ -82,6 +82,7 @@ nothing slipped through.
 # Windows
 .\tools\scan-legacy-fixer-refs.ps1                    # default v8/v9/v10
 .\tools\scan-legacy-fixer-refs.ps1 -Versions 8,9,10,11
+.\tools\scan-legacy-fixer-refs.ps1 -Paths tools,src   # restrict to folders
 ```
 
 ```bash
@@ -89,7 +90,14 @@ nothing slipped through.
 bash tools/scan-legacy-fixer-refs.sh                   # default v8/v9/v10
 SCAN_VERSIONS="8|9|10|11" bash tools/scan-legacy-fixer-refs.sh
 SCAN_ROOT="/path/to/repo" bash tools/scan-legacy-fixer-refs.sh
+SCAN_PATHS="tools/ src/"  bash tools/scan-legacy-fixer-refs.sh
+bash tools/scan-legacy-fixer-refs.sh --paths tools/,src/
 ```
+
+**Path filter:** `-Paths` (PowerShell) and `--paths` / `SCAN_PATHS` (Bash)
+restrict the scan to the listed repo-relative folders or files. Each entry
+must exist or the scanner aborts with a CODE RED file error and exit `2`.
+Omit the flag to scan the entire repo (default).
 
 Exit codes: `0` PASS (no matches) · `1` FAIL (matches grouped by file with
 a per-version summary) · `2` error (logs exact path + reason).
