@@ -151,6 +151,15 @@ function Ensure-Tool {
 
     if ([string]::IsNullOrWhiteSpace($FriendlyName)) { $FriendlyName = $Name }
 
+    # Fall back to the registered per-tool parser when the caller didn't
+    # supply one. This keeps the stored version accurate (e.g. "2.43.0"
+    # instead of "git version 2.43.0.windows.1") without forcing every
+    # caller to repeat the same regex.
+    if ($null -eq $ParseScript -and (Get-Command Get-ToolVersionParser -ErrorAction SilentlyContinue)) {
+        $registered = Get-ToolVersionParser -Name $Name
+        if ($null -ne $registered) { $ParseScript = $registered }
+    }
+
     $result = @{
         Action  = "skipped"
         Version = $null
