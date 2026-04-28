@@ -10,6 +10,11 @@ INSTALLED_MARK="$ROOT/.installed/44.ok"
 CARGO_BIN="$HOME/.cargo/bin"
 verify_installed() { command -v rustc >/dev/null 2>&1 || [ -x "$CARGO_BIN/rustc" ]; }
 verb_install() {
+  write_install_paths \
+    --tool   "Rust (rustup)" \
+    --source "https://sh.rustup.rs (official rustup-init)" \
+    --temp   "$HOME/.rustup/tmp" \
+    --target "$CARGO_BIN/rustc + $CARGO_BIN/cargo"
   log_info "[44] Starting Rust installer"
   if verify_installed; then log_ok "[44] rustc already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   has_curl || { log_err "[44] curl required"; return 1; }
