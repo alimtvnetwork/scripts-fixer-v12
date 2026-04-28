@@ -30,6 +30,11 @@ verify_installed() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "llama.cpp (build from source)" \
+    --source "https://github.com/ggerganov/llama.cpp (git clone + cmake)" \
+    --temp   "$TMPDIR/scripts-fixer/llama-cpp" \
+    --target "/usr/local/bin/llama-* (cli binaries)"
   log_info "[43] Starting llama.cpp build-from-source installer"
   if verify_installed; then
     log_ok "[43] Already installed"
