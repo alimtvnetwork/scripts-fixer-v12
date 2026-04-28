@@ -13,7 +13,7 @@ CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 35-install-gitmap"; exit 1; }
 
 # Canonical install one-liner (matches README)
-INSTALL_URL="https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/install-quick.sh"
+INSTALL_URL="https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh"
 
 # Where the upstream installer drops the binary by default.
 BIN_DIR="${HOME}/.local/bin"
