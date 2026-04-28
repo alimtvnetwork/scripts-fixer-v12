@@ -344,6 +344,11 @@ maybe_chsh() {
 
 # ---------- verbs ----------
 verb_install() {
+  write_install_paths \
+    --tool   "zsh + Oh-My-Zsh + curated .zshrc" \
+    --source "apt (zsh) + https://github.com/ohmyzsh/ohmyzsh + $SCRIPT_DIR/payload" \
+    --temp   "$TMPDIR/scripts-fixer/zsh" \
+    --target "/usr/bin/zsh + $HOME/.oh-my-zsh + $HOME/.zshrc (backup of prior)"
   log_info "[60] Starting Oh-My-Zsh installer flow"
 
   if verify_installed && [ -f "$INSTALLED_MARK" ]; then
