@@ -360,7 +360,8 @@ try {
     $configEditions  = @($config.enabledEditions)
     $removeTargets   = @($config.removeFromTargets)
     $ensureTargets   = @($config.ensureOnTargets)
-    $isAllSuccessful = $true
+    $isAllSuccessful     = $true
+    $verificationResults = @()
 
     Write-Log ($logMessages.messages.installTypePref -replace '\{type\}', $installType) -Level "info"
     Write-Log ($logMessages.messages.enabledEditions -replace '\{editions\}', ($configEditions -join ', ')) -Level "info"
@@ -432,20 +433,45 @@ try {
             if (-not $ok) { $isAllSuccessful = $false }
         }
 
-        # 3. Verify
+        # 3. Verify (per-target log + structured collection for the summary)
         Write-Log $logMessages.messages.verify -Level "info"
         foreach ($target in $removeTargets) {
             $regPath = $edition.registryPaths.$target
             if ([string]::IsNullOrWhiteSpace($regPath)) { continue }
             $ok = Test-TargetState -TargetName $target -RegistryPath $regPath -Expected "absent" -LogMsgs $logMessages
+            $actual = if ($ok) { 'absent' } else { 'present' }
+            $verificationResults += @{
+                Edition  = $editionName
+                Target   = $target
+                Expected = 'absent'
+                Actual   = $actual
+                Pass     = [bool]$ok
+                Path     = $regPath
+            }
             if (-not $ok) { $isAllSuccessful = $false }
         }
         foreach ($target in $ensureTargets) {
             $regPath = $edition.registryPaths.$target
             if ([string]::IsNullOrWhiteSpace($regPath)) { continue }
             $ok = Test-TargetState -TargetName $target -RegistryPath $regPath -Expected "present" -LogMsgs $logMessages
+            $actual = if ($ok) { 'present' } else { 'absent' }
+            $verificationResults += @{
+                Edition  = $editionName
+                Target   = $target
+                Expected = 'present'
+                Actual   = $actual
+                Pass     = [bool]$ok
+                Path     = $regPath
+            }
             if (-not $ok) { $isAllSuccessful = $false }
         }
+    }
+
+    # -- Pass/fail verification summary (folder vs empty-space vs file) -------
+    $hasResults = $verificationResults.Count -gt 0
+    if ($hasResults) {
+        $summaryOk = Write-VerificationSummary -Results $verificationResults
+        if (-not $summaryOk) { $isAllSuccessful = $false }
     }
 
     # -- Restart Explorer -----------------------------------------------------
