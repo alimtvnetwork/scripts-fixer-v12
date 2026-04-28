@@ -18,6 +18,7 @@ export SCRIPT_ID="63"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 SAMPLE="$SCRIPT_DIR/config.sample.json"
