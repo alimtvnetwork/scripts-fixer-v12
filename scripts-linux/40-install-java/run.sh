@@ -3,7 +3,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export SCRIPT_ID="40"
-. "$ROOT/_shared/logger.sh"; . "$ROOT/_shared/pkg-detect.sh"; . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/logger.sh"; . "$ROOT/_shared/pkg-detect.sh"; . "$ROOT/_shared/file-error.sh"; . "$ROOT/_shared/install-paths.sh"
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 40-install-java"; exit 1; }
 APT_PKG="openjdk-21-jdk"; VERIFY_CMD='java --version'; INSTALLED_MARK="$ROOT/.installed/40.ok"
