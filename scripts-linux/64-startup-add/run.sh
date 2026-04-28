@@ -11,6 +11,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export SCRIPT_ID="64"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 LOGS_ROOT="$ROOT/.logs/64"
