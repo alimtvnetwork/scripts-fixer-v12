@@ -21,6 +21,11 @@ resolve_arch_url() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "DuckDB CLI" \
+    --source "https://github.com/duckdb/duckdb/releases (official binary zip)" \
+    --temp   "$TMPDIR/scripts-fixer/duckdb" \
+    --target "$INSTALL_PATH"
   log_info "[28] Starting DuckDB installer"
   if verify_installed; then log_ok "[28] DuckDB already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   has_curl   || { log_err "[28] curl required"; return 1; }
