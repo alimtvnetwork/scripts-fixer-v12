@@ -9,6 +9,11 @@ CONFIG="$SCRIPT_DIR/config.json"
 APT_PKG="postgresql"; VERIFY_CMD='psql --version'; INSTALLED_MARK="$ROOT/.installed/20.ok"
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 verb_install() {
+  write_install_paths \
+    --tool   "PostgreSQL" \
+    --source "apt (Debian/Ubuntu): $APT_PKG" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/lib/postgresql/*/bin/postgres + /var/lib/postgresql"
   log_info "[20] Starting PostgreSQL installer"
   if verify_installed; then log_ok "[20] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[20] apt not available"; return 1; fi
