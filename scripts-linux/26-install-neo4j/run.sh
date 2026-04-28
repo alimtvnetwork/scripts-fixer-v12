@@ -45,6 +45,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Neo4j Community" \
+    --source "Neo4j apt repo (debian.neo4j.com)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/neo4j + /var/lib/neo4j"
   log_info "[26] Starting Neo4j Community installer"
   if verify_installed; then log_ok "[26] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[26] apt required"; return 1; fi
