@@ -1,6 +1,6 @@
 # --------------------------------------------------------------------------
 #  Scripts Fixer -- One-liner bootstrap installer
-#  Usage:  irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v7/main/install.ps1 | iex
+#  Usage:  irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 #
 #  Auto-discovery: probes scripts-fixer-vN repos (N = current+1..current+30)
 #  in parallel and redirects to the newest published version.

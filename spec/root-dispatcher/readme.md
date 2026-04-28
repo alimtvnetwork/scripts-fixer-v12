@@ -42,13 +42,13 @@ Chocolatey packages.
 ### Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v7/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 ```
 
 ### Unix / macOS (Bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v7/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
 ```
 
 ### What it does

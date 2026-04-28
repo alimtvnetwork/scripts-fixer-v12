@@ -28,7 +28,7 @@
 When a user pipes `install.ps1` (Windows) or `install.sh` (Unix/macOS) from a
 specific versioned repository (e.g. `scripts-fixer-v5`), the bootstrap should
 **transparently redirect to the newest published version** of the repo
-(e.g. `scripts-fixer-v11`) instead of installing a stale generation.
+(e.g. `scripts-fixer-v12`) instead of installing a stale generation.
 
 This solves the problem of users sharing or bookmarking old one-liners and
 unknowingly installing outdated code.
@@ -41,8 +41,8 @@ The project is published as a **family of versioned repositories**:
 github.com/<owner>/scripts-fixer-v1
 github.com/<owner>/scripts-fixer-v2
 ...
-github.com/<owner>/scripts-fixer-v7      <-- current
-github.com/<owner>/scripts-fixer-v11      <-- not yet created
+github.com/<owner>/scripts-fixer-v12      <-- current
+github.com/<owner>/scripts-fixer-v12      <-- not yet created
 ```
 
 Each major generation lives in its own repo. A user who runs:
@@ -122,7 +122,7 @@ The user must see exactly what is happening:
 
   [SCAN] Currently on v5. Probing v6..v25 for newer releases (parallel)...
   [FOUND] Newer version available: v7
-  [REDIRECT] Switching to scripts-fixer-v7...
+  [REDIRECT] Switching to scripts-fixer-v12...
 
   Scripts Fixer -- Bootstrap Installer  (now running v7)
   ...
@@ -240,7 +240,7 @@ exit 0
 
 - [ ] Run from `scripts-fixer-v5` when only v5 exists → runs self
 - [ ] Run from `scripts-fixer-v5` when v7 exists → redirects to v7
-- [ ] Run from `scripts-fixer-v7` (latest) → runs self with "[OK] You're on the latest"
+- [ ] Run from `scripts-fixer-v12` (latest) → runs self with "[OK] You're on the latest"
 - [ ] Run from a fork named `my-fork` (no `-vN`) → runs self, no probes
 - [ ] Run with `-NoUpgrade` → skips discovery
 - [ ] Run with `-Version` / `--version` → prints version info and exits without cloning
@@ -253,7 +253,7 @@ exit 0
 
 ## Release / Version Bump Checklist
 
-When copying `install.ps1` and `install.sh` into a new `-vN` repository (e.g., `scripts-fixer-v11`), update these values before committing:
+When copying `install.ps1` and `install.sh` into a new `-vN` repository (e.g., `scripts-fixer-v12`), update these values before committing:
 
 ### install.ps1
 - [ ] `$current = 7` → Bump to new version number (e.g., `$current = 8`)
