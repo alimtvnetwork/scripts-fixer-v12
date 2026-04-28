@@ -253,6 +253,7 @@ try {
                 Add-RegistryChange -Operation 'SKIP' -Edition $editionName -Target $target `
                     -Path $regPath -Detail 'VS Code executable not found' -Success $false
                 $isAllSuccessful = $false
+                $editionApplyOk  = $false
                 continue
             }
             $ok = Set-FolderContextMenuEntry `
