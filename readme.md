@@ -1180,7 +1180,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 For a single command without changing the current shell policy:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 install gitmap
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex"
 ```
 
 
