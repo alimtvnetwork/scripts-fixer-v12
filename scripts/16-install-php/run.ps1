@@ -45,6 +45,7 @@ $script:ScriptDir = $scriptDir
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "interactive.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\php.ps1")
@@ -96,6 +97,13 @@ try {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "PHP" `
+    -Source "https://chocolatey.org/install (pkg: php)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target (C:\tools\php)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

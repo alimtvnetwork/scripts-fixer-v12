@@ -20,6 +20,7 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 . (Join-Path $scriptDir "helpers\onenote.ps1")
 
@@ -32,6 +33,13 @@ if ($Help -or $Command -eq "--help") {
 }
 
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Microsoft OneNote" `
+    -Source "https://chocolatey.org/install (pkg: onenote)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target (C:\Program Files\Microsoft Office\OneNote)
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 try {

@@ -20,6 +20,7 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 . (Join-Path $scriptDir "helpers\whatsapp.ps1")
 
@@ -32,6 +33,13 @@ if ($Help -or $Command -eq "--help") {
 }
 
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "WhatsApp Desktop" `
+    -Source "https://chocolatey.org/install (pkg: whatsapp)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target ($env:LOCALAPPDATA + "\WhatsApp")
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 try {
