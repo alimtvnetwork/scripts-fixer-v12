@@ -21,6 +21,7 @@ $sharedDir  = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helper -------------------------------------------------
 . (Join-Path $scriptDir "helpers\ubuntu-font.ps1")
@@ -36,6 +37,13 @@ if ($Help -or $Command -eq "--help") {
 }
 
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Ubuntu Font Family" `
+    -Source "https://design.ubuntu.com/font (zip download)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\ubuntu-font") `
+    -Target ($env:WINDIR + "\Fonts")
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 try {

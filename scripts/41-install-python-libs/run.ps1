@@ -24,6 +24,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "dev-dir.ps1")
 . (Join-Path $sharedDir "json-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\pip-libs.ps1")
@@ -57,6 +58,13 @@ if ($hasDefaultCommand) {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Python libraries (pip)" `
+    -Source "https://pypi.org (pip install via Python)" `
+    -Temp   ($env:TEMP + "\scripts-fixer\pip-cache") `
+    -Target ($env:APPDATA + "\Python\Site-Packages")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
