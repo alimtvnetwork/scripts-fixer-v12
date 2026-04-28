@@ -76,6 +76,8 @@ function Save-ChocoDiagnosticLog {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $diagnosticPath = Join-Path $diagnosticsDir "${stamp}-${safeLabel}.log"
     $commandLine = "choco.exe " + (($ArgumentList | ForEach-Object { if ($_ -match '\s') { '"' + ($_ -replace '"', '\"') + '"' } else { $_ } }) -join ' ')
+    $packageHint = ($ArgumentList | Where-Object { $_ -and $_ -notmatch '^-' } | Select-Object -Skip 1 -First 1)
+    if ([string]::IsNullOrWhiteSpace($packageHint)) { $packageHint = "<package>" }
     $failureKind = if ($TimedOut) { "Timed out" } else { "Failed" }
 
     $content = @"
@@ -103,7 +105,7 @@ Actionable troubleshooting steps
 5. Check Chocolatey's own logs:
    "$env:ProgramData\chocolatey\logs\chocolatey.log"
 6. Verify network/package access:
-   choco search $($ArgumentList[1]) --exact --verbose
+   choco search $packageHint --exact --verbose
 
 STDOUT
 ------
