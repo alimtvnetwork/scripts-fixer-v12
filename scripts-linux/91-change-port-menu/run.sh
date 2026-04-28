@@ -7,6 +7,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export SCRIPT_ID="91"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 declare -a SERVICES=(
     "80|OpenSSH server          |80-change-port-ssh"
