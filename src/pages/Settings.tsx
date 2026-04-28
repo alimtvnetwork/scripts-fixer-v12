@@ -221,12 +221,13 @@ const Settings = () => {
         throw new Error(`path: ${endpoint} — reason: ${reason}`);
       }
 
-      const next = deepMerge(current, patch);
+      const next = deepMerge(current, payload);
       const entries = diffJson(current, next).filter((e) => e.kind !== "unchanged");
 
       setStoredConfig(current);
       setMergedPreview(next);
       setDiff(entries);
+      setPendingPayload(payload);
       setConfirmOpen(true);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
