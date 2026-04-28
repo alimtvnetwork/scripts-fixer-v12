@@ -237,7 +237,7 @@ try {
             $regPath = $edition.registryPaths.$target
             if ([string]::IsNullOrWhiteSpace($regPath)) { continue }
             $ok = Remove-ContextMenuTarget -TargetName $target -RegistryPath $regPath -LogMsgs $logMessages
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
             $op     = if ($ok) { 'DELETE' } else { 'FAIL' }
             $detail = if ($ok) { 'context menu entry removed (or already absent)' } else { 'reg.exe delete failed -- see log above' }
             Add-RegistryChange -Operation $op -Edition $editionName -Target $target `
