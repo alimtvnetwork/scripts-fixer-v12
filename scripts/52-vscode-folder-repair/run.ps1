@@ -70,6 +70,39 @@ if ($Help -or $Command -eq "--help") {
     return
 }
 
+# -- Admin elevation gate -----------------------------------------------------
+# Fail FAST (exit 87) before the dispatcher so the user gets a clear retry
+# command instead of a cryptic registry-write failure deep inside a
+# subcommand. Read-only subcommands skip the gate -- they don't write
+# anywhere and are useful when triaging from a non-elevated shell.
+$readOnlySubcommands = @('help','dry-run','whatif','verify','verify-handlers')
+$normalizedCommand   = $Command.ToLower()
+$isReadOnlyCommand   = $readOnlySubcommands -contains $normalizedCommand
+if (-not $isReadOnlyCommand) {
+    # Rebuild the original argv as a single string for the retry hint so
+    # users can copy-paste exactly what they ran. PSBoundParameters covers
+    # named params; $Rest covers passthrough flags after the subcommand.
+    $retryParts = @()
+    if (-not [string]::IsNullOrWhiteSpace($Command)) { $retryParts += $Command }
+    foreach ($k in $PSBoundParameters.Keys) {
+        if ($k -in @('Command','Rest','Help')) { continue }
+        $v = $PSBoundParameters[$k]
+        if ($v -is [switch]) {
+            if ($v.IsPresent) { $retryParts += "-$k" }
+        } elseif ($null -ne $v -and "$v" -ne '') {
+            $retryParts += "-$k"
+            $retryParts += "`"$v`""
+        }
+    }
+    if ($null -ne $Rest -and $Rest.Count -gt 0) { $retryParts += $Rest }
+    $retryArgs = ($retryParts -join ' ').Trim()
+
+    Assert-Elevated `
+        -ScriptPath  $PSCommandPath `
+        -ScriptArgs  $retryArgs `
+        -Reason      'Script 52 writes HKEY_CLASSES_ROOT\Directory\shell\VSCode entries -- requires Administrator.'
+}
+
 # --------------------------------------------------------------------------
 # Subcommand dispatcher
 #
