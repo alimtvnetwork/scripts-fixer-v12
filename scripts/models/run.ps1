@@ -111,7 +111,7 @@ try {
         Write-Log $line -Level "info"
 
         $folder = $config.backends.ollama.scriptFolder
-        $target = Join-Path $scriptsRoot $folder "run.ps1"
+        $target = Join-Path (Join-Path $scriptsRoot $folder) "run.ps1"
         $env:OLLAMA_PULL_MODELS = $csvSlugs
         try {
             & $target pull
