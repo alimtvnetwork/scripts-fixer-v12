@@ -62,6 +62,11 @@ dispatch() {
     if [ ! -x "$target" ]; then
         log_file_error "$target" "child script missing or not executable"; return 1
     fi
+    write_install_paths \
+      --tool   "Change-port menu (dispatch id=$id)" \
+      --source "$SCRIPT_DIR/run.sh SERVICES table -> $found_folder" \
+      --temp   "(delegated to child script)" \
+      --target "$target $*"
     log_info "[91] -> $target $*"
     bash "$target" "$@"
 }
