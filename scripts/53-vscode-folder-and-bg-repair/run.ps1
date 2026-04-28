@@ -297,7 +297,29 @@ try {
                 Pass     = [bool]$ok
                 Path     = $regPath
             }
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
+        }
+
+        # 4. Transactional rollback (only when caller opted in via `repair-vscode`)
+        if (-not $editionApplyOk -and $isRollbackEnabled) {
+            if ([string]::IsNullOrWhiteSpace($editionBackupFile)) {
+                Write-Log ("Rollback requested for edition '{0}' but no backup file is available -- cannot restore prior state." -f $editionName) -Level "error"
+                Add-RegistryChange -Operation 'FAIL' -Edition $editionName -Target '-' `
+                    -Path '-' -Detail 'rollback requested but backup file missing' -Success $false
+            } else {
+                Write-Log ("Apply/verify failed for edition '{0}' -- triggering transactional rollback from {1}" -f $editionName, $editionBackupFile) -Level "warn"
+                $rb = Invoke-FolderRepairRollback `
+                    -BackupFilePath $editionBackupFile `
+                    -EditionName    $editionName `
+                    -TouchedKeys    $editionKeys `
+                    -PreState       $editionPreState `
+                    -Reason         'apply or verify phase failed'
+                $rollbackSummary += @{ Edition = $editionName; Success = $rb.Success; Backup = $editionBackupFile }
+                Add-RegistryChange -Operation 'ROLLBACK' -Edition $editionName -Target '-' `
+                    -Path $editionBackupFile `
+                    -Detail $(if ($rb.Success) { 'restored from snapshot' } else { 'rollback INCOMPLETE -- manual reg import required' }) `
+                    -Success ([bool]$rb.Success)
+            }
         }
     }
 
