@@ -9,6 +9,11 @@ CONFIG="$SCRIPT_DIR/config.json"
 APT_PKG="redis-server"; INSTALLED_MARK="$ROOT/.installed/24.ok"
 verify_installed() { command -v redis-server >/dev/null 2>&1; }
 verb_install() {
+  write_install_paths \
+    --tool   "Redis" \
+    --source "apt (Debian/Ubuntu): $APT_PKG" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/redis-server + /var/lib/redis"
   log_info "[24] Starting Redis installer"
   if verify_installed; then log_ok "[24] Redis already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[24] apt not available"; return 1; fi
