@@ -279,7 +279,14 @@ function Install-Gitmap {
 
     Write-Log $LogMessages.messages.checking -Level "info"
 
+    # Resolve install directory FIRST -- log it prominently before anything else
+    $installDir = Resolve-GitmapInstallDir -GitmapConfig $GitmapConfig -DevDirConfig $DevDirConfig
+    Write-Host ""
+    Write-Log ($LogMessages.messages.installDir -replace '\{path\}', $installDir) -Level "success"
+    Write-Host ""
+
     $isGitmapReady = Test-GitmapInstalled
+    $remoteVersion = Get-GitmapRemoteVersion -GitmapConfig $GitmapConfig
     if ($isGitmapReady) {
         $ver = Get-GitmapVersion
         $hasVersion = -not [string]::IsNullOrWhiteSpace($ver)
@@ -288,17 +295,31 @@ function Install-Gitmap {
         } else {
             Write-Log $LogMessages.messages.found -Level "success"
         }
-        Save-GitmapResolvedState
-        return $true
+
+        if (-not [string]::IsNullOrWhiteSpace($remoteVersion)) {
+            Write-Log "Latest remote GitMap version: $remoteVersion" -Level "info"
+            $comparison = Compare-GitmapVersions -InstalledVersion $ver -RemoteVersion $remoteVersion
+            if ($null -ne $comparison -and $comparison -ge 0) {
+                Write-Log "GitMap is up to date (installed: $ver, remote: $remoteVersion) -- installer skipped" -Level "success"
+                Save-GitmapResolvedState -InstallDir $installDir
+                return $true
+            }
+            if ($null -ne $comparison -and $comparison -lt 0) {
+                Write-Log "GitMap update available (installed: $ver, remote: $remoteVersion) -- running installer" -Level "info"
+            } else {
+                Write-Log "Could not compare GitMap versions (installed: $ver, remote: $remoteVersion) -- running installer to be safe" -Level "warn"
+            }
+        } else {
+            Write-Log "Could not resolve remote GitMap version -- installed GitMap kept, installer skipped" -Level "warn"
+            Save-GitmapResolvedState -InstallDir $installDir
+            return $true
+        }
+    } else {
+        Write-Log $LogMessages.messages.notFound -Level "info"
+        if (-not [string]::IsNullOrWhiteSpace($remoteVersion)) {
+            Write-Log "Latest remote GitMap version: $remoteVersion" -Level "info"
+        }
     }
-
-    Write-Log $LogMessages.messages.notFound -Level "info"
-
-    # Resolve install directory FIRST -- log it prominently before anything else
-    $installDir = Resolve-GitmapInstallDir -GitmapConfig $GitmapConfig -DevDirConfig $DevDirConfig
-    Write-Host ""
-    Write-Log ($LogMessages.messages.installDir -replace '\{path\}', $installDir) -Level "success"
-    Write-Host ""
 
     Write-Log $LogMessages.messages.downloadingInstaller -Level "info"
 
