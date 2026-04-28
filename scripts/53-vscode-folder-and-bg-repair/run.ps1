@@ -87,8 +87,14 @@ if ($Help -or $Command -eq "--help" -or $Command.ToLower() -eq 'help') {
     return
 }
 
-# -- Admin elevation gate (write-only commands need elevation) ----------------
-$isReadOnlyCommand = $Command.ToLower() -in @('verify','dry-run','whatif','precheck','pre-check','plan')
+# -- Command classification ---------------------------------------------------
+$cmdLower             = $Command.ToLower()
+$isReadOnlyCommand    = $cmdLower -in @('verify','dry-run','whatif','precheck','pre-check','plan')
+# `repair-vscode` is the explicit transactional all-in-one command:
+#   pre-check -> backup -> apply -> verify -> auto-rollback on failure.
+$isTransactionalCmd   = $cmdLower -in @('repair-vscode','repair-all','transactional','tx')
+$isRollbackEnabled    = $isTransactionalCmd -and -not $NoRollback
+
 if (-not $isReadOnlyCommand) {
     Assert-Elevated `
         -ScriptPath $PSCommandPath `
