@@ -87,6 +87,7 @@ const Settings = () => {
   const [diff, setDiff] = useState<DiffEntry[]>([]);
   const [storedConfig, setStoredConfig] = useState<unknown>(null);
   const [mergedPreview, setMergedPreview] = useState<unknown>(null);
+  const [pendingPayload, setPendingPayload] = useState<typeof DEFAULT_PATCH | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
 
   // The patch we POST to the bridge — only the fields the user can change.
