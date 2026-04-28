@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:deps": "node tools/check-required-packages.mjs",
-    "check:deps:fix": "node tools/check-required-packages.mjs --fix"
+    "check:deps:fix": "node tools/check-required-packages.mjs --fix",
+    "smoke:check": "node tools/smoke-check.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
