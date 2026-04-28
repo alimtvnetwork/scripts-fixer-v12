@@ -165,7 +165,7 @@ const Settings = () => {
   const handlePrepareSave = async (override?: typeof patch) => {
     const payload = override ?? patch;
     // Client-side validation (mirrors server Zod surface)
-    const opts = script52OptionsSchema.safeParse(patch);
+    const opts = script52OptionsSchema.safeParse(payload);
     if (!opts.success) {
       const first = opts.error.issues[0];
       toast({
