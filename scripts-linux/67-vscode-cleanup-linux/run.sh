@@ -186,6 +186,11 @@ esac
 
 ensure_run_dir
 
+write_install_paths \
+  --tool   "VS Code cleanup (Linux, scope=$RESOLVED_SCOPE)" \
+  --source "$SCRIPT_DIR/config.json (per-method allow-list: apt|snap|deb|tarball|user-config)" \
+  --temp   "$ROOT/.logs/67/<TS>" \
+  --target "Removed: matched apt pkg + snap removal + ~/.vscode + /usr/share/code (per detected method only)"
 log_info "===== vscode-cleanup-linux (script 67) ====="
 log_info "Resolved scope: requested='$REQUESTED_SCOPE', resolved='$RESOLVED_SCOPE' (root=$IS_ROOT)."
 if [ "$VERB" != "detect" ] && [ "$VERB" != "resolve" ]; then
