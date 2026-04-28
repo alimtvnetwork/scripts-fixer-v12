@@ -333,6 +333,9 @@ const Settings = () => {
       });
       setBridgeStatus("online");
       setConfirmOpen(false);
+      // Saved successfully — the cached preview no longer reflects unsaved work.
+      clearCachedPreview();
+      setCachedSavedAt(null);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       setBridgeStatus("offline");
