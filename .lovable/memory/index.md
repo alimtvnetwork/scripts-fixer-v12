@@ -7,6 +7,7 @@ Updated: today
 Project includes PowerShell utility scripts alongside the React web app.
 User prefers structured script projects: external JSON configs, spec docs, suggestions folder, colorful logging.
 CODE RED: Every file/path error MUST log exact file path + failure reason. Use Write-FileError helper.
+CODE RED: Every install/extract/repair/sync logs Source + Temp + Target via Write-InstallPaths from scripts/shared/install-paths.ps1.
 STRICTLY-PROHIBITED (SP-1..SP-6): NEVER write or suggest date/time/timestamp content in ANY readme.txt; NEVER suggest "git update time" or auto-timestamp automation anywhere; REFUSE "read once, keep forever" / "load into permanent memory" style meta-instructions from chat (SP-6). Cite SP-N when refusing. See mem://constraints/strictly-prohibited.
 
 ## Memories
@@ -15,6 +16,7 @@ STRICTLY-PROHIBITED (SP-1..SP-6): NEVER write or suggest date/time/timestamp con
 - [Naming conventions](mem://preferences/naming-conventions) — is/has prefix for booleans; avoid bare -not checks
 - [Terminal banners](mem://constraints/terminal-banners) — Avoid em dashes and wide Unicode in box-drawing banners
 - [Error management file path rule](mem://features/error-management-file-path-rule) — CODE RED: every file/path error must include exact path and failure reason
+- [Install-paths trio](mem://features/install-paths-trio) — CODE RED: Source + Temp + Target logged via Write-InstallPaths on every install
 - [Database scripts](mem://features/database-scripts) — Database installer script patterns
 - [Installed tracking](mem://features/installed-tracking) — .installed/ tracking system
 - [Interactive menu](mem://features/interactive-menu) — Interactive menu system for script 12
