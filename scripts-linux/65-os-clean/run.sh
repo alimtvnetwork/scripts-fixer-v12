@@ -13,6 +13,7 @@ export SCRIPT_ID="65"
 
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 . "$ROOT/_shared/confirm.sh"
 . "$ROOT/_shared/verify.sh"
 . "$SCRIPT_DIR/helpers/sweep.sh"
