@@ -262,7 +262,7 @@ try {
                 -Label        $edition.contextMenuLabel `
                 -VsCodeExe    $vsCodeExe `
                 -LogMsgs      $logMessages
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
             $op     = if ($ok) { 'WRITE' } else { 'FAIL' }
             $detail = if ($ok) { ("ensured '{0}' -> {1}" -f $edition.contextMenuLabel, $vsCodeExe) } else { 'CreateSubKey/SetValue failed -- see log above' }
             Add-RegistryChange -Operation $op -Edition $editionName -Target $target `
