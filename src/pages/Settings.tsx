@@ -150,8 +150,20 @@ const Settings = () => {
     }
   };
 
+  // Reset form to defaults from the stored model and open the review dialog
+  // so the user sees exactly what will change before the PATCH is sent.
+  const handleResetToDefaults = async () => {
+    setEdition(DEFAULTS.edition);
+    setAdminOnly(DEFAULTS.adminOnly);
+    setNonInteractive(DEFAULTS.nonInteractive);
+    setRequireSignature(DEFAULTS.requireSignature);
+    // Use the explicit defaults patch instead of waiting for state to flush.
+    await handlePrepareSave(DEFAULT_PATCH);
+  };
+
   // STEP 1: validate, pull current stored config, compute diff, open dialog
-  const handlePrepareSave = async () => {
+  const handlePrepareSave = async (override?: typeof patch) => {
+    const payload = override ?? patch;
     // Client-side validation (mirrors server Zod surface)
     const opts = script52OptionsSchema.safeParse(patch);
     if (!opts.success) {
