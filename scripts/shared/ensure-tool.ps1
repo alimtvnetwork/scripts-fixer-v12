@@ -91,6 +91,22 @@ function Get-EnsuredVersion {
     return "$raw".Trim()
 }
 
+function Complete-EnsureToolResult {
+    # Internal: feed every Ensure-Tool return value into the end-of-run summary
+    # collector (when available) and pass the result back unchanged. Keeps the
+    # main function readable -- one helper instead of seven Add-EnsureSummary
+    # calls before each return.
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [string]$FriendlyName,
+        $Result
+    )
+    if (Get-Command Add-EnsureSummary -ErrorAction SilentlyContinue) {
+        try { Add-EnsureSummary -Name $Name -FriendlyName $FriendlyName -Result $Result } catch { }
+    }
+    return $Result
+}
+
 function Ensure-Tool {
     <#
     .SYNOPSIS
