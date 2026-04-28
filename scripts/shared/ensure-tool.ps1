@@ -37,6 +37,16 @@ if ((Test-Path $_etToolVersion) -and -not (Get-Command Refresh-EnvPath -ErrorAct
     . $_etToolVersion
 }
 
+# Per-tool version parsers (git, node, python, go, java, dotnet, rustc, ...).
+# Loaded so Ensure-Tool can produce accurate stored versions without each
+# caller hand-rolling a regex.
+$_etParsers = Join-Path $PSScriptRoot "tool-version-parsers.ps1"
+if ((Test-Path $_etParsers) -and -not (Get-Command Get-ToolVersionParser -ErrorAction SilentlyContinue)) {
+    . $_etParsers
+} elseif (-not (Test-Path $_etParsers)) {
+    Write-Log "  [WARN] path: $_etParsers -- reason: parser registry missing, falling back to raw version output" -Level "warn"
+}
+
 function Write-EnsureFileError {
     # CODE RED: every file/path error must include exact path + reason.
     param([string]$Path, [string]$Reason)
@@ -140,6 +150,15 @@ function Ensure-Tool {
     )
 
     if ([string]::IsNullOrWhiteSpace($FriendlyName)) { $FriendlyName = $Name }
+
+    # Fall back to the registered per-tool parser when the caller didn't
+    # supply one. This keeps the stored version accurate (e.g. "2.43.0"
+    # instead of "git version 2.43.0.windows.1") without forcing every
+    # caller to repeat the same regex.
+    if ($null -eq $ParseScript -and (Get-Command Get-ToolVersionParser -ErrorAction SilentlyContinue)) {
+        $registered = Get-ToolVersionParser -Name $Name
+        if ($null -ne $registered) { $ParseScript = $registered }
+    }
 
     $result = @{
         Action  = "skipped"
