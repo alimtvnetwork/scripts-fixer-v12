@@ -7,6 +7,12 @@
 #    .\tools\scan-legacy-fixer-refs.ps1
 #    .\tools\scan-legacy-fixer-refs.ps1 -Versions 8,9,10,11
 #    .\tools\scan-legacy-fixer-refs.ps1 -Root "D:\scripts-fixer"
+#    .\tools\scan-legacy-fixer-refs.ps1 -Paths tools,src
+#
+#  Path filter:
+#    -Paths   : repo-relative folders or files. When omitted/empty the entire
+#               repo is scanned (current behaviour). Each entry must exist or
+#               the script aborts with a CODE RED file error.
 #
 #  Exit codes:
 #    0 = PASS (no matches)
@@ -17,6 +23,7 @@ param(
     [string]$Root = (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)),
     [int[]]$Versions = @(8, 9, 10),
     [string[]]$ExcludeDirs = @('.git', 'node_modules', 'dist', 'build', '.next', '.lovable\compliance-reports', '.legacy-fix-backups'),
+    [string[]]$Paths = @(),
     [switch]$Quiet
 )
 
