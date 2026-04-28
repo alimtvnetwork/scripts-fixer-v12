@@ -55,6 +55,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "vscode-edition-detect.ps1")
+. (Join-Path $sharedDir "admin-check.ps1")
 
 # -- Dot-source script helpers (also brings in script 10's registry helpers) -
 . (Join-Path $scriptDir "helpers\repair.ps1")
