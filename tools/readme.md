@@ -142,14 +142,18 @@ REPORT_FILE=r.json   bash tools/fix-and-verify-legacy-refs.sh
 BACKUP_ROOT=/tmp/bk  bash tools/fix-and-verify-legacy-refs.sh
 ```
 
-You can also call the fixer directly with the same backup flags:
+You can also call the fixer directly with the same backup flags, and limit
+it to specific folders via `-Paths` / `--paths` / `FIX_PATHS`:
 
 ```bash
 BACKUP=1 BACKUP_ROOT=.legacy-fix-backups bash tools/fix-legacy-fixer-refs.sh
+FIX_PATHS="tools/ src/" bash tools/fix-legacy-fixer-refs.sh
+bash tools/fix-legacy-fixer-refs.sh --paths tools/,src/
 ```
 
 ```powershell
 .\tools\fix-legacy-fixer-refs.ps1 -Backup -BackupRoot .legacy-fix-backups
+.\tools\fix-legacy-fixer-refs.ps1 -Paths tools,src
 ```
 
 Exit codes:
