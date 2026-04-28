@@ -155,6 +155,83 @@ function Test-TargetState {
     return $false
 }
 
+# --------------------------------------------------------------------------
+#  Friendly mapping: registry "target" name -> the real-world Explorer
+#  right-click scenario the user actually sees. Keep this in sync with
+#  config.removeFromTargets / config.ensureOnTargets.
+# --------------------------------------------------------------------------
+$script:_TargetScenarioMap = @{
+    'directory'  = 'Right-click ON a folder'
+    'background' = 'Right-click on EMPTY space inside a folder'
+    'file'       = 'Right-click on a FILE'
+}
+
+function Get-TargetScenario {
+    param([string]$TargetName)
+    $hasMapping = $script:_TargetScenarioMap.ContainsKey($TargetName)
+    if ($hasMapping) { return $script:_TargetScenarioMap[$TargetName] }
+    return "Right-click target: $TargetName"
+}
+
+function Write-VerificationSummary {
+    <#
+    .SYNOPSIS
+        Renders a colored PASS/FAIL table contrasting where the VS Code
+        entry must be PRESENT (folder right-clicks) vs ABSENT (empty
+        space / file right-clicks). Returns $true if every row passed.
+    .PARAMETER Results
+        Array of hashtables with keys:
+          Edition  -- e.g. 'stable'
+          Target   -- registry target key ('directory','background','file')
+          Expected -- 'present' | 'absent'
+          Actual   -- 'present' | 'absent'
+          Pass     -- [bool]
+          Path     -- registry path that was checked
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Results
+    )
+
+    Write-Host ''
+    Write-Host '============================================================' -ForegroundColor Cyan
+    Write-Host '  Context Menu Verification Summary' -ForegroundColor Cyan
+    Write-Host '============================================================' -ForegroundColor Cyan
+    Write-Host ('  {0,-9}  {1,-11}  {2,-44}  {3,-8}  {4}' -f 'EDITION','TARGET','SCENARIO','EXPECT','RESULT') -ForegroundColor DarkGray
+    Write-Host ('  {0}' -f ('-' * 96)) -ForegroundColor DarkGray
+
+    $passCount = 0
+    $failCount = 0
+
+    foreach ($row in $Results) {
+        $scenario = Get-TargetScenario -TargetName $row.Target
+        $isPass   = [bool]$row.Pass
+        $label    = if ($isPass) { 'PASS' } else { 'FAIL' }
+        $color    = if ($isPass) { 'Green' } else { 'Red' }
+        if ($isPass) { $passCount++ } else { $failCount++ }
+
+        Write-Host ('  {0,-9}  {1,-11}  {2,-44}  {3,-8}  ' -f `
+            $row.Edition, $row.Target, $scenario, $row.Expected.ToUpper()) `
+            -ForegroundColor White -NoNewline
+        Write-Host $label -ForegroundColor $color
+
+        # On failure, surface actual + path so the user can investigate.
+        if (-not $isPass) {
+            Write-Host ('             actual: {0}  ({1})' -f $row.Actual.ToUpper(), $row.Path) -ForegroundColor DarkRed
+        }
+    }
+
+    Write-Host ('  {0}' -f ('-' * 96)) -ForegroundColor DarkGray
+    $totalColor = if ($failCount -eq 0) { 'Green' } else { 'Red' }
+    $totalLabel = if ($failCount -eq 0) { 'OVERALL: PASS' } else { 'OVERALL: FAIL' }
+    Write-Host ('  {0}   pass={1}   fail={2}   total={3}' -f `
+        $totalLabel, $passCount, $failCount, $Results.Count) -ForegroundColor $totalColor
+    Write-Host '============================================================' -ForegroundColor Cyan
+    Write-Host ''
+
+    return ($failCount -eq 0)
+}
+
 function Restart-Explorer {
     <#
     .SYNOPSIS
