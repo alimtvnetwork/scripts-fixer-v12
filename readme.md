@@ -26,12 +26,14 @@
 
 ## 🚀 Install
 
-Run **one** of the commands below from a fresh shell. These are the canonical GitMap v8 installers.
+Clone the toolkit and run the dispatcher from a fresh shell.
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex
+git clone https://github.com/alimtvnetwork/gitmap-v6.git
+cd gitmap-v6
+.\run.ps1 -d
 ```
 
 If PowerShell blocks scripts, use a process-only bypass for the current shell first:
@@ -40,17 +42,21 @@ If PowerShell blocks scripts, use a process-only bypass for the current shell fi
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 ```
 
-Or run the one-liner inside a bypassed PowerShell process:
+Or run the dispatcher inside a bypassed PowerShell process:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
 ```
 
 ### Unix / macOS (bash)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh | sh
+git clone https://github.com/alimtvnetwork/gitmap-v6.git
+cd gitmap-v6
+bash scripts-linux/run.sh --list
 ```
+
+> Looking for the **GitMap CLI** (`gitmap` command)? See [Script 35 — Install GitMap](scripts/35-install-gitmap/) for its dedicated one-liner.
 
 ---
 
