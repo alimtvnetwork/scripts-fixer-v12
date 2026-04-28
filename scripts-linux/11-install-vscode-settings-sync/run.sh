@@ -27,6 +27,11 @@ verify_installed() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "VS Code settings sync" \
+    --source "$SCRIPT_DIR/payload (curated settings.json + extensions list)" \
+    --temp   "$TMPDIR/scripts-fixer/vscode-sync" \
+    --target "$HOME/.config/Code/User/settings.json + installed extensions"
   log_info "[11] Starting VS Code settings sync"
   if [ ! -d "$VSCODE_DIR" ] && ! command -v code >/dev/null 2>&1; then
     log_warn "[11] VS Code not detected (missing 'code' on PATH and missing $VSCODE_DIR) — skipping"
