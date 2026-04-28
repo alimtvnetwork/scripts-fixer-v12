@@ -16,6 +16,74 @@ if (-not (Get-Variable -Name SharedLogMessages -Scope Script -ErrorAction Silent
     }
 }
 
+function Get-ChocoTimeoutSeconds {
+    $defaultTimeout = 1800
+    $rawTimeout = $env:CHOCO_TIMEOUT_SECONDS
+    $hasOverride = -not [string]::IsNullOrWhiteSpace($rawTimeout)
+    if ($hasOverride) {
+        $parsedTimeout = 0
+        $isValidOverride = [int]::TryParse($rawTimeout, [ref]$parsedTimeout) -and $parsedTimeout -gt 0
+        if ($isValidOverride) {
+            return $parsedTimeout
+        }
+    }
+
+    return $defaultTimeout
+}
+
+function Invoke-ChocoProcess {
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$ArgumentList,
+
+        [Parameter(Mandatory)]
+        [string]$Label,
+
+        [int]$TimeoutSeconds = (Get-ChocoTimeoutSeconds)
+    )
+
+    $tempRoot = [System.IO.Path]::GetTempPath()
+    $runId = [System.Guid]::NewGuid().ToString("N")
+    $stdoutPath = Join-Path $tempRoot "choco-$runId.out.log"
+    $stderrPath = Join-Path $tempRoot "choco-$runId.err.log"
+
+    try {
+        Write-Log "[$Label] Timeout guard: ${TimeoutSeconds}s" -Level "info"
+        $process = Start-Process -FilePath "choco.exe" -ArgumentList $ArgumentList -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -ErrorAction Stop
+        $hasExited = $process.WaitForExit($TimeoutSeconds * 1000)
+
+        if (-not $hasExited) {
+            try {
+                & taskkill.exe /PID $process.Id /T /F 2>&1 | Out-Null
+            } catch {
+                try { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue } catch { }
+            }
+
+            Write-Log "[$Label] TIMED OUT after ${TimeoutSeconds}s -- Chocolatey process tree killed" -Level "error"
+            return @{ Success = $false; TimedOut = $true; ExitCode = -1; Output = "Timed out after ${TimeoutSeconds}s" }
+        }
+
+        $outputParts = @()
+        foreach ($path in @($stdoutPath, $stderrPath)) {
+            if (Test-Path $path) {
+                $outputParts += (Get-Content -Path $path -Raw -ErrorAction SilentlyContinue)
+            }
+        }
+
+        $output = (($outputParts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine).Trim()
+        return @{ Success = ($process.ExitCode -eq 0); TimedOut = $false; ExitCode = $process.ExitCode; Output = $output }
+    } catch {
+        Write-FileError -FilePath "choco.exe" -Operation "resolve" -Reason "Failed to start Chocolatey command '$Label': $_" -Module "Invoke-ChocoProcess"
+        return @{ Success = $false; TimedOut = $false; ExitCode = -1; Output = $_.Exception.Message }
+    } finally {
+        foreach ($path in @($stdoutPath, $stderrPath)) {
+            if (Test-Path $path) {
+                Remove-Item -Path $path -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}
+
 function Assert-Choco {
     <#
     .SYNOPSIS
