@@ -122,6 +122,18 @@ while IFS= read -r -d '' f; do
   rel_lc="$(printf '%s' "$rel" | tr 'A-Z' 'a-z')"
   [[ "$rel_lc" =~ $docs_re ]] && continue
 
+  # Apply path filter (file must live under at least one allowed path)
+  if [ "${#PATH_FILTERS[@]}" -gt 0 ]; then
+    is_allowed=0
+    for pf in "${PATH_FILTERS[@]}"; do
+      if [ "$rel" = "$pf" ] || [[ "$rel" == "$pf"/* ]]; then
+        is_allowed=1
+        break
+      fi
+    done
+    [ "$is_allowed" -eq 0 ] && continue
+  fi
+
   if ! grep -Eq "$match_re" "$f" 2>/dev/null; then
     continue
   fi
