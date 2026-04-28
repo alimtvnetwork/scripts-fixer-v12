@@ -117,6 +117,7 @@ export ROOT
 
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 . "$SCRIPT_DIR/components/mysql.sh"
 . "$SCRIPT_DIR/components/php.sh"
 . "$SCRIPT_DIR/components/nginx.sh"
