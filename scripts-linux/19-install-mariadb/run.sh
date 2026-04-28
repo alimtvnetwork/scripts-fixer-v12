@@ -9,6 +9,11 @@ CONFIG="$SCRIPT_DIR/config.json"
 APT_PKG="mariadb-server"; VERIFY_CMD='mariadb --version'; INSTALLED_MARK="$ROOT/.installed/19.ok"
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 verb_install() {
+  write_install_paths \
+    --tool   "MariaDB Server" \
+    --source "apt (Debian/Ubuntu): $APT_PKG" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/sbin/mariadbd + /var/lib/mysql"
   log_info "[19] Starting MariaDB Server installer"
   if verify_installed; then log_ok "[19] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[19] apt not available"; return 1; fi
