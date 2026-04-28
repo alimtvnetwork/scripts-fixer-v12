@@ -15,6 +15,11 @@ APT_PKG=$(jq -r '.install.apt' "$CONFIG")
 INSTALLED_MARK="$ROOT/.installed/51.ok"
 verify_installed() { command -v flameshot >/dev/null 2>&1 && flameshot --version >/dev/null 2>&1; }
 verb_install() {
+  write_install_paths \
+    --tool   "Flameshot" \
+    --source "apt (Debian/Ubuntu): flameshot" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/flameshot"
   log_info "[51] Starting Flameshot installer"
   if verify_installed; then
     log_ok "[51] Already installed"
