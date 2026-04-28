@@ -220,7 +220,7 @@ foreach ($edName in $editionsToCheck) {
         -Scenario "Right-click ON a folder -> menu entry exists" `
         -RegPath  $dirPath `
         -Cmd      $r.cmd `
-        -ResultText (if ($r.exists) { "key found, label='" + $r.value + "'" } else { "key MISSING" }) `
+        -ResultText $(if ($r.exists) { "key found, label='" + $r.value + "'" } else { "key MISSING" }) `
         -FixHint  $repairHint
 
     # ---- Step: background key present (right-click in empty space) ----
@@ -230,7 +230,7 @@ foreach ($edName in $editionsToCheck) {
         -Scenario "Right-click in EMPTY space inside a folder -> menu entry exists" `
         -RegPath  $bgPath `
         -Cmd      $r.cmd `
-        -ResultText (if ($r.exists) { "key found, label='" + $r.value + "'" } else { "key MISSING" }) `
+        -ResultText $(if ($r.exists) { "key found, label='" + $r.value + "'" } else { "key MISSING" }) `
         -FixHint  $repairHint
 
     # ---- Step: \command default for directory ----
@@ -293,7 +293,7 @@ foreach ($edName in $editionsToCheck) {
         -Scenario "File-target leaf is ABSENT (right-click on FILE should NOT show entry)" `
         -RegPath  $filePath `
         -Cmd      $r.cmd `
-        -ResultText (if ($r.exists) { "leaf STILL PRESENT (label='" + $r.value + "')" } else { "leaf absent (correct)" }) `
+        -ResultText $(if ($r.exists) { "leaf STILL PRESENT (label='" + $r.value + "')" } else { "leaf absent (correct)" }) `
         -FixHint  ($repairHintBase + "  # repair removes the file-target leaf")
 
     Write-Host ""
