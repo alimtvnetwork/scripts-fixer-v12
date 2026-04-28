@@ -63,12 +63,6 @@ Or run the root installer inside a bypassed PowerShell process:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex"
 ```
 
-### Unix / macOS (bash)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
-```
-
 After installation, use `.\run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS for the toolkit menu.
 
 ---
