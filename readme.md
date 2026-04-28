@@ -65,7 +65,7 @@ Or run the root installer inside a bypassed PowerShell process:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex"
 ```
 
-After installation, use `.\run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS for the toolkit menu.
+After installation, use `./run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS for the toolkit menu.
 
 ---
 
@@ -1137,7 +1137,7 @@ curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/mai
 sudo bash scripts-linux/run.sh install <keyword>
 ```
 
-To open the full toolkit menu instead, use `.\run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS.
+To open the full toolkit menu instead, use `./run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS.
 
 
 ### Manual clone
@@ -1595,7 +1595,7 @@ Keywords are case-insensitive, support comma/space separation, auto-deduplicate,
 
 ## Interactive Menu (Script 12)
 
-When you run `.\run.ps1 -d`, you get a full interactive menu with:
+When you run `./run.ps1 -d`, you get a full interactive menu with:
 
 - **Individual selection** -- type script numbers: `1`, `3`, `7`
 - **CSV input** -- type comma-separated IDs: `1,3,5,7`
