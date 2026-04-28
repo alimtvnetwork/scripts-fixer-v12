@@ -21,6 +21,9 @@ param(
     [ValidateSet('', 'stable', 'insiders')]
     [string]$Edition = '',
 
+    # Disable transactional rollback (default ON for `repair-vscode`).
+    [switch]$NoRollback,
+
     [switch]$Help
 )
 
@@ -56,6 +59,14 @@ if (-not (Test-Path -LiteralPath $_precheckHelper)) {
 }
 . $_precheckHelper
 
+# -- Dot-source script 53's rollback helper ------------------------------------
+$_rollbackHelper = Join-Path $scriptDir "helpers\rollback.ps1"
+if (-not (Test-Path -LiteralPath $_rollbackHelper)) {
+    Write-Host "FATAL: rollback helper not found at: $_rollbackHelper (failure: cannot run script 53 without helpers/rollback.ps1)" -ForegroundColor Red
+    exit 2
+}
+. $_rollbackHelper
+
 # -- Load config & log messages -----------------------------------------------
 $configPath = Join-Path $scriptDir "config.json"
 $logPath    = Join-Path $scriptDir "log-messages.json"
@@ -76,8 +87,14 @@ if ($Help -or $Command -eq "--help" -or $Command.ToLower() -eq 'help') {
     return
 }
 
-# -- Admin elevation gate (write-only commands need elevation) ----------------
-$isReadOnlyCommand = $Command.ToLower() -in @('verify','dry-run','whatif','precheck','pre-check','plan')
+# -- Command classification ---------------------------------------------------
+$cmdLower             = $Command.ToLower()
+$isReadOnlyCommand    = $cmdLower -in @('verify','dry-run','whatif','precheck','pre-check','plan')
+# `repair-vscode` is the explicit transactional all-in-one command:
+#   pre-check -> backup -> apply -> verify -> auto-rollback on failure.
+$isTransactionalCmd   = $cmdLower -in @('repair-vscode','repair-all','transactional','tx')
+$isRollbackEnabled    = $isTransactionalCmd -and -not $NoRollback
+
 if (-not $isReadOnlyCommand) {
     Assert-Elevated `
         -ScriptPath $PSCommandPath `
@@ -150,6 +167,7 @@ try {
         return
     }
 
+    $rollbackSummary = @()
     foreach ($editionName in $detectedEditions) {
         $edition = $config.editions.$editionName
 
@@ -159,6 +177,11 @@ try {
             $isAllSuccessful = $false
             continue
         }
+
+        # Per-edition transactional state
+        $editionApplyOk     = $true
+        $editionPreState    = @{}
+        $editionBackupFile  = $null
 
         Write-Host ""
         Write-Host $logMessages.messages.editionBorderLine -ForegroundColor DarkCyan
@@ -191,7 +214,10 @@ try {
             $editionBackup = New-RegistryBackup -Keys $editionKeys -OutputDir $backupRoot -Tag "script53-$editionName"
             if ($editionBackup -and $editionBackup.FilePath) {
                 Write-Log ("Backup written: {0}" -f $editionBackup.FilePath) -Level "success"
-                $backupResult = $editionBackup
+                $backupResult      = $editionBackup
+                $editionBackupFile = $editionBackup.FilePath
+                # Capture pre-apply present/absent state per key, used by rollback verifier.
+                $editionPreState = Capture-PreApplyState -Keys $editionKeys
                 foreach ($kr in $editionBackup.Keys) {
                     $detail = if ($kr.Present) { if ($kr.Exported) { 'exported' } else { 'export FAILED' } } else { 'absent at backup time' }
                     Add-RegistryChange -Operation 'BACKUP' -Edition $editionName -Target '-' `
@@ -211,7 +237,7 @@ try {
             $regPath = $edition.registryPaths.$target
             if ([string]::IsNullOrWhiteSpace($regPath)) { continue }
             $ok = Remove-ContextMenuTarget -TargetName $target -RegistryPath $regPath -LogMsgs $logMessages
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
             $op     = if ($ok) { 'DELETE' } else { 'FAIL' }
             $detail = if ($ok) { 'context menu entry removed (or already absent)' } else { 'reg.exe delete failed -- see log above' }
             Add-RegistryChange -Operation $op -Edition $editionName -Target $target `
@@ -227,6 +253,7 @@ try {
                 Add-RegistryChange -Operation 'SKIP' -Edition $editionName -Target $target `
                     -Path $regPath -Detail 'VS Code executable not found' -Success $false
                 $isAllSuccessful = $false
+                $editionApplyOk  = $false
                 continue
             }
             $ok = Set-FolderContextMenuEntry `
@@ -235,7 +262,7 @@ try {
                 -Label        $edition.contextMenuLabel `
                 -VsCodeExe    $vsCodeExe `
                 -LogMsgs      $logMessages
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
             $op     = if ($ok) { 'WRITE' } else { 'FAIL' }
             $detail = if ($ok) { ("ensured '{0}' -> {1}" -f $edition.contextMenuLabel, $vsCodeExe) } else { 'CreateSubKey/SetValue failed -- see log above' }
             Add-RegistryChange -Operation $op -Edition $editionName -Target $target `
@@ -256,7 +283,7 @@ try {
                 Pass     = [bool]$ok
                 Path     = $regPath
             }
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
         }
         foreach ($target in $ensureTargets) {
             $regPath = $edition.registryPaths.$target
@@ -270,7 +297,29 @@ try {
                 Pass     = [bool]$ok
                 Path     = $regPath
             }
-            if (-not $ok) { $isAllSuccessful = $false }
+            if (-not $ok) { $isAllSuccessful = $false; $editionApplyOk = $false }
+        }
+
+        # 4. Transactional rollback (only when caller opted in via `repair-vscode`)
+        if (-not $editionApplyOk -and $isRollbackEnabled) {
+            if ([string]::IsNullOrWhiteSpace($editionBackupFile)) {
+                Write-Log ("Rollback requested for edition '{0}' but no backup file is available -- cannot restore prior state." -f $editionName) -Level "error"
+                Add-RegistryChange -Operation 'FAIL' -Edition $editionName -Target '-' `
+                    -Path '-' -Detail 'rollback requested but backup file missing' -Success $false
+            } else {
+                Write-Log ("Apply/verify failed for edition '{0}' -- triggering transactional rollback from {1}" -f $editionName, $editionBackupFile) -Level "warn"
+                $rb = Invoke-FolderRepairRollback `
+                    -BackupFilePath $editionBackupFile `
+                    -EditionName    $editionName `
+                    -TouchedKeys    $editionKeys `
+                    -PreState       $editionPreState `
+                    -Reason         'apply or verify phase failed'
+                $rollbackSummary += @{ Edition = $editionName; Success = $rb.Success; Backup = $editionBackupFile }
+                Add-RegistryChange -Operation 'ROLLBACK' -Edition $editionName -Target '-' `
+                    -Path $editionBackupFile `
+                    -Detail $(if ($rb.Success) { 'restored from snapshot' } else { 'rollback INCOMPLETE -- manual reg import required' }) `
+                    -Success ([bool]$rb.Success)
+            }
         }
     }
 
@@ -296,8 +345,21 @@ try {
         Write-Log $logMessages.messages.explorerSkipped -Level "info"
     }
 
+    if ($rollbackSummary.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  Rollback summary (transactional repair-vscode):" -ForegroundColor Cyan
+        foreach ($r in $rollbackSummary) {
+            $color = if ($r.Success) { 'Green' } else { 'Red' }
+            $tag   = if ($r.Success) { 'RESTORED' } else { 'INCOMPLETE' }
+            Write-Host ("    [{0}] {1,-10}  backup: {2}" -f $tag, $r.Edition, $r.Backup) -ForegroundColor $color
+        }
+        Write-Host ""
+    }
+
     if ($isAllSuccessful) {
         Write-Log $logMessages.messages.done -Level "success"
+    } elseif ($isRollbackEnabled -and $rollbackSummary.Count -gt 0 -and ($rollbackSummary | Where-Object { -not $_.Success }).Count -eq 0) {
+        Write-Log "Apply failed but transactional rollback restored prior state for all affected editions." -Level "warn"
     } else {
         Write-Log $logMessages.messages.completedWithWarnings -Level "warn"
     }
