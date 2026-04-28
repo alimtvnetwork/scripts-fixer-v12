@@ -7,6 +7,7 @@ export SCRIPT_ID="12"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/parallel.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 . "$ROOT/_shared/registry.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
