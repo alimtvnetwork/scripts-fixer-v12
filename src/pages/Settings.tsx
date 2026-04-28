@@ -509,6 +509,41 @@ const Settings = () => {
           </CardContent>
         </Card>
 
+        {cachedSavedAt !== null && diff.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border bg-muted/40 px-4 py-3 text-sm">
+            <div className="space-y-0.5">
+              <p className="font-medium">Last preview cached</p>
+              <p className="text-xs text-muted-foreground">
+                {summarizeDiff(diff).total} change(s) prepared {formatRelativeTime(cachedSavedAt)} —
+                no fresh bridge call needed.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmOpen(true)}
+              >
+                Show last preview
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  clearCachedPreview();
+                  setCachedSavedAt(null);
+                  setDiff([]);
+                  setStoredConfig(null);
+                  setMergedPreview(null);
+                  setPendingPayload(null);
+                }}
+              >
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-wrap justify-end gap-3">
           <Button variant="outline" asChild>
             <Link to="/">Cancel</Link>
