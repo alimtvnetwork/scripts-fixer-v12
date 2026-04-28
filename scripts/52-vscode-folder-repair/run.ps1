@@ -55,6 +55,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "installed.ps1")
 . (Join-Path $sharedDir "vscode-edition-detect.ps1")
+. (Join-Path $sharedDir "admin-check.ps1")
 
 # -- Dot-source script helpers (also brings in script 10's registry helpers) -
 . (Join-Path $scriptDir "helpers\repair.ps1")
@@ -67,6 +68,39 @@ $logMessages = Import-JsonConfig (Join-Path $scriptDir "log-messages.json")
 if ($Help -or $Command -eq "--help") {
     Show-ScriptHelp -LogMessages $logMessages
     return
+}
+
+# -- Admin elevation gate -----------------------------------------------------
+# Fail FAST (exit 87) before the dispatcher so the user gets a clear retry
+# command instead of a cryptic registry-write failure deep inside a
+# subcommand. Read-only subcommands skip the gate -- they don't write
+# anywhere and are useful when triaging from a non-elevated shell.
+$readOnlySubcommands = @('help','dry-run','whatif','verify','verify-handlers')
+$normalizedCommand   = $Command.ToLower()
+$isReadOnlyCommand   = $readOnlySubcommands -contains $normalizedCommand
+if (-not $isReadOnlyCommand) {
+    # Rebuild the original argv as a single string for the retry hint so
+    # users can copy-paste exactly what they ran. PSBoundParameters covers
+    # named params; $Rest covers passthrough flags after the subcommand.
+    $retryParts = @()
+    if (-not [string]::IsNullOrWhiteSpace($Command)) { $retryParts += $Command }
+    foreach ($k in $PSBoundParameters.Keys) {
+        if ($k -in @('Command','Rest','Help')) { continue }
+        $v = $PSBoundParameters[$k]
+        if ($v -is [switch]) {
+            if ($v.IsPresent) { $retryParts += "-$k" }
+        } elseif ($null -ne $v -and "$v" -ne '') {
+            $retryParts += "-$k"
+            $retryParts += "`"$v`""
+        }
+    }
+    if ($null -ne $Rest -and $Rest.Count -gt 0) { $retryParts += $Rest }
+    $retryArgs = ($retryParts -join ' ').Trim()
+
+    Assert-Elevated `
+        -ScriptPath  $PSCommandPath `
+        -ScriptArgs  $retryArgs `
+        -Reason      'Script 52 writes HKEY_CLASSES_ROOT\Directory\shell\VSCode entries -- requires Administrator.'
 }
 
 # --------------------------------------------------------------------------
@@ -308,19 +342,14 @@ try {
         return
     }
 
-    # -- Assert admin ---------------------------------------------------------
+    # -- Assert admin (defense-in-depth; primary gate is at top of script) ---
     Write-Log $logMessages.messages.checkingAdmin -Level "info"
-    $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-    $hasAdminRights = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    Write-Log ($logMessages.messages.currentUser -replace '\{name\}', $identity.Name) -Level "info"
-    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', $hasAdminRights) -Level $(if ($hasAdminRights) { "success" } else { "error" })
-
-    $isNotAdmin = -not $hasAdminRights
-    if ($isNotAdmin) {
-        Write-Log $logMessages.messages.notAdmin -Level "error"
-        return
-    }
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    Write-Log ($logMessages.messages.currentUser     -replace '\{name\}',  $identity.Name) -Level "info"
+    Write-Log ($logMessages.messages.isAdministrator -replace '\{value\}', (Test-IsElevated)) -Level "success"
+    Assert-Elevated `
+        -ScriptPath $PSCommandPath `
+        -Reason     'Script 52 writes HKEY_CLASSES_ROOT\Directory\shell\VSCode entries -- requires Administrator.'
 
     # -- Per-edition processing ----------------------------------------------
     # Auto-detect installed editions (Stable vs Insiders) and skip the ones
