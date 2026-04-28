@@ -1169,23 +1169,36 @@ cd gitmap-v6
 
 ## PowerShell execution policy
 
-If Windows blocks the scripts with a red "running scripts is disabled on this system" error,
-unblock the current session (no admin, scope = process only):
+If Windows blocks the scripts with a red "running scripts is disabled on this system" error, use one of these options.
+
+For the current shell only (no admin, resets when the shell closes):
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 ```
 
-Or run a single script under bypass without changing the policy at all:
+For a single command without changing the current shell policy:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
 ```
 
-To make it permanent for your user (still no admin):
+For the remote GitMap installer one-liner:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.ps1 | iex"
+```
+
+To make local scripts permanent for your user (still no admin):
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+```
+
+If the file came from a browser download or ZIP, unblock it before running:
+
+```powershell
+Unblock-File .\run.ps1
 ```
 
 ---
