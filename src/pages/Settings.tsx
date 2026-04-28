@@ -23,6 +23,7 @@ import {
   script52OptionsSchema,
 } from "@/lib/configSchema";
 import { diffJson, summarizeDiff, type DiffEntry } from "@/lib/jsonDiff";
+import { DiffRow } from "@/components/DiffRow";
 
 type Edition = "stable" | "insiders";
 type BridgeStatus = "unknown" | "checking" | "online" | "offline";
@@ -554,43 +555,6 @@ const StatusDot = ({ status }: { status: BridgeStatus }) => {
   );
 };
 
-const fmtVal = (v: unknown) => {
-  if (v === undefined) return "∅";
-  try {
-    return JSON.stringify(v);
-  } catch {
-    return String(v);
-  }
-};
-
-const DiffRow = ({ entry }: { entry: DiffEntry }) => {
-  const tone =
-    entry.kind === "added"
-      ? "text-green-600 dark:text-green-400"
-      : entry.kind === "removed"
-      ? "text-red-600 dark:text-red-400"
-      : "text-amber-600 dark:text-amber-400";
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        <span className={`uppercase tracking-wide ${tone}`}>{entry.kind}</span>
-        <span className="text-foreground">{entry.path}</span>
-      </div>
-      {entry.kind === "changed" && (
-        <div className="text-muted-foreground">
-          <span className="text-red-600 dark:text-red-400">- {fmtVal(entry.before)}</span>
-          {"  "}
-          <span className="text-green-600 dark:text-green-400">+ {fmtVal(entry.after)}</span>
-        </div>
-      )}
-      {entry.kind === "added" && (
-        <div className="text-green-600 dark:text-green-400">+ {fmtVal(entry.after)}</div>
-      )}
-      {entry.kind === "removed" && (
-        <div className="text-red-600 dark:text-red-400">- {fmtVal(entry.before)}</div>
-      )}
-    </div>
-  );
-};
+// DiffRow lives in src/components/DiffRow.tsx — imported above.
 
 export default Settings;
