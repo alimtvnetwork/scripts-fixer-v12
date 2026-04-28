@@ -49,6 +49,11 @@ setup_repo() {
 }
 
 verb_install() {
+  write_install_paths \
+    --tool   "Jenkins LTS" \
+    --source "Jenkins apt repo (pkg.jenkins.io/debian-stable)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/share/java/jenkins.war + /var/lib/jenkins"
   log_info "[55] Starting Jenkins LTS installer"
   if verify_installed; then log_ok "[55] Already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   if ! is_debian_family || ! is_apt_available; then log_err "[55] apt required"; return 1; fi
