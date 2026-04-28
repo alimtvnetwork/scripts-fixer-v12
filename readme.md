@@ -16,7 +16,7 @@
 [![AI Models](https://img.shields.io/badge/AI%20Models-90-ef4444?logo=huggingface&logoColor=white)](scripts/43-install-llama-cpp/models-list.md)
 [![Changelog](https://img.shields.io/badge/Changelog-Latest-ec4899)](changelog.md)
 [![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows)
-[![Maintained](https://img.shields.io/badge/Maintained-Yes-22c55e)](https://github.com/alimtvnetwork/gitmap-v6)
+[![Maintained](https://img.shields.io/badge/Maintained-Yes-22c55e)](https://github.com/alimtvnetwork/scripts-fixer-v12)
 
 *One command to set up your entire dev environment. No manual installs. No guesswork.*
 
@@ -26,38 +26,35 @@
 
 ## 🚀 Install
 
-Install GitMap through this repo's dispatcher. Do **not** use the standalone GitMap repo installer from the root README.
+Use this repository's root bootstrap installer. These commands run the root
+`install.ps1` / `install.sh` scripts from this repo.
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-git clone https://github.com/alimtvnetwork/gitmap-v6.git
-cd gitmap-v6
-.\run.ps1 install gitmap
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 ```
 
 If PowerShell blocks scripts, use a process-only bypass for the current shell first:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-.\run.ps1 install gitmap
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 ```
 
-Or run the dispatcher inside a bypassed PowerShell process:
+Or run the root installer inside a bypassed PowerShell process:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 install gitmap
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex"
 ```
 
 ### Unix / macOS (bash)
 
 ```bash
-git clone https://github.com/alimtvnetwork/gitmap-v6.git
-cd gitmap-v6
-bash scripts-linux/run.sh install gitmap
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
 ```
 
-For the full toolkit menu instead, run `.\run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS.
+After installation, use `.\run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS for the toolkit menu.
 
 ---
 
@@ -1106,30 +1103,24 @@ Console:
 
 ## Quick Start
 
-### Install GitMap (Windows / PowerShell)
+### Install this toolkit (Windows / PowerShell)
 
 ```powershell
-# Clone the toolkit
-git clone https://github.com/alimtvnetwork/gitmap-v6.git
-cd gitmap-v6
-
-# Install GitMap through this repo's script 35
-.\run.ps1 install gitmap
+# Run the root bootstrap installer from this repo
+irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex
 
 # Run elevated when a script needs HKCR / Program Files access
 Start-Process powershell -Verb RunAs -ArgumentList @(
-    '-NoProfile','-ExecutionPolicy','Bypass','-File','.\run.ps1','install','gitmap'
+    '-NoProfile','-ExecutionPolicy','Bypass','-Command',
+    'irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex'
 )
 ```
 
-### Install GitMap (Unix / macOS / Bash)
+### Install this toolkit (Unix / macOS / Bash)
 
 ```bash
-git clone https://github.com/alimtvnetwork/gitmap-v6.git
-cd gitmap-v6
-
-# Install GitMap through this repo's script 35
-bash scripts-linux/run.sh install gitmap
+# Run the root bootstrap installer from this repo
+curl -fsSL https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.sh | bash
 
 # Run with sudo only when a script needs root access
 sudo bash scripts-linux/run.sh install <keyword>
@@ -1141,8 +1132,8 @@ To open the full toolkit menu instead, use `.\run.ps1 -d` on Windows or `bash sc
 ### Manual clone
 
 ```powershell
-git clone https://github.com/alimtvnetwork/gitmap-v6.git gitmap-v6
-cd gitmap-v6
+git clone https://github.com/alimtvnetwork/scripts-fixer-v12.git scripts-fixer
+cd scripts-fixer
 ```
 
 ```powershell
@@ -1189,7 +1180,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 For a single command without changing the current shell policy:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 install gitmap
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1 | iex"
 ```
 
 
