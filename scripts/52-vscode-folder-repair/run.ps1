@@ -364,6 +364,14 @@ try {
     $isAllSuccessful     = $true
     $verificationResults = @()
 
+    # -- Backup + change ledger setup ----------------------------------------
+    # Snapshot every key we might touch BEFORE any write so the user can
+    # roll back with `reg import`. The change ledger collects one row per
+    # write/delete/skip/fail, persisted to JSON and printed at the end.
+    $backupRoot   = Join-Path $scriptDir ".logs\registry-backups"
+    $backupResult = $null
+    Start-RegistryChangeLog
+
     Write-Log ($logMessages.messages.installTypePref -replace '\{type\}', $installType) -Level "info"
     Write-Log ($logMessages.messages.enabledEditions -replace '\{editions\}', ($configEditions -join ', ')) -Level "info"
 
