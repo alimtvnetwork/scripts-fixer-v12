@@ -3,14 +3,15 @@
     Repairs the Windows folder context menu entries for Visual Studio Code.
 
 .DESCRIPTION
-    Creates a timestamped .reg backup before changing registry keys, then
-    restores or repairs the VS Code folder right-click entries:
+    Creates a timestamped .reg backup and companion manifest before changing
+    registry keys, then restores or repairs the VS Code folder right-click entries:
 
       - Right-click ON a folder:      HKCR\Directory\shell\VSCode
       - Right-click inside a folder: HKCR\Directory\Background\shell\VSCode
 
-    Restore with:
+    Restore with either an explicit backup or the newest automatic backup:
       .\repair-vscode-folder-context-menu.ps1 -RestoreFromFile "C:\path\backup.reg"
+      .\repair-vscode-folder-context-menu.ps1 -RestoreLatest
 
 .EXAMPLE
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-vscode-folder-context-menu.ps1
@@ -20,6 +21,9 @@
 
 .EXAMPLE
     powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-vscode-folder-context-menu.ps1 -RestoreFromFile "$env:USERPROFILE\Desktop\vscode-context-menu-backups\vscode-context-menu-before-20260428-120000.reg"
+
+.EXAMPLE
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\repair-vscode-folder-context-menu.ps1 -RestoreLatest
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
@@ -34,6 +38,8 @@ param(
     [string]$BackupDir = (Join-Path $env:USERPROFILE 'Desktop\vscode-context-menu-backups'),
 
     [string]$RestoreFromFile,
+
+    [switch]$RestoreLatest,
 
     [switch]$NoExplorerRestart
 )
