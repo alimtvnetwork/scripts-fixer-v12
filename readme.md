@@ -1135,8 +1135,7 @@ bash scripts-linux/run.sh install gitmap
 sudo bash scripts-linux/run.sh install <keyword>
 ```
 
-To open the full toolkit menu instead, use `.
-un.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS.
+To open the full toolkit menu instead, use `.\run.ps1 -d` on Windows or `bash scripts-linux/run.sh --list` on Unix / macOS.
 
 
 ### Manual clone
