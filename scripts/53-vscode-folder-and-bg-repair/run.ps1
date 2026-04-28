@@ -56,6 +56,14 @@ if (-not (Test-Path -LiteralPath $_precheckHelper)) {
 }
 . $_precheckHelper
 
+# -- Dot-source script 53's rollback helper ------------------------------------
+$_rollbackHelper = Join-Path $scriptDir "helpers\rollback.ps1"
+if (-not (Test-Path -LiteralPath $_rollbackHelper)) {
+    Write-Host "FATAL: rollback helper not found at: $_rollbackHelper (failure: cannot run script 53 without helpers/rollback.ps1)" -ForegroundColor Red
+    exit 2
+}
+. $_rollbackHelper
+
 # -- Load config & log messages -----------------------------------------------
 $configPath = Join-Path $scriptDir "config.json"
 $logPath    = Join-Path $scriptDir "log-messages.json"
