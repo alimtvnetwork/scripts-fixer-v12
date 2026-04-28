@@ -2173,6 +2173,7 @@ if ($hasCommand) {
 
     $isBareInstallCommand = $normalizedCommand -eq "install"
     $isBareUpdateCommand  = $normalizedCommand -eq "update" -or $normalizedCommand -eq "choco-update" -or $normalizedCommand -eq "upgrade"
+    $isBareSelfUpdateCommand = $normalizedCommand -in @("self-update", "selfupdate", "self_update", "pull", "sync")
     $isBarePathCommand    = $normalizedCommand -eq "path"
     $isBareScanCommand    = $normalizedCommand -eq "scan"
     $isBareExportCommand  = $normalizedCommand -eq "export"
