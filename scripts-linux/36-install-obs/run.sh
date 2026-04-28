@@ -21,6 +21,11 @@ INSTALLED_MARK="$ROOT/.installed/36.ok"
 verify_installed() { bash -c "$VERIFY_CMD" >/dev/null 2>&1; }
 
 verb_install() {
+  write_install_paths \
+    --tool   "OBS Studio" \
+    --source "obsproject/obs-studio PPA (Debian/Ubuntu)" \
+    --temp   "/var/cache/apt/archives" \
+    --target "/usr/bin/obs"
   log_info "[36] Starting OBS Studio installer"
   if verify_installed; then
     log_ok "[36] Already installed"
