@@ -452,6 +452,11 @@ _install_prerequisites() {
 }
 
 _install_all() {
+    write_install_paths \
+      --tool   "WordPress full stack (Nginx + PHP-FPM + $WP_DB_ENGINE + WP)" \
+      --source "apt repos + https://wordpress.org/latest.tar.gz" \
+      --temp   "/var/cache/apt/archives + $TMPDIR/scripts-fixer/wordpress" \
+      --target "$WP_INSTALL_PATH (docroot) + nginx vhost + $WP_DB_ENGINE datadir"
     log_info "[70] Starting Ubuntu WordPress installer (engine=$WP_DB_ENGINE php=$WP_PHP_VERSION path=$WP_INSTALL_PATH)"
     local rc=0
     _install_prerequisites      || rc=$?
