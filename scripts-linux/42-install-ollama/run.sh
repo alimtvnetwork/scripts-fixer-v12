@@ -6,6 +6,7 @@ export SCRIPT_ID="42"
 . "$ROOT/_shared/logger.sh"
 . "$ROOT/_shared/pkg-detect.sh"
 . "$ROOT/_shared/file-error.sh"
+. "$ROOT/_shared/install-paths.sh"
 
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 42-install-ollama"; exit 1; }
