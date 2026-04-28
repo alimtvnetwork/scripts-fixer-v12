@@ -23,6 +23,7 @@ $script:ScriptDir = $scriptDir
 . (Join-Path $sharedDir "git-pull.ps1")
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\choco.ps1")
@@ -39,6 +40,13 @@ if ($Help) {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Chocolatey + Scoop" `
+    -Source "https://chocolatey.org/install + https://get.scoop.sh" `
+    -Temp   ($env:TEMP + "\scripts-fixer\pkg-mgrs") `
+    -Target (C:\ProgramData\chocolatey  +  $env:USERPROFILE\scoop)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

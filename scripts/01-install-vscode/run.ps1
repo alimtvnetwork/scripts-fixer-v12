@@ -24,6 +24,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\vscode.ps1")
@@ -40,6 +41,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "Visual Studio Code" `
+    -Source "https://chocolatey.org/install (pkg: vscode)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target (C:\Program Files\Microsoft VS Code)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

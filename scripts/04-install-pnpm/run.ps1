@@ -24,6 +24,7 @@ $sharedDir = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "path-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\pnpm.ps1")
@@ -40,6 +41,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "pnpm" `
+    -Source "https://get.pnpm.io/install.ps1" `
+    -Temp   ($env:TEMP + "\scripts-fixer\pnpm") `
+    -Target ($env:LOCALAPPDATA + "\pnpm")
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

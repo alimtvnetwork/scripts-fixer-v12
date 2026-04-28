@@ -26,6 +26,7 @@ $script:ScriptDir = $scriptDir
 . (Join-Path $sharedDir "help.ps1")
 . (Join-Path $sharedDir "choco-utils.ps1")
 . (Join-Path $sharedDir "installed.ps1")
+. (Join-Path $sharedDir "install-paths.ps1")
 
 # -- Dot-source script helpers ------------------------------------------------
 . (Join-Path $scriptDir "helpers\powershell.ps1")
@@ -42,6 +43,13 @@ if ($Help -or $Command -eq "--help") {
 
 # -- Banner --------------------------------------------------------------------
 Write-Banner -Title $logMessages.scriptName
+
+# -- Triple-path install trio (Source / Temp / Target) -----------------------
+Write-InstallPaths `
+    -Tool   "PowerShell 7" `
+    -Source "https://chocolatey.org/install (pkg: powershell-core)" `
+    -Temp   ($env:TEMP + "\chocolatey") `
+    -Target (C:\Program Files\PowerShell\7)
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
