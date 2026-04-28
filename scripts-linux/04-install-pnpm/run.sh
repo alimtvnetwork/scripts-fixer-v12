@@ -11,6 +11,11 @@ PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
 verify_installed() { command -v pnpm >/dev/null 2>&1 || [ -x "$PNPM_HOME/pnpm" ]; }
 
 verb_install() {
+  write_install_paths \
+    --tool   "pnpm" \
+    --source "https://get.pnpm.io/install.sh (official installer)" \
+    --temp   "$HOME/.local/share/pnpm/.tmp" \
+    --target "$PNPM_HOME/pnpm"
   log_info "[04] Starting pnpm installer"
   if verify_installed; then log_ok "[04] pnpm already installed"; mkdir -p "$ROOT/.installed"; touch "$INSTALLED_MARK"; return 0; fi
   has_curl || { log_err "[04] curl required"; return 1; }
