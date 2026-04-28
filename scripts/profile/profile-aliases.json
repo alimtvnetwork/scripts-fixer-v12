@@ -1,0 +1,19 @@
+{
+  "_comment": "Profile alias map. Two kinds of entries:",
+  "_kinds": {
+    "exact":    "Hard rename -- silently resolves to target (e.g. 'git' -> 'git-compact').",
+    "fallback": "Soft mapping -- target is the closest local profile for a profile that doesn't exist locally yet (e.g. 'dev' -> 'base'). Emits a [ WARN ] before running."
+  },
+  "aliases": {
+    "git":         { "kind": "exact",    "target": "git-compact" },
+    "gitcompact":  { "kind": "exact",    "target": "git-compact" },
+    "cppdx":       { "kind": "exact",    "target": "cpp-dx" },
+    "smalldev":    { "kind": "exact",    "target": "small-dev" },
+
+    "dev":         { "kind": "fallback", "target": "base",    "reason": "'dev' profile not present locally; closest match is 'base' (full Windows dev setup)." },
+    "dev-advance": { "kind": "fallback", "target": "advance", "reason": "'dev-advance' profile not present locally; closest match is 'advance' (extended dev tooling)." },
+    "devadvance":  { "kind": "fallback", "target": "advance", "reason": "'devadvance' profile not present locally; closest match is 'advance'." },
+    "developer":   { "kind": "fallback", "target": "base",    "reason": "'developer' profile not present locally; closest match is 'base'." },
+    "full":        { "kind": "fallback", "target": "advance", "reason": "'full' profile not present locally; closest match is 'advance'." }
+  }
+}
