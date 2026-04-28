@@ -32,6 +32,58 @@ const BRIDGE_KEY = "config-bridge-url";
 const TOKEN_KEY = "config-bridge-token";
 const SCRIPT_ID = "52";
 const CONFIG_PATH = "scripts/52-vscode-folder-repair/config.json";
+const PREVIEW_CACHE_KEY = `config-bridge-last-preview-${SCRIPT_ID}`;
+const PREVIEW_CACHE_VERSION = 1;
+
+interface CachedPreview {
+  v: number;
+  savedAt: number;       // epoch ms
+  storedConfig: unknown; // bridge's copy at the time of preparation
+  mergedPreview: unknown;
+  diff: DiffEntry[];
+  pendingPayload: typeof DEFAULT_PATCH;
+}
+
+const loadCachedPreview = (): CachedPreview | null => {
+  try {
+    const raw = localStorage.getItem(PREVIEW_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedPreview;
+    if (parsed?.v !== PREVIEW_CACHE_VERSION || !Array.isArray(parsed.diff)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const saveCachedPreview = (snapshot: Omit<CachedPreview, "v" | "savedAt">) => {
+  try {
+    const payload: CachedPreview = {
+      v: PREVIEW_CACHE_VERSION,
+      savedAt: Date.now(),
+      ...snapshot,
+    };
+    localStorage.setItem(PREVIEW_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // localStorage can throw on quota/private mode — preview cache is best-effort
+  }
+};
+
+const clearCachedPreview = () => {
+  try {
+    localStorage.removeItem(PREVIEW_CACHE_KEY);
+  } catch {
+    // ignore
+  }
+};
+
+const formatRelativeTime = (epochMs: number): string => {
+  const diff = Date.now() - epochMs;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+};
 
 // Deep-merge mirrors the bridge's Merge-Config so the preview matches what
 // will actually land on disk.
@@ -89,6 +141,7 @@ const Settings = () => {
   const [storedConfig, setStoredConfig] = useState<unknown>(null);
   const [mergedPreview, setMergedPreview] = useState<unknown>(null);
   const [pendingPayload, setPendingPayload] = useState<typeof DEFAULT_PATCH | null>(null);
+  const [cachedSavedAt, setCachedSavedAt] = useState<number | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
 
   // The patch we POST to the bridge — only the fields the user can change.
@@ -111,6 +164,18 @@ const Settings = () => {
 
   useEffect(() => { localStorage.setItem(BRIDGE_KEY, bridgeUrl); }, [bridgeUrl]);
   useEffect(() => { localStorage.setItem(TOKEN_KEY, bridgeToken); }, [bridgeToken]);
+
+  // Restore the last successful preview snapshot from localStorage so the user
+  // can re-open the diff dialog immediately without round-tripping the bridge.
+  useEffect(() => {
+    const cached = loadCachedPreview();
+    if (!cached) return;
+    setStoredConfig(cached.storedConfig);
+    setMergedPreview(cached.mergedPreview);
+    setDiff(cached.diff);
+    setPendingPayload(cached.pendingPayload);
+    setCachedSavedAt(cached.savedAt);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -229,6 +294,13 @@ const Settings = () => {
       setMergedPreview(next);
       setDiff(entries);
       setPendingPayload(payload);
+      setCachedSavedAt(Date.now());
+      saveCachedPreview({
+        storedConfig: current,
+        mergedPreview: next,
+        diff: entries,
+        pendingPayload: payload,
+      });
       setConfirmOpen(true);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -274,6 +346,9 @@ const Settings = () => {
       });
       setBridgeStatus("online");
       setConfirmOpen(false);
+      // Saved successfully — the cached preview no longer reflects unsaved work.
+      clearCachedPreview();
+      setCachedSavedAt(null);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       setBridgeStatus("offline");
@@ -433,6 +508,41 @@ const Settings = () => {
             </p>
           </CardContent>
         </Card>
+
+        {cachedSavedAt !== null && diff.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border bg-muted/40 px-4 py-3 text-sm">
+            <div className="space-y-0.5">
+              <p className="font-medium">Last preview cached</p>
+              <p className="text-xs text-muted-foreground">
+                {summarizeDiff(diff).total} change(s) prepared {formatRelativeTime(cachedSavedAt)} —
+                no fresh bridge call needed.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmOpen(true)}
+              >
+                Show last preview
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  clearCachedPreview();
+                  setCachedSavedAt(null);
+                  setDiff([]);
+                  setStoredConfig(null);
+                  setMergedPreview(null);
+                  setPendingPayload(null);
+                }}
+              >
+                Discard
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap justify-end gap-3">
           <Button variant="outline" asChild>
