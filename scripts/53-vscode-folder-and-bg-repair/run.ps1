@@ -21,6 +21,9 @@ param(
     [ValidateSet('', 'stable', 'insiders')]
     [string]$Edition = '',
 
+    # Disable transactional rollback (default ON for `repair-vscode`).
+    [switch]$NoRollback,
+
     [switch]$Help
 )
 
