@@ -24,6 +24,13 @@ param(
     # Disable transactional rollback (default ON for `repair-vscode`).
     [switch]$NoRollback,
 
+    # Restore the most recent registry snapshot for each edition (or one
+    # specified via -BackupFile) and exit. Equivalent to `Command = 'rollback'`.
+    [switch]$Rollback,
+
+    # Optional explicit .reg snapshot to restore (overrides auto-pick of latest).
+    [string]$BackupFile = '',
+
     [switch]$Help
 )
 
@@ -94,6 +101,9 @@ $isReadOnlyCommand    = $cmdLower -in @('verify','dry-run','whatif','precheck','
 #   pre-check -> backup -> apply -> verify -> auto-rollback on failure.
 $isTransactionalCmd   = $cmdLower -in @('repair-vscode','repair-all','transactional','tx')
 $isRollbackEnabled    = $isTransactionalCmd -and -not $NoRollback
+# Manual rollback (--rollback flag OR `rollback` command): restore latest
+# snapshot per edition (or the one passed via -BackupFile) and exit.
+$isManualRollback     = $Rollback.IsPresent -or ($cmdLower -in @('rollback','restore','undo'))
 
 if (-not $isReadOnlyCommand) {
     Assert-Elevated `
@@ -148,6 +158,42 @@ try {
     $hasNoneInstalled = ($detectedEditions.Count -eq 0)
     if ($hasNoneInstalled) {
         Write-Log "[edition-detect] no enabled VS Code editions are installed (or filter excluded all) -- nothing to repair." -Level "warn"
+        return
+    }
+
+    # -- MANUAL ROLLBACK: --rollback flag or `rollback` command --------------
+    if ($isManualRollback) {
+        Write-Log ("Manual rollback requested -- restoring from snapshots in {0}" -f $backupRoot) -Level "warn"
+        $rb = Invoke-ManualRollback `
+            -Config             $config `
+            -BackupRoot         $backupRoot `
+            -Editions           $detectedEditions `
+            -ExplicitBackupFile $BackupFile
+
+        # Persist a ledger row per edition for auditability.
+        foreach ($row in $rb.Summary) {
+            Add-RegistryChange -Operation 'ROLLBACK' -Edition $row.Edition -Target '-' `
+                -Path $row.Backup `
+                -Detail $(if ($row.Success) { 'manual rollback restored from snapshot' } else { 'manual rollback FAILED -- see log above' }) `
+                -Success ([bool]$row.Success)
+        }
+
+        $changeLogPath = Save-RegistryChangeLog -OutputDir $backupRoot -Tag 'script53-rollback'
+        Write-RegistryChangeLog -BackupFilePath '' -JsonLogPath $(if ($changeLogPath) { $changeLogPath } else { '' })
+
+        # Restart explorer so restored entries appear immediately.
+        $isNoRestartCommand = $cmdLower -eq "no-restart"
+        $shouldRestart      = $config.restartExplorer -and -not $isNoRestartCommand
+        if ($shouldRestart) {
+            $waitMs = if ($config.PSObject.Properties.Match('restartExplorerWaitMs').Count) { [int]$config.restartExplorerWaitMs } else { 800 }
+            $null = Restart-Explorer -WaitMs $waitMs -LogMsgs $logMessages
+        }
+
+        if ($rb.Success) {
+            Write-Log "Manual rollback completed successfully." -Level "success"
+        } else {
+            Write-Log "Manual rollback completed with errors -- review log above." -Level "error"
+        }
         return
     }
 
