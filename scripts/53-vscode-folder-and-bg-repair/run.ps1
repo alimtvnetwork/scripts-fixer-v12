@@ -134,6 +134,22 @@ try {
         return
     }
 
+    # -- PRE-CHECK: report current state + planned actions BEFORE writing -----
+    $isDryRun = $Command.ToLower() -in @('dry-run','whatif','precheck','pre-check','plan')
+    Write-Log "Running pre-check (inspecting current registry state, no writes)..." -Level "info"
+    $planRows = Invoke-FolderRepairPreCheck `
+        -Config           $config `
+        -LogMessages      $logMessages `
+        -DetectedEditions $detectedEditions `
+        -InstallType      $installType `
+        -ScriptDir        $scriptDir `
+        -ApplyMode:(-not $isDryRun)
+
+    if ($isDryRun) {
+        Write-Log "Dry-run mode -- no changes were applied. Re-run without 'dry-run' / 'precheck' to apply." -Level "success"
+        return
+    }
+
     foreach ($editionName in $detectedEditions) {
         $edition = $config.editions.$editionName
 
