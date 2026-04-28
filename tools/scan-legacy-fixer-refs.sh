@@ -55,19 +55,40 @@ if [ ! -d "$ROOT" ]; then
     exit 2
 fi
 
+# ---- Resolve & validate path filter ---------------------------------------
+# Normalise commas to spaces so --paths "a,b" and SCAN_PATHS "a b" both work.
+NORMALISED_PATHS="$(printf '%s' "$RAW_PATHS" | tr ',' ' ')"
+SEARCH_TARGETS=()
+if [ -n "$NORMALISED_PATHS" ]; then
+    for p in $NORMALISED_PATHS; do
+        # Strip leading ./ and trailing slashes, keep repo-relative form.
+        clean="${p#./}"
+        clean="${clean%/}"
+        [ -z "$clean" ] && continue
+        abs="$ROOT/$clean"
+        if [ ! -e "$abs" ]; then
+            log_file_error "$abs" "path filter target does not exist (from --paths/SCAN_PATHS=\"$p\")"
+            exit 2
+        fi
+        SEARCH_TARGETS+=("$clean")
+    done
+fi
+if [ "${#SEARCH_TARGETS[@]}" -eq 0 ]; then
+    SEARCH_TARGETS=(".")
+fi
+
 PATTERN="scripts-fixer-v(${VERSIONS})\b"
 
 printf "\n  %bLegacy scripts-fixer reference scan%b\n" "$C_CYN" "$C_RST"
 printf "  %b----------------------------------------%b\n" "$C_DIM" "$C_RST"
 printf "  Root     : %s\n" "$ROOT"
 printf "  Pattern  : %s\n" "$PATTERN"
+printf "  Paths    : %s\n" "$(printf '%s ' "${SEARCH_TARGETS[@]}")"
 printf "\n"
 
 # Prefer ripgrep, fall back to grep -r
 if command -v rg >/dev/null 2>&1; then
     # rg with --no-ignore so we audit EVERY tracked + untracked file.
-    # Explicit "." path argument is required in some environments where
-    # implicit-CWD search returns nothing.
     OUTPUT="$(cd "$ROOT" && rg --no-ignore --hidden --no-config \
         --glob '!.git' --glob '!node_modules' --glob '!dist' --glob '!build' \
         --glob '!.lovable/compliance-reports/**' \
@@ -76,7 +97,7 @@ if command -v rg >/dev/null 2>&1; then
         --glob '!tools/readme.md' \
         --glob '!legacy-fix-report.json' \
         --glob '!.legacy-fix-backups/**' \
-        -nH "$PATTERN" . 2>/dev/null || true)"
+        -nH "$PATTERN" "${SEARCH_TARGETS[@]}" 2>/dev/null || true)"
 else
     OUTPUT="$(cd "$ROOT" && grep -RnHE \
         --binary-files=without-match \
@@ -86,7 +107,7 @@ else
         --exclude='*legacy-refs.*' \
         --exclude='readme.md' \
         --exclude='legacy-fix-report.json' \
-        "$PATTERN" . 2>/dev/null || true)"
+        "$PATTERN" "${SEARCH_TARGETS[@]}" 2>/dev/null || true)"
 fi
 
 if [ -z "$OUTPUT" ]; then
