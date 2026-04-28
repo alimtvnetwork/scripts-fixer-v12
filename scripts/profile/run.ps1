@@ -79,15 +79,8 @@ try {
     # Silent: detector must never break the dispatcher
 }
 
-# -- Triple-path trio (Source / Temp / Target) -----------------------
 $sharedDirProf = Join-Path (Split-Path -Parent $scriptDir) "shared"
 . (Join-Path $sharedDirProf "install-paths.ps1")
-Write-InstallPaths `
-    -Tool   "Profile dispatcher" `
-    -Action "Dispatch" `
-    -Source "$scriptDir\config.json (profile catalog)" `
-    -Temp   ($env:TEMP + "\scripts-fixer\profile") `
-    -Target "varies per profile (forwards to scripts/01..65)"
 
 function Show-ProfileHelp {
     param([PSObject]$Config)
