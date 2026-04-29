@@ -364,6 +364,11 @@ function Get-LogIdentityFields {
     return @{
         projectVersion = $projectVersion
         invokedFrom    = $invokedFrom
+        gitSha         = $gitSha
+        gitShaFull     = $gitShaFull
+        gitBranch      = $gitBranch
+        gitDirty       = $gitDirty
+        gitRemote      = $gitRemote
     }
 }
 
