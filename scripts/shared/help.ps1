@@ -203,4 +203,12 @@ function Show-ScriptHelp {
         }
         Write-Host ""
     }
+
+    # -- Footer with version ---------------------------------------------------
+    $footerTpl = $slm.messages.helpFooter
+    if ($footerTpl) {
+        $footerLine = $footerTpl -replace '\{version\}', $Version -replace '\{name\}', $Name
+        Write-Host $footerLine -ForegroundColor DarkCyan
+        Write-Host ""
+    }
 }
