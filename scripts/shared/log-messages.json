@@ -85,6 +85,7 @@
     "helpExamplesLabel": "  Examples:",
     "helpExampleItem": "    {example}",
     "helpDescription": "  {description}",
+    "helpFooter": "  scripts-fixer v{version} -- {name}",
     "adminTip": "  Tip: Right-click PowerShell -> 'Run as Administrator'",
     "symlinkSourceNotFound": "Could not resolve install directory for {name} -- symlink skipped",
     "symlinkParentCreated": "Created databases directory: {path}",
