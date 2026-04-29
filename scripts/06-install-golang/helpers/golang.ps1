@@ -172,18 +172,16 @@ function Install-Go {
             $hasFailed = -not $ok
             if ($hasFailed) { return $false }
 
-            # Refresh PATH so go.exe is available in this session
-            $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
-            $goCmd = Get-Command go.exe -ErrorAction SilentlyContinue
-            $isStillMissing = -not $goCmd
-            if ($isStillMissing) {
-                Write-Log $LogMessages.messages.goNotInPath -Level "warn"
+            # Post-install: verify `go version` works in this session.
+            # Refreshes PATH from registry / refreshenv / probes well-known paths.
+            $verify = Assert-GoOnPath -LogMessages $LogMessages
+            if (-not $verify.Success) {
+                Save-InstalledError -Name "golang" -ErrorMessage "Post-install verification failed: 'go version' did not run."
                 return $false
             }
 
-            $version = & go.exe version 2>&1
-            Write-Log ($LogMessages.messages.goVersion -replace '\{version\}', $version) -Level "success"
-            Save-InstalledRecord -Name "golang" -Version "$version".Trim()
+            Write-Log ($LogMessages.messages.goVersion -replace '\{version\}', $verify.Version) -Level "success"
+            Save-InstalledRecord -Name "golang" -Version "$($verify.Version)".Trim()
             return $true
         } catch {
             Write-Log "Go install failed: $_" -Level "error"
@@ -207,18 +205,24 @@ function Install-Go {
         if ($Config.alwaysUpgradeToLatest) {
             try {
                 Upgrade-ChocoPackage -PackageName $packageName | Out-Null
-                $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+                # Re-verify after upgrade in case the new install moved go.exe
+                [void](Update-SessionPathFromRegistry)
             } catch {
                 Write-Log "Go upgrade failed: $_" -Level "error"
                 Save-InstalledError -Name "golang" -ErrorMessage "$_"
             }
         }
 
-        $version = try { & go.exe version 2>&1 } catch { $null }
-        $isVersionEmpty = [string]::IsNullOrWhiteSpace($version)
-        if ($isVersionEmpty) { $version = "(version pending)" }
-        Write-Log ($LogMessages.messages.goVersion -replace '\{version\}', $version) -Level "success"
-        Save-InstalledRecord -Name "golang" -Version "$version".Trim()
+        # Post-install/upgrade verification (also handles the "already installed
+        # but PATH was lost" edge case).
+        $verify = Assert-GoOnPath -LogMessages $LogMessages
+        if (-not $verify.Success) {
+            Save-InstalledError -Name "golang" -ErrorMessage "Post-install verification failed: 'go version' did not run."
+            return $false
+        }
+
+        Write-Log ($LogMessages.messages.goVersion -replace '\{version\}', $verify.Version) -Level "success"
+        Save-InstalledRecord -Name "golang" -Version "$($verify.Version)".Trim()
         return $true
     }
 }
