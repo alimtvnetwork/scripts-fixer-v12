@@ -126,6 +126,21 @@ function Write-FileError {
         [string]$Fallback
     )
 
+    # Soft-validate Operation: never crash the caller for an unknown verb.
+    # Older callers (or new verbs added in newer scripts running against an
+    # older shared logger) MUST NOT bring the whole script down. Unknown verbs
+    # are accepted as-is and the original CODE RED log line is still emitted
+    # with the exact path + reason, which is the contract that matters.
+    $knownOperations = @(
+        "read", "write", "copy", "move", "inject", "load", "extract", "resolve",
+        "install", "delete", "execute", "download", "parse",
+        "backup", "checksum", "create", "fetch", "mkdir", "symlink", "verify"
+    )
+    $isUnknownOperation = $Operation -notin $knownOperations
+    if ($isUnknownOperation) {
+        Write-Log ("[CODE RED] Unknown Write-FileError Operation '{0}' -- accepting as-is so logging cannot mask the real error" -f $Operation) -Level "warn"
+    }
+
     # Auto-detect module from call stack if not provided
     $isModuleMissing = [string]::IsNullOrWhiteSpace($Module)
     if ($isModuleMissing) {
