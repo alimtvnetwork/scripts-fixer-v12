@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 35-install-gitmap -- gitmap CLI (curl one-liner from gitmap-v8)
+# 35-install-gitmap -- gitmap CLI (curl one-liner from gitmap-v9 release)
 set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -12,8 +12,8 @@ export SCRIPT_ID="35"
 CONFIG="$SCRIPT_DIR/config.json"
 [ -f "$CONFIG" ] || { log_file_error "$CONFIG" "config.json missing for 35-install-gitmap"; exit 1; }
 
-# Canonical install one-liner (matches README)
-INSTALL_URL="https://raw.githubusercontent.com/alimtvnetwork/gitmap-v8/main/gitmap/scripts/install.sh"
+# Canonical install one-liner (matches README + root install hint)
+INSTALL_URL="https://github.com/alimtvnetwork/gitmap-v9/releases/download/v3.180/install.sh"
 
 # Where the upstream installer drops the binary by default.
 BIN_DIR="${HOME}/.local/bin"
