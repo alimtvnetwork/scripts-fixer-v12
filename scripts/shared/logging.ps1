@@ -162,7 +162,7 @@ function Write-FileError {
     $hasCachedIdentity = $null -ne $script:_LogIdentity
     if (-not $hasCachedIdentity) {
         try { $script:_LogIdentity = Get-LogIdentityFields } catch {
-            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown" }
+            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown"; gitSha = "unknown"; gitShaFull = "unknown"; gitBranch = "unknown"; gitDirty = $false; gitRemote = "unknown" }
         }
     }
     $fileErrorEvent = [ordered]@{
@@ -177,6 +177,8 @@ function Write-FileError {
         message        = $msg
         projectVersion = $script:_LogIdentity.projectVersion
         invokedFrom    = $script:_LogIdentity.invokedFrom
+        gitSha         = $script:_LogIdentity.gitSha
+        gitBranch      = $script:_LogIdentity.gitBranch
         scriptName     = $script:_LogName
     }
     $script:_LogEvents.Add($fileErrorEvent) | Out-Null
