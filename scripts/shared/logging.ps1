@@ -81,7 +81,7 @@ function Write-Log {
     $hasCachedIdentity = $null -ne $script:_LogIdentity
     if (-not $hasCachedIdentity) {
         try { $script:_LogIdentity = Get-LogIdentityFields } catch {
-            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown" }
+            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown"; gitSha = "unknown"; gitShaFull = "unknown"; gitBranch = "unknown"; gitDirty = $false; gitRemote = "unknown" }
         }
     }
     $event = [ordered]@{
