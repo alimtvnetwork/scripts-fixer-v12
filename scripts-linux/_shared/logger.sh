@@ -5,6 +5,26 @@
 __LOG_DIR="${__LOG_DIR:-$(dirname "${BASH_SOURCE[0]}")/../.logs}"
 mkdir -p "$__LOG_DIR" 2>/dev/null || true
 
+# ── Resolve project version + git identity once per session ─────────────
+__PROJECT_ROOT="${__PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+__VERSION_FILE="$__PROJECT_ROOT/scripts/version.json"
+__PROJECT_VERSION="unknown"
+if [ -f "$__VERSION_FILE" ]; then
+  __PROJECT_VERSION=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' "$__VERSION_FILE" 2>/dev/null \
+    | head -1 | sed -E 's/.*"([^"]+)"$/\1/')
+  [ -n "$__PROJECT_VERSION" ] || __PROJECT_VERSION="unknown"
+fi
+__GIT_SHA="unknown"; __GIT_SHA_FULL="unknown"; __GIT_BRANCH="unknown"
+__GIT_DIRTY="false"; __GIT_REMOTE="unknown"
+if command -v git >/dev/null 2>&1 && [ -d "$__PROJECT_ROOT/.git" ]; then
+  __GIT_SHA=$(git -C "$__PROJECT_ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+  __GIT_SHA_FULL=$(git -C "$__PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)
+  __GIT_BRANCH=$(git -C "$__PROJECT_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
+  __GIT_REMOTE=$(git -C "$__PROJECT_ROOT" config --get remote.origin.url 2>/dev/null || echo unknown)
+  if [ -n "$(git -C "$__PROJECT_ROOT" status --porcelain 2>/dev/null)" ]; then __GIT_DIRTY="true"; fi
+fi
+export __PROJECT_VERSION __GIT_SHA __GIT_SHA_FULL __GIT_BRANCH __GIT_DIRTY __GIT_REMOTE
+
 __color() {
   case "$1" in
     info)  printf '\033[36m' ;;
