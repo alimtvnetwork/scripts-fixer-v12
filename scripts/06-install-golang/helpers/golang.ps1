@@ -298,6 +298,78 @@ function Configure-GoEnv {
     return $isAllOk
 }
 
+function Test-GoVetAvailability {
+    param(
+        $LogMessages
+    )
+
+    $msgs = $LogMessages.messages
+    $tempVetDir = Join-Path ([System.IO.Path]::GetTempPath()) ("scripts-fixer-go-vet-" + [guid]::NewGuid().ToString("N"))
+    $mainFilePath = Join-Path $tempVetDir "main.go"
+    $isLocationPushed = $false
+
+    try {
+        Write-Log ($msgs.goVetTempModule -replace '\{path\}', $tempVetDir) -Level "info"
+
+        try {
+            New-Item -Path $tempVetDir -ItemType Directory -Force -Confirm:$false | Out-Null
+            Set-Content -Path $mainFilePath -Value "package main`n`nfunc main() {}`n" -Encoding UTF8
+        } catch {
+            $createError = $_
+            Write-FileError -FilePath $mainFilePath -Operation "write" -Reason "Failed to create temporary go vet module: $createError" -Module "Test-GoVetAvailability"
+            return $false
+        }
+
+        Push-Location $tempVetDir
+        $isLocationPushed = $true
+
+        $modOutput = & go.exe mod init scripts-fixer-vet-check 2>&1
+        $modExitCode = $LASTEXITCODE
+        foreach ($line in $modOutput) {
+            if ($line -and $line.ToString().Trim().Length -gt 0) { Write-Log $line -Level "info" }
+        }
+
+        $hasModInitFailed = $modExitCode -ne 0
+        if ($hasModInitFailed) {
+            Write-Log ($msgs.goVetFailed -replace '\{error\}', "go mod init failed in $tempVetDir (exit code $modExitCode)") -Level "warn"
+            return $false
+        }
+
+        $vetOutput = & go.exe vet ./... 2>&1
+        $vetExitCode = $LASTEXITCODE
+        foreach ($line in $vetOutput) {
+            if ($line -and $line.ToString().Trim().Length -gt 0) { Write-Log $line -Level "info" }
+        }
+
+        $hasVetFailed = $vetExitCode -ne 0
+        if ($hasVetFailed) {
+            Write-Log ($msgs.goVetFailed -replace '\{error\}', "go vet ./... failed in $tempVetDir (exit code $vetExitCode)") -Level "warn"
+            return $false
+        }
+
+        Write-Log $msgs.goVetAvailable -Level "success"
+        return $true
+    } catch {
+        Write-Log ($msgs.goVetFailed -replace '\{error\}', $_) -Level "warn"
+        return $false
+    } finally {
+        if ($isLocationPushed) { Pop-Location }
+
+        if (Test-Path $tempVetDir) {
+            try {
+                Remove-Item -Path $tempVetDir -Recurse -Force -Confirm:$false
+            } catch {
+                $cleanupError = $_
+                try {
+                    Write-FileError -FilePath $tempVetDir -Operation "write" -Reason "Failed to remove temporary go vet module: $cleanupError" -Module "Test-GoVetAvailability"
+                } catch {
+                    Write-Log ("[CODE RED] File error during write: {0} -- Reason: Failed to remove temporary go vet module: {1} [Module: Test-GoVetAvailability]" -f $tempVetDir, $cleanupError) -Level "warn"
+                }
+            }
+        }
+    }
+}
+
 function Install-GoTools {
     <#
     .SYNOPSIS
@@ -313,11 +385,8 @@ function Install-GoTools {
 
     # -- go vet (built-in) -- verify it works ----------------------------
     Write-Log $msgs.goVetChecking -Level "info"
-    try {
-        $vetOutput = & go.exe vet 2>&1
-        Write-Log $msgs.goVetAvailable -Level "success"
-    } catch {
-        Write-Log ($msgs.goVetFailed -replace '\{error\}', $_) -Level "warn"
+    $isGoVetAvailable = Test-GoVetAvailability -LogMessages $LogMessages
+    if ($isGoVetAvailable -eq $false) {
         $isAllOk = $false
     }
 
