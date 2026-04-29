@@ -258,7 +258,7 @@ function Initialize-Logging {
     # Write-Log / Write-FileError will copy these two fields onto its own
     # record so individual log lines stay traceable after grep / split / merge.
     try { $script:_LogIdentity = Get-LogIdentityFields } catch {
-        $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown" }
+        $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown"; gitSha = "unknown"; gitShaFull = "unknown"; gitBranch = "unknown"; gitDirty = $false; gitRemote = "unknown" }
     }
 
     Write-Log "Logging initialised -- events will be saved to: $logsDir\$safeName.json" -Level "info"
