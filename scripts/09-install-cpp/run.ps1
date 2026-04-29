@@ -48,8 +48,7 @@ Write-InstallPaths `
     -Tool   "MinGW-w64 (g++/gcc/make)" `
     -Source "https://chocolatey.org/install (pkg: mingw)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\ProgramData\mingw64)
-
+    -Target "C:\ProgramData\mingw64"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

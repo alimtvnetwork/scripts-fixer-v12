@@ -48,8 +48,7 @@ Write-InstallPaths `
     -Tool   "Kubernetes CLI (kubectl)" `
     -Source "https://chocolatey.org/install (pkg: kubernetes-cli)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\ProgramData\chocolatey\lib\kubernetes-cli\tools)
-
+    -Target "C:\ProgramData\chocolatey\lib\kubernetes-cli\tools"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

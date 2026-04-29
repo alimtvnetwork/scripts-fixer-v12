@@ -48,8 +48,7 @@ Write-InstallPaths `
     -Tool   ".NET SDK" `
     -Source "https://chocolatey.org/install (pkg: dotnet-sdk)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\dotnet)
-
+    -Target "C:\Program Files\dotnet"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "winget (App Installer)" `
     -Source "https://aka.ms/getwinget (Microsoft Store / GitHub release)" `
     -Temp   ($env:TEMP + "\scripts-fixer\winget") `
-    -Target (C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*)
-
+    -Target "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

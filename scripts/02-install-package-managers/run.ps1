@@ -46,8 +46,7 @@ Write-InstallPaths `
     -Tool   "Chocolatey + Scoop" `
     -Source "https://chocolatey.org/install + https://get.scoop.sh" `
     -Temp   ($env:TEMP + "\scripts-fixer\pkg-mgrs") `
-    -Target (C:\ProgramData\chocolatey  +  $env:USERPROFILE\scoop)
-
+    -Target "C:\ProgramData\chocolatey  +  $env:USERPROFILE\scoop"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

@@ -63,8 +63,7 @@ Write-InstallPaths `
     -Tool   "Windows Terminal" `
     -Source "https://chocolatey.org/install (pkg: microsoft-windows-terminal)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_*)
-
+    -Target "C:\Program Files\WindowsApps\Microsoft.WindowsTerminal_*"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

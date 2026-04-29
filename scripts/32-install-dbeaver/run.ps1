@@ -50,8 +50,7 @@ Write-InstallPaths `
     -Tool   "DBeaver Community" `
     -Source "https://chocolatey.org/install (pkg: dbeaver)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\DBeaver)
-
+    -Target "C:\Program Files\DBeaver"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

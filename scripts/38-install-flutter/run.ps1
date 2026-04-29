@@ -48,8 +48,7 @@ Write-InstallPaths `
     -Tool   "Flutter SDK" `
     -Source "https://chocolatey.org/install (pkg: flutter)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\tools\flutter)
-
+    -Target "C:\tools\flutter"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

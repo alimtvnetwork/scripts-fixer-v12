@@ -56,7 +56,7 @@ Write-InstallPaths `
     -Tool   "ConEmu" `
     -Source "https://chocolatey.org/install (pkg: conemu)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\ConEmu)
+    -Target "C:\Program Files\ConEmu"
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 try {

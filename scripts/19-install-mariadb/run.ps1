@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "MariaDB" `
     -Source "https://chocolatey.org/install (pkg: mariadb)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\MariaDB)
-
+    -Target "C:\Program Files\MariaDB"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

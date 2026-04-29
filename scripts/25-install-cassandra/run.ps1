@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "Apache Cassandra" `
     -Source "https://chocolatey.org/install (pkg: cassandra)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\apache-cassandra)
-
+    -Target "C:\Program Files\apache-cassandra"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

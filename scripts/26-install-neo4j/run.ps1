@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "Neo4j" `
     -Source "https://chocolatey.org/install (pkg: neo4j-community)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Neo4j Community)
-
+    -Target "C:\Program Files\Neo4j Community"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

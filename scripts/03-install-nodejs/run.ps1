@@ -48,7 +48,7 @@ Write-InstallPaths `
     -Tool   "Node.js (LTS)" `
     -Source "https://chocolatey.org/install (pkg: nodejs-lts)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\nodejs)
+    -Target "C:\Program Files\nodejs"
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName

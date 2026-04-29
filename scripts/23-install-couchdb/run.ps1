@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "Apache CouchDB" `
     -Source "https://chocolatey.org/install (pkg: couchdb)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Apache CouchDB)
-
+    -Target "C:\Program Files\Apache CouchDB"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 
