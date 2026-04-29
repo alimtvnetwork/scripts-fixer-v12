@@ -16,7 +16,7 @@
     # ----- Configuration ----------------------------------------------------
     $owner    = "alimtvnetwork"
     $baseName = "scripts-fixer"
-    $current  = 8   # <-- bump this when this file is copied into a new -vN repo
+    $current  = 12  # <-- bump this when this file is copied into a new -vN repo
     $repo     = "https://github.com/$owner/$baseName-v$current.git"
     # NOTE: $folder is resolved later -- it is CWD-aware (see Resolve-TargetFolder).
     # Fallback only kicks in when CWD is a protected/system directory.
