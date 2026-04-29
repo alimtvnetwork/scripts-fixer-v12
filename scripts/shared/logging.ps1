@@ -270,6 +270,11 @@ function Get-LogIdentityFields {
     #>
     $projectVersion = "unknown"
     $invokedFrom    = "unknown"
+    $gitSha         = "unknown"
+    $gitShaFull     = "unknown"
+    $gitBranch      = "unknown"
+    $gitDirty       = $false
+    $gitRemote      = "unknown"
 
     try {
         # Resolve project root the same way Initialize-Logging does.
@@ -279,6 +284,26 @@ function Get-LogIdentityFields {
             $scriptsRoot = Split-Path -Parent $PSScriptRoot
         }
         $projectRoot = Split-Path -Parent $scriptsRoot
+
+        # ----- git identity (best-effort, never throws) -----
+        try {
+            $gitDir = Join-Path $projectRoot ".git"
+            if (Test-Path -LiteralPath $gitDir) {
+                Push-Location -LiteralPath $projectRoot
+                try {
+                    $sha = (& git rev-parse --short=12 HEAD 2>$null) | Select-Object -First 1
+                    if ($sha) { $gitSha = "$sha".Trim() }
+                    $shaFull = (& git rev-parse HEAD 2>$null) | Select-Object -First 1
+                    if ($shaFull) { $gitShaFull = "$shaFull".Trim() }
+                    $branch = (& git rev-parse --abbrev-ref HEAD 2>$null) | Select-Object -First 1
+                    if ($branch) { $gitBranch = "$branch".Trim() }
+                    $remote = (& git config --get remote.origin.url 2>$null) | Select-Object -First 1
+                    if ($remote) { $gitRemote = "$remote".Trim() }
+                    $status = (& git status --porcelain 2>$null)
+                    if ($status) { $gitDirty = $true }
+                } finally { Pop-Location }
+            }
+        } catch { }
 
         # ----- projectVersion : read scripts/version.json -----
         $versionFile = Join-Path $scriptsRoot "version.json"
