@@ -90,6 +90,8 @@ function Write-Log {
         message        = $Message
         projectVersion = $script:_LogIdentity.projectVersion
         invokedFrom    = $script:_LogIdentity.invokedFrom
+        gitSha         = $script:_LogIdentity.gitSha
+        gitBranch      = $script:_LogIdentity.gitBranch
         scriptName     = $script:_LogName
     }
     $script:_LogEvents.Add($event) | Out-Null
