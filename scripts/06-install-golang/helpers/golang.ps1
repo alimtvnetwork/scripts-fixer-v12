@@ -364,11 +364,15 @@ function Install-GoTools {
             # cannot mask the real reason `go install` failed.
             $originalError = $_
             try {
-                Write-FileError -FilePath $installPkg -Operation "install" -Reason "$originalError" -Module "Install-GoTools"
+                # Use "resolve" instead of "install" because older shared
+                # logging helpers only allow the original CODE RED operation set.
+                # This keeps the exact package path + failure reason visible
+                # without letting the logger become the primary crash.
+                Write-FileError -FilePath $installPkg -Operation "resolve" -Reason "go install failed: $originalError" -Module "Install-GoTools"
             } catch {
-                # Fallback: older logging.ps1 may reject -Operation 'install'.
+                # Fallback: never let CODE RED logging hide the real go install error.
                 Write-Log ("[CODE RED] go install failed for: {0} -- Reason: {1} [Module: Install-GoTools]" -f $installPkg, $originalError) -Level "error"
-                Write-Log ("Write-FileError unavailable for Operation='install' -- update scripts/shared/logging.ps1 (run: git pull). Inner: {0}" -f $_) -Level "warn"
+                Write-Log ("Write-FileError fallback used for: {0} -- Reason: {1}" -f $installPkg, $_) -Level "warn"
             }
             Write-Log ($msgs.golangciLintFailed -replace '\{error\}', $originalError) -Level "error"
             Save-InstalledError -Name "golangci-lint" -ErrorMessage "$originalError"
