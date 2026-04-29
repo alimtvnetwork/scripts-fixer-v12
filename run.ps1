@@ -2817,6 +2817,33 @@ if ($hasInstallKeywords) {
         Write-Host "$failCount script(s) failed"
     }
 
+    # ── Footer: project version + latest git SHA ─────────────────────
+    $footerVersion = Get-ScriptVersion
+    $footerSha     = $null
+    $footerBranch  = $null
+    try {
+        Push-Location $RootDir
+        $footerSha    = (& git rev-parse --short HEAD 2>$null) -join ""
+        $footerBranch = (& git rev-parse --abbrev-ref HEAD 2>$null) -join ""
+        Pop-Location
+    } catch {
+        # git not available -- footer will degrade gracefully
+    }
+
+    $hasVersion = -not [string]::IsNullOrWhiteSpace($footerVersion)
+    $hasSha     = -not [string]::IsNullOrWhiteSpace($footerSha)
+    if ($hasVersion -or $hasSha) {
+        $parts = @()
+        if ($hasVersion) { $parts += "scripts-fixer v$footerVersion" }
+        if ($hasSha) {
+            $shaText = "sha $footerSha"
+            $hasBranch = -not [string]::IsNullOrWhiteSpace($footerBranch)
+            if ($hasBranch) { $shaText += " ($footerBranch)" }
+            $parts += $shaText
+        }
+        Write-Host ("  {0}" -f ($parts -join "  --  ")) -ForegroundColor DarkCyan
+    }
+
     Remove-Item Env:\SCRIPTS_ROOT_RUN -ErrorAction SilentlyContinue
     exit 0
 }
