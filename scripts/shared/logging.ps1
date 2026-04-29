@@ -476,6 +476,16 @@ function Save-LogFile {
             Write-Host "    >> $($err.message)" -ForegroundColor Red
         }
     }
+
+    # ── Version + Git SHA footer (always printed) ───────────────────────
+    $dirtyTag = if ($identity.gitDirty) { "-dirty" } else { "" }
+    Write-Host ""
+    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkCyan
+    Write-Host ("  scripts-fixer v{0}  |  git {1}{2} ({3})" -f $identity.projectVersion, $identity.gitSha, $dirtyTag, $identity.gitBranch) -ForegroundColor DarkCyan
+    if ($identity.gitRemote -and $identity.gitRemote -ne "unknown") {
+        Write-Host ("  repo: {0}" -f $identity.gitRemote) -ForegroundColor DarkGray
+    }
+    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkCyan
 }
 
 function Import-JsonConfig {
