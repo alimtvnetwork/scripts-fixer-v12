@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "PowerShell 7" `
     -Source "https://chocolatey.org/install (pkg: powershell-core)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\PowerShell\7)
-
+    -Target "C:\Program Files\PowerShell\7"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

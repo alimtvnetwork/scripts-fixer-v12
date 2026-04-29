@@ -39,7 +39,7 @@ Write-InstallPaths `
     -Tool   "Microsoft OneNote" `
     -Source "https://chocolatey.org/install (pkg: onenote)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Microsoft Office\OneNote)
+    -Target "C:\Program Files\Microsoft Office\OneNote"
 Initialize-Logging -ScriptName $logMessages.scriptName
 
 try {

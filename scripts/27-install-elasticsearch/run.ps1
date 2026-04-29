@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "Elasticsearch" `
     -Source "https://chocolatey.org/install (pkg: elasticsearch)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Elastic\Elasticsearch)
-
+    -Target "C:\Program Files\Elastic\Elasticsearch"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

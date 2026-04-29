@@ -62,8 +62,7 @@ Write-InstallPaths `
     -Tool   "Notepad++" `
     -Source "https://chocolatey.org/install (pkg: notepadplusplus)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Notepad++)
-
+    -Target "C:\Program Files\Notepad++"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

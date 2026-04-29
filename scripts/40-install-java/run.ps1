@@ -48,8 +48,7 @@ Write-InstallPaths `
     -Tool   "Java (OpenJDK)" `
     -Source "https://chocolatey.org/install (pkg: openjdk)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\OpenJDK)
-
+    -Target "C:\Program Files\OpenJDK"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 
