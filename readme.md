@@ -35,7 +35,7 @@ irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/insta
 ### 🪟 Windows · PowerShell · skip latest-version probe
 
 ```powershell
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1)))
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/alimtvnetwork/scripts-fixer-v12/main/install.ps1))) -NoUpgrade
 ```
 
 ### 🐧 macOS · Linux · Bash
