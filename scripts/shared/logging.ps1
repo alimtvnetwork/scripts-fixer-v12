@@ -81,7 +81,7 @@ function Write-Log {
     $hasCachedIdentity = $null -ne $script:_LogIdentity
     if (-not $hasCachedIdentity) {
         try { $script:_LogIdentity = Get-LogIdentityFields } catch {
-            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown" }
+            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown"; gitSha = "unknown"; gitShaFull = "unknown"; gitBranch = "unknown"; gitDirty = $false; gitRemote = "unknown" }
         }
     }
     $event = [ordered]@{
@@ -90,6 +90,8 @@ function Write-Log {
         message        = $Message
         projectVersion = $script:_LogIdentity.projectVersion
         invokedFrom    = $script:_LogIdentity.invokedFrom
+        gitSha         = $script:_LogIdentity.gitSha
+        gitBranch      = $script:_LogIdentity.gitBranch
         scriptName     = $script:_LogName
     }
     $script:_LogEvents.Add($event) | Out-Null
@@ -160,7 +162,7 @@ function Write-FileError {
     $hasCachedIdentity = $null -ne $script:_LogIdentity
     if (-not $hasCachedIdentity) {
         try { $script:_LogIdentity = Get-LogIdentityFields } catch {
-            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown" }
+            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown"; gitSha = "unknown"; gitShaFull = "unknown"; gitBranch = "unknown"; gitDirty = $false; gitRemote = "unknown" }
         }
     }
     $fileErrorEvent = [ordered]@{
@@ -175,6 +177,8 @@ function Write-FileError {
         message        = $msg
         projectVersion = $script:_LogIdentity.projectVersion
         invokedFrom    = $script:_LogIdentity.invokedFrom
+        gitSha         = $script:_LogIdentity.gitSha
+        gitBranch      = $script:_LogIdentity.gitBranch
         scriptName     = $script:_LogName
     }
     $script:_LogEvents.Add($fileErrorEvent) | Out-Null
@@ -254,7 +258,7 @@ function Initialize-Logging {
     # Write-Log / Write-FileError will copy these two fields onto its own
     # record so individual log lines stay traceable after grep / split / merge.
     try { $script:_LogIdentity = Get-LogIdentityFields } catch {
-        $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown" }
+        $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown"; gitSha = "unknown"; gitShaFull = "unknown"; gitBranch = "unknown"; gitDirty = $false; gitRemote = "unknown" }
     }
 
     Write-Log "Logging initialised -- events will be saved to: $logsDir\$safeName.json" -Level "info"
@@ -270,6 +274,11 @@ function Get-LogIdentityFields {
     #>
     $projectVersion = "unknown"
     $invokedFrom    = "unknown"
+    $gitSha         = "unknown"
+    $gitShaFull     = "unknown"
+    $gitBranch      = "unknown"
+    $gitDirty       = $false
+    $gitRemote      = "unknown"
 
     try {
         # Resolve project root the same way Initialize-Logging does.
@@ -279,6 +288,26 @@ function Get-LogIdentityFields {
             $scriptsRoot = Split-Path -Parent $PSScriptRoot
         }
         $projectRoot = Split-Path -Parent $scriptsRoot
+
+        # ----- git identity (best-effort, never throws) -----
+        try {
+            $gitDir = Join-Path $projectRoot ".git"
+            if (Test-Path -LiteralPath $gitDir) {
+                Push-Location -LiteralPath $projectRoot
+                try {
+                    $sha = (& git rev-parse --short=12 HEAD 2>$null) | Select-Object -First 1
+                    if ($sha) { $gitSha = "$sha".Trim() }
+                    $shaFull = (& git rev-parse HEAD 2>$null) | Select-Object -First 1
+                    if ($shaFull) { $gitShaFull = "$shaFull".Trim() }
+                    $branch = (& git rev-parse --abbrev-ref HEAD 2>$null) | Select-Object -First 1
+                    if ($branch) { $gitBranch = "$branch".Trim() }
+                    $remote = (& git config --get remote.origin.url 2>$null) | Select-Object -First 1
+                    if ($remote) { $gitRemote = "$remote".Trim() }
+                    $status = (& git status --porcelain 2>$null)
+                    if ($status) { $gitDirty = $true }
+                } finally { Pop-Location }
+            }
+        } catch { }
 
         # ----- projectVersion : read scripts/version.json -----
         $versionFile = Join-Path $scriptsRoot "version.json"
@@ -339,6 +368,11 @@ function Get-LogIdentityFields {
     return @{
         projectVersion = $projectVersion
         invokedFrom    = $invokedFrom
+        gitSha         = $gitSha
+        gitShaFull     = $gitShaFull
+        gitBranch      = $gitBranch
+        gitDirty       = $gitDirty
+        gitRemote      = $gitRemote
     }
 }
 
@@ -372,6 +406,11 @@ function Save-LogFile {
     $logData = [ordered]@{
         projectVersion = $identity.projectVersion
         invokedFrom    = $identity.invokedFrom
+        gitSha         = $identity.gitSha
+        gitShaFull     = $identity.gitShaFull
+        gitBranch      = $identity.gitBranch
+        gitDirty       = $identity.gitDirty
+        gitRemote      = $identity.gitRemote
         scriptName     = $script:_LogName
         status         = $Status
         startTime      = $script:_LogStart.ToString("o")
@@ -396,6 +435,11 @@ function Save-LogFile {
         $errorData = [ordered]@{
             projectVersion = $identity.projectVersion
             invokedFrom    = $identity.invokedFrom
+            gitSha         = $identity.gitSha
+            gitShaFull     = $identity.gitShaFull
+            gitBranch      = $identity.gitBranch
+            gitDirty       = $identity.gitDirty
+            gitRemote      = $identity.gitRemote
             scriptName     = $script:_LogName
             overallStatus  = $Status
             startTime      = $script:_LogStart.ToString("o")
@@ -432,6 +476,16 @@ function Save-LogFile {
             Write-Host "    >> $($err.message)" -ForegroundColor Red
         }
     }
+
+    # ── Version + Git SHA footer (always printed) ───────────────────────
+    $dirtyTag = if ($identity.gitDirty) { "-dirty" } else { "" }
+    Write-Host ""
+    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkCyan
+    Write-Host ("  scripts-fixer v{0}  |  git {1}{2} ({3})" -f $identity.projectVersion, $identity.gitSha, $dirtyTag, $identity.gitBranch) -ForegroundColor DarkCyan
+    if ($identity.gitRemote -and $identity.gitRemote -ne "unknown") {
+        Write-Host ("  repo: {0}" -f $identity.gitRemote) -ForegroundColor DarkGray
+    }
+    Write-Host "  ------------------------------------------------------------" -ForegroundColor DarkCyan
 }
 
 function Import-JsonConfig {
