@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "SQLite" `
     -Source "https://chocolatey.org/install (pkg: sqlite)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\ProgramData\chocolatey\lib\SQLite\tools)
-
+    -Target "C:\ProgramData\chocolatey\lib\SQLite\tools"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

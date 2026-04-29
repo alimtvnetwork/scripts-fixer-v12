@@ -94,8 +94,7 @@ Write-InstallPaths `
     -Tool   "MySQL Server" `
     -Source "https://chocolatey.org/install (pkg: mysql)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\MySQL\MySQL Server)
-
+    -Target "C:\Program Files\MySQL\MySQL Server"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

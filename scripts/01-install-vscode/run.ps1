@@ -47,8 +47,7 @@ Write-InstallPaths `
     -Tool   "Visual Studio Code" `
     -Source "https://chocolatey.org/install (pkg: vscode)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Microsoft VS Code)
-
+    -Target "C:\Program Files\Microsoft VS Code"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

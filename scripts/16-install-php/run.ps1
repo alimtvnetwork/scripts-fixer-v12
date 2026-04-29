@@ -103,8 +103,7 @@ Write-InstallPaths `
     -Tool   "PHP" `
     -Source "https://chocolatey.org/install (pkg: php)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\tools\php)
-
+    -Target "C:\tools\php"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "PostgreSQL" `
     -Source "https://chocolatey.org/install (pkg: postgresql)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\PostgreSQL)
-
+    -Target "C:\Program Files\PostgreSQL"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

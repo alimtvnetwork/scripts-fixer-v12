@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "MongoDB" `
     -Source "https://chocolatey.org/install (pkg: mongodb)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\MongoDB\Server)
-
+    -Target "C:\Program Files\MongoDB\Server"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

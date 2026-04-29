@@ -63,8 +63,7 @@ Write-InstallPaths `
     -Tool   "OBS Studio" `
     -Source "https://chocolatey.org/install (pkg: obs-studio)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\obs-studio)
-
+    -Target "C:\Program Files\obs-studio"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

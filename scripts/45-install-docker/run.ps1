@@ -48,8 +48,7 @@ Write-InstallPaths `
     -Tool   "Docker Desktop" `
     -Source "https://chocolatey.org/install (pkg: docker-desktop)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Docker\Docker)
-
+    -Target "C:\Program Files\Docker\Docker"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

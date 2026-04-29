@@ -49,8 +49,7 @@ Write-InstallPaths `
     -Tool   "Redis" `
     -Source "https://chocolatey.org/install (pkg: redis-64)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\ProgramData\chocolatey\lib\redis-64\tools)
-
+    -Target "C:\ProgramData\chocolatey\lib\redis-64\tools"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 

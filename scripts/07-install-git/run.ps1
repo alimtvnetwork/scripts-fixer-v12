@@ -50,8 +50,7 @@ Write-InstallPaths `
     -Tool   "Git + Git LFS + GitHub CLI" `
     -Source "https://chocolatey.org/install (pkg: git, git-lfs, gh)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Git)
-
+    -Target "C:\Program Files\Git"
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
 
