@@ -124,6 +124,17 @@ function Show-ScriptHelp {
         }
     }
 
+    # -- Auto-resolve version from scripts/version.json if not provided -------
+    if ([string]::IsNullOrWhiteSpace($Version)) {
+        try {
+            $versionJsonPath = Join-Path (Split-Path $PSScriptRoot -Parent) "version.json"
+            if (Test-Path $versionJsonPath) {
+                $vJson = Get-Content $versionJsonPath -Raw | ConvertFrom-Json
+                if ($vJson -and $vJson.version) { $Version = "$($vJson.version)" }
+            }
+        } catch {}
+    }
+
     Write-Host ""
     $headerLine = $slm.messages.helpHeader -replace '\{name\}', $Name -replace '\{version\}', $Version
     Write-Host $headerLine -ForegroundColor Cyan
