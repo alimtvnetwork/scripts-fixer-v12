@@ -49,7 +49,7 @@ Write-InstallPaths `
     -Tool   "Go" `
     -Source "https://chocolatey.org/install (pkg: golang)" `
     -Temp   ($env:TEMP + "\chocolatey") `
-    -Target (C:\Program Files\Go)
+    -Target "C:\Program Files\Go"
 
 # -- Initialize logging --------------------------------------------------------
 Initialize-Logging -ScriptName $logMessages.scriptName
