@@ -406,6 +406,11 @@ function Save-LogFile {
     $logData = [ordered]@{
         projectVersion = $identity.projectVersion
         invokedFrom    = $identity.invokedFrom
+        gitSha         = $identity.gitSha
+        gitShaFull     = $identity.gitShaFull
+        gitBranch      = $identity.gitBranch
+        gitDirty       = $identity.gitDirty
+        gitRemote      = $identity.gitRemote
         scriptName     = $script:_LogName
         status         = $Status
         startTime      = $script:_LogStart.ToString("o")
