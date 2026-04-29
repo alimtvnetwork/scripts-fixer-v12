@@ -76,3 +76,18 @@ log_msg_ip() {
     *)    log_info "[$hostname_val @ $ip_val] $message" ;;
   esac
 }
+
+# Print a version + git SHA footer. Call at the end of every script.
+# Usage: log_footer
+log_footer() {
+  local dirty=""
+  [ "$__GIT_DIRTY" = "true" ] && dirty="-dirty"
+  printf '\n'
+  printf '\033[36m  ------------------------------------------------------------\033[0m\n'
+  printf '\033[36m  scripts-fixer v%s  |  git %s%s (%s)\033[0m\n' \
+    "$__PROJECT_VERSION" "$__GIT_SHA" "$dirty" "$__GIT_BRANCH"
+  if [ "$__GIT_REMOTE" != "unknown" ] && [ -n "$__GIT_REMOTE" ]; then
+    printf '\033[2m  repo: %s\033[0m\n' "$__GIT_REMOTE"
+  fi
+  printf '\033[36m  ------------------------------------------------------------\033[0m\n'
+}
