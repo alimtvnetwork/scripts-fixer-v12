@@ -173,7 +173,9 @@ function Invoke-ChocoProcess {
         $stderr = if (Test-Path $stderrPath) { Get-Content -Path $stderrPath -Raw -ErrorAction SilentlyContinue } else { "" }
         $outputParts = @($stdout, $stderr)
         $output = (($outputParts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine).Trim()
-        $isSuccess = $process.ExitCode -eq 0
+        # Chocolatey returns 0 on clean success and 1641/3010 when a reboot is pending.
+        # Treat reboot-pending as success since the package itself was installed.
+        $isSuccess = ($process.ExitCode -eq 0) -or ($process.ExitCode -eq 3010) -or ($process.ExitCode -eq 1641)
         $diagnosticPath = $null
         if (-not $isSuccess) {
             $diagnosticPath = Save-ChocoDiagnosticLog -Label $Label -ArgumentList $ArgumentList -ExitCode $process.ExitCode -TimedOut $false -TimeoutSeconds $TimeoutSeconds -Stdout $stdout -Stderr $stderr
