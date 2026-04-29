@@ -15,6 +15,140 @@ if ((Test-Path $_loggingPath) -and -not (Get-Command Write-Log -ErrorAction Sile
 }
 
 
+
+function Update-SessionPathFromRegistry {
+    <#
+    .SYNOPSIS
+        Rebuilds $env:Path from the Machine + User registry hives.
+        This mirrors what Chocolatey's `refreshenv` does for PATH so a freshly
+        installed tool becomes visible without opening a new terminal.
+    .OUTPUTS
+        [int] number of PATH entries that were not present before.
+    #>
+    $oldEntries = @($env:Path -split ';' | Where-Object { $_ })
+    $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $user    = [Environment]::GetEnvironmentVariable("Path", "User")
+    $combined = @()
+    if ($machine) { $combined += ($machine -split ';' | Where-Object { $_ }) }
+    if ($user)    { $combined += ($user    -split ';' | Where-Object { $_ }) }
+    # De-duplicate while preserving order
+    $seen = @{}
+    $deduped = foreach ($e in $combined) {
+        $k = $e.TrimEnd('\').ToLowerInvariant()
+        if (-not $seen.ContainsKey($k)) { $seen[$k] = $true; $e }
+    }
+    $env:Path = ($deduped -join ';')
+    $added = @($deduped | Where-Object { $_ -notin $oldEntries }).Count
+    return $added
+}
+
+function Invoke-RefreshEnv {
+    <#
+    .SYNOPSIS
+        Best-effort wrapper around Chocolatey's `refreshenv` helper script.
+        Returns $true if the helper ran without throwing.
+    #>
+    $helper = Join-Path $env:ProgramData "chocolatey\bin\RefreshEnv.cmd"
+    $hasHelper = Test-Path -LiteralPath $helper
+    if (-not $hasHelper) { return $false }
+    try {
+        # Run inside cmd.exe and re-import any env vars it set
+        $envDump = & cmd.exe /c "`"$helper`" >nul 2>&1 && set"
+        foreach ($line in $envDump) {
+            if ($line -match '^([^=]+)=(.*)$') {
+                $name  = $matches[1]
+                $value = $matches[2]
+                # Skip cmd-internal vars
+                if ($name -in @('PROMPT','COMSPEC','CD','ERRORLEVEL','=ExitCode')) { continue }
+                Set-Item -Path "Env:\$name" -Value $value -ErrorAction SilentlyContinue
+            }
+        }
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Assert-GoOnPath {
+    <#
+    .SYNOPSIS
+        Verifies that `go version` works in the current session. Recovers the
+        PATH from the registry (and Chocolatey's refreshenv) if needed, and
+        falls back to probing well-known install locations.
+    .OUTPUTS
+        Hashtable with keys: Success (bool), Version (string), GoExe (string).
+    #>
+    param(
+        $LogMessages
+    )
+
+    Write-Log $LogMessages.messages.goVerifyStart -Level "info"
+
+    function Test-GoVersion {
+        $cmd = Get-Command go.exe -ErrorAction SilentlyContinue
+        if (-not $cmd) { return $null }
+        try {
+            $out = & $cmd.Source version 2>&1
+            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($out)) {
+                return @{ Version = "$out".Trim(); GoExe = $cmd.Source }
+            }
+        } catch { }
+        return $null
+    }
+
+    # Attempt 1: current session as-is
+    $result = Test-GoVersion
+    if ($result) {
+        Write-Log ($LogMessages.messages.goVerifyOk -replace '\{version\}', $result.Version) -Level "success"
+        return @{ Success = $true; Version = $result.Version; GoExe = $result.GoExe }
+    }
+
+    # Attempt 2: rebuild PATH from registry (mirrors `refreshenv`)
+    Write-Log $LogMessages.messages.goVerifyMissing -Level "warn"
+    $added = Update-SessionPathFromRegistry
+    Write-Log ($LogMessages.messages.goVerifyRefreshed -replace '\{count\}', "$added") -Level "info"
+    $result = Test-GoVersion
+    if ($result) {
+        Write-Log ($LogMessages.messages.goVerifyOk -replace '\{version\}', $result.Version) -Level "success"
+        return @{ Success = $true; Version = $result.Version; GoExe = $result.GoExe }
+    }
+
+    # Attempt 3: Chocolatey's refreshenv.cmd
+    Write-Log $LogMessages.messages.goVerifyRefreshenv -Level "info"
+    [void](Invoke-RefreshEnv)
+    $result = Test-GoVersion
+    if ($result) {
+        Write-Log ($LogMessages.messages.goVerifyOk -replace '\{version\}', $result.Version) -Level "success"
+        return @{ Success = $true; Version = $result.Version; GoExe = $result.GoExe }
+    }
+
+    # Attempt 4: probe well-known install locations
+    $candidates = @(
+        "C:\Program Files\Go\bin\go.exe",
+        "C:\Program Files (x86)\Go\bin\go.exe",
+        (Join-Path $env:ProgramData "chocolatey\lib\golang\tools\go\bin\go.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Go\bin\go.exe")
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    Write-Log ($LogMessages.messages.goVerifyProbe -replace '\{paths\}', ($candidates -join '; ')) -Level "info"
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) {
+            $binDir = Split-Path -Parent $candidate
+            Write-Log ($LogMessages.messages.goVerifyFoundAt -replace '\{path\}', $candidate) -Level "warn"
+            $env:Path = "$binDir;$env:Path"
+            $result = Test-GoVersion
+            if ($result) {
+                Write-Log ($LogMessages.messages.goVerifyOk -replace '\{version\}', $result.Version) -Level "success"
+                return @{ Success = $true; Version = $result.Version; GoExe = $result.GoExe }
+            }
+        }
+    }
+
+    # Give up -- caller decides whether to fail the run
+    Write-FileError -FilePath "go.exe" -Operation "resolve" -Reason $LogMessages.messages.goVerifyFinalFail -Module "Assert-GoOnPath"
+    return @{ Success = $false; Version = $null; GoExe = $null }
+}
+
 function Install-Go {
     <#
     .SYNOPSIS
