@@ -262,9 +262,14 @@ function Install-ChocoPackage {
 
     Write-Log ($slm.messages.chocoCheckingPackage -replace '\{package\}', $PackageName) -Level "info"
 
-    $installedResult = Invoke-ChocoProcess -ArgumentList @("list", "--local-only", "--exact", $PackageName) -Label "choco list $PackageName" -TimeoutSeconds 120
+    # NOTE: Chocolatey v2 removed --local-only (list is local by default).
+    # Passing it makes choco exit non-zero, so we omit it and rely on output match.
+    $installedResult = Invoke-ChocoProcess -ArgumentList @("list", "--exact", $PackageName) -Label "choco list $PackageName" -TimeoutSeconds 120
     $installed = $installedResult.Output
-    $isAlreadyInstalled = $installedResult.Success -and $installed -match $PackageName
+    # Match "<package> <version>" line; "0 packages installed" means not installed.
+    $isAlreadyInstalled = $installedResult.Success `
+        -and ($installed -match "(?im)^\s*$([regex]::Escape($PackageName))\s+\d") `
+        -and ($installed -notmatch "0 packages installed")
     if ($isAlreadyInstalled) {
         Write-Log ($slm.messages.chocoPackageInstalled -replace '\{package\}', $PackageName) -Level "success"
         return $true
