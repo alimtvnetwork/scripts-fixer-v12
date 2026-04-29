@@ -173,7 +173,9 @@ function Invoke-ChocoProcess {
         $stderr = if (Test-Path $stderrPath) { Get-Content -Path $stderrPath -Raw -ErrorAction SilentlyContinue } else { "" }
         $outputParts = @($stdout, $stderr)
         $output = (($outputParts | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine).Trim()
-        $isSuccess = $process.ExitCode -eq 0
+        # Chocolatey returns 0 on clean success and 1641/3010 when a reboot is pending.
+        # Treat reboot-pending as success since the package itself was installed.
+        $isSuccess = ($process.ExitCode -eq 0) -or ($process.ExitCode -eq 3010) -or ($process.ExitCode -eq 1641)
         $diagnosticPath = $null
         if (-not $isSuccess) {
             $diagnosticPath = Save-ChocoDiagnosticLog -Label $Label -ArgumentList $ArgumentList -ExitCode $process.ExitCode -TimedOut $false -TimeoutSeconds $TimeoutSeconds -Stdout $stdout -Stderr $stderr
@@ -262,9 +264,14 @@ function Install-ChocoPackage {
 
     Write-Log ($slm.messages.chocoCheckingPackage -replace '\{package\}', $PackageName) -Level "info"
 
-    $installedResult = Invoke-ChocoProcess -ArgumentList @("list", "--local-only", "--exact", $PackageName) -Label "choco list $PackageName" -TimeoutSeconds 120
+    # NOTE: Chocolatey v2 removed --local-only (list is local by default).
+    # Passing it makes choco exit non-zero, so we omit it and rely on output match.
+    $installedResult = Invoke-ChocoProcess -ArgumentList @("list", "--exact", $PackageName) -Label "choco list $PackageName" -TimeoutSeconds 120
     $installed = $installedResult.Output
-    $isAlreadyInstalled = $installedResult.Success -and $installed -match $PackageName
+    # Match "<package> <version>" line; "0 packages installed" means not installed.
+    $isAlreadyInstalled = $installedResult.Success `
+        -and ($installed -match "(?im)^\s*$([regex]::Escape($PackageName))\s+\d") `
+        -and ($installed -notmatch "0 packages installed")
     if ($isAlreadyInstalled) {
         Write-Log ($slm.messages.chocoPackageInstalled -replace '\{package\}', $PackageName) -Level "success"
         return $true
